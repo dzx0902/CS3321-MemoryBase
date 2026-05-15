@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS wiki_page (
     CHECK (page_type IN ('source', 'entity', 'concept', 'synthesis', 'report', 'timeline', 'handbook')),
   title VARCHAR(240) NOT NULL,
   current_revision_no INT NOT NULL DEFAULT 0,
+  generated_from_scene_id UUID,
+  generated_from_memory_id UUID REFERENCES memory_item(memory_id) ON DELETE SET NULL,
   needs_rebuild BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -26,8 +28,8 @@ CREATE TABLE IF NOT EXISTS wiki_page_revision (
 CREATE TABLE IF NOT EXISTS timeline_entry (
   timeline_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
-  memory_id UUID REFERENCES memory_item(memory_id),
-  doc_id UUID REFERENCES source_document(doc_id),
+  memory_id UUID REFERENCES memory_item(memory_id) ON DELETE SET NULL,
+  doc_id UUID REFERENCES source_document(doc_id) ON DELETE SET NULL,
   event_type VARCHAR(30) NOT NULL
     CHECK (event_type IN ('meeting', 'proposal', 'decision', 'revision', 'conflict', 'resolution')),
   title VARCHAR(240) NOT NULL,
@@ -40,8 +42,8 @@ CREATE TABLE IF NOT EXISTS timeline_entry (
 CREATE TABLE IF NOT EXISTS recall_log (
   recall_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
-  agent_id UUID REFERENCES agent(agent_id),
-  user_id UUID REFERENCES user_account(user_id),
+  agent_id UUID REFERENCES agent(agent_id) ON DELETE SET NULL,
+  user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
   query_text TEXT NOT NULL,
   filter_json JSONB NOT NULL DEFAULT '{}'::jsonb,
   result_count INT NOT NULL DEFAULT 0,
