@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS agent_session (
   session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
-  agent_id UUID REFERENCES agent(agent_id),
-  started_by_user_id UUID REFERENCES user_account(user_id),
+  agent_id UUID REFERENCES agent(agent_id) ON DELETE SET NULL,
+  started_by_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
   title VARCHAR(200) NOT NULL,
   channel VARCHAR(30) NOT NULL DEFAULT 'meeting'
     CHECK (channel IN ('meeting', 'chat', 'import', 'manual')),
@@ -18,21 +18,22 @@ CREATE TABLE IF NOT EXISTS message (
   role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
   content TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  reply_to_message_id UUID REFERENCES message(message_id)
+  reply_to_message_id UUID REFERENCES message(message_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS source_document (
   doc_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
-  session_id UUID REFERENCES agent_session(session_id),
+  session_id UUID REFERENCES agent_session(session_id) ON DELETE SET NULL,
   doc_type VARCHAR(30) NOT NULL DEFAULT 'markdown'
     CHECK (doc_type IN ('markdown', 'txt', 'meeting', 'chat', 'note', 'report')),
   title VARCHAR(240) NOT NULL,
   source_path TEXT,
   raw_text TEXT NOT NULL,
-  checksum VARCHAR(128) UNIQUE,
-  imported_by_user_id UUID REFERENCES user_account(user_id),
-  imported_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  checksum VARCHAR(128),
+  imported_by_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
+  imported_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(workspace_id, checksum)
 );
 
 CREATE TABLE IF NOT EXISTS source_chunk (
