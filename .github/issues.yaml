@@ -1,0 +1,2563 @@
+issues:
+  - id: "I001"
+    title: "梳理 MemoryBase 仓库结构与本地启动入口"
+    epic: "Epic 1：项目初始化与 GitHub 工程规范"
+    priority: "priority: p0"
+    milestone: "M1 - Project Setup & Documentation"
+    labels:
+      - "type: task"
+      - "type: chore"
+      - "priority: p0"
+      - "area: project"
+      - "area: docs"
+    depends_on: []
+    template: "task"
+    body: |
+      ## 背景
+      
+      MemoryBase 需要一个可复现的课程项目骨架，保证 README、本地启动、数据库初始化、前后端目录和 demo 数据目录互相一致。
+      
+      ## 目标
+      
+      完成仓库结构与本地启动入口的对齐，让新成员可以按 README 跑起 PostgreSQL、后端和前端骨架。
+      
+      ## 任务清单
+      
+      - [ ] 对照 README 校验 `backend/`、`frontend/`、`database/`、`docs/`、`scripts/` 与 `data/` 目录说明。
+      - [ ] 补齐 `.env.example`、demo 数据目录占位文件和 `data/markdown_wiki/` 导出目录说明。
+      - [ ] 在 README 中明确 Docker Compose、SQL 初始化、后端启动、前端启动的顺序。
+      
+      ## 涉及文件
+      
+      - `README.md`
+      - `.env.example`
+      - `docker-compose.yml`
+      - `database/README.md`
+      - `data/raw_sources/demo_workspace/.gitkeep`
+      - `data/markdown_wiki/.gitkeep`
+      
+      ## 涉及数据表
+      
+      无。
+      
+      ## 涉及 API
+      
+      - `GET /api/health`
+      
+      ## 验收标准
+      
+      - [ ] README 中的启动命令与仓库真实目录一致。
+      - [ ] demo source 与 wiki export 目录存在或有清晰创建说明。
+      - [ ] 新成员可以按文档完成数据库、后端、前端三段启动。
+      
+      ## 依赖关系
+      
+      无。
+      
+      ## 备注
+      
+      Module 建议：Project / Onboarding。不要引入新框架，重点是让后续 issue 有稳定目录锚点。
+      
+      ---
+  - id: "I002"
+    title: "统一 GitHub Issue / PR 模板与协作规则"
+    epic: "Epic 1：项目初始化与 GitHub 工程规范"
+    priority: "priority: p0"
+    milestone: "M1 - Project Setup & Documentation"
+    labels:
+      - "type: task"
+      - "type: chore"
+      - "priority: p0"
+      - "area: project"
+      - "area: docs"
+    depends_on: ["I001"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      项目要求所有任务通过 Issue 和 Pull Request 流转，现有模板需要与课程文档中的 labels、milestones、AI 使用说明保持一致。
+      
+      ## 目标
+      
+      在不删除现有模板的前提下，校准 Issue/PR 模板、协作规则和分支保护建议。
+      
+      ## 任务清单
+      
+      - [ ] 检查 `.github/ISSUE_TEMPLATE/` 中 `task`、`feature_request`、`bug_report` 的字段是否覆盖目标、任务清单和验收标准。
+      - [ ] 更新 `CONTRIBUTING.md` 与 `docs/12-github-workflow.md`，写清 labels、milestones、branch naming、review 要求。
+      - [ ] 在 PR 模板中保留数据库影响、测试情况和 AI 使用情况。
+      
+      ## 涉及文件
+      
+      - `.github/ISSUE_TEMPLATE/task.yml`
+      - `.github/ISSUE_TEMPLATE/feature_request.yml`
+      - `.github/ISSUE_TEMPLATE/bug_report.yml`
+      - `.github/PULL_REQUEST_TEMPLATE.md`
+      - `CONTRIBUTING.md`
+      - `docs/12-github-workflow.md`
+      
+      ## 涉及数据表
+      
+      无。
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] Issue 模板字段能承载背景、目标、任务清单、验收标准。
+      - [ ] PR 模板要求关联 Issue、说明测试、说明数据库影响。
+      - [ ] 文档中明确 main/dev/feature/fix/docs/sql 分支策略和 review 规则。
+      
+      ## 依赖关系
+      
+      Depends on: I001
+      
+      ## 备注
+      
+      Module 建议：GitHub Workflow。现有模板不得删除；如需新增字段，应单独评审。
+      
+      ---
+  - id: "I003"
+    title: "完善 CI 与 GitHub Pages 发布检查"
+    epic: "Epic 1：项目初始化与 GitHub 工程规范"
+    priority: "priority: p1"
+    milestone: "M1 - Project Setup & Documentation"
+    labels:
+      - "type: task"
+      - "type: ci"
+      - "priority: p1"
+      - "area: project"
+    depends_on: ["I001", "I002"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      CI 是 PR 合并和课程展示稳定性的基础，GitHub Pages 可用于发布静态文档或前端演示构建。
+      
+      ## 目标
+      
+      完善 GitHub Actions，使后端、前端、SQL 初始化和可选 Pages 构建都能在 PR 中被检查。
+      
+      ## 任务清单
+      
+      - [ ] 扩展 `.github/workflows/ci.yml`，覆盖 Ruff、后端 smoke、前端 lint/build、PostgreSQL SQL 初始化。
+      - [ ] 增加 GitHub Pages 构建建议或独立 workflow，明确发布源和限制。
+      - [ ] 在 `docs/12-github-workflow.md` 中写明 CI 失败时的处理流程。
+      
+      ## 涉及文件
+      
+      - `.github/workflows/ci.yml`
+      - `frontend/package.json`
+      - `backend/requirements.txt`
+      - `docs/12-github-workflow.md`
+      
+      ## 涉及数据表
+      
+      无。
+      
+      ## 涉及 API
+      
+      - `GET /api/health`
+      
+      ## 验收标准
+      
+      - [ ] PR 触发后端、前端和数据库基础检查。
+      - [ ] CI 能执行 `database/00_init.sql` 到 `database/06_triggers.sql`。
+      - [ ] GitHub Pages 发布方式有文档或 workflow 支持。
+      
+      ## 依赖关系
+      
+      Depends on: I001, I002
+      
+      ## 备注
+      
+      Module 建议：CI / Release。Pages 是 P1，不阻塞 P0 MVP。
+      
+      ---
+  - id: "I004"
+    title: "提供从 .github/issues.yaml 发布 Issues 的本地脚本"
+    epic: "Epic 1：项目初始化与 GitHub 工程规范"
+    priority: "priority: p1"
+    milestone: "M1 - Project Setup & Documentation"
+    labels:
+      - "type: task"
+      - "type: chore"
+      - "priority: p1"
+      - "area: project"
+    depends_on: ["I002"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      本次拆分会生成 `.github/issues.yaml`，后续需要人工确认后再由脚本批量发布到 GitHub。
+      
+      ## 目标
+      
+      提供一个不会自动执行的本地发布脚本，用于读取结构化 YAML 并生成 `gh issue create` 命令预览。
+      
+      ## 任务清单
+      
+      - [ ] 编写 `scripts/create_github_issues.py` 或同等脚本，解析 `.github/issues.yaml`。
+      - [ ] 默认只 dry-run 输出命令，不直接创建 Issue。
+      - [ ] 在 README 或 `docs/14-initial-issues.md` 中说明使用前需要人工确认。
+      
+      ## 涉及文件
+      
+      - `.github/issues.yaml`
+      - `scripts/create_github_issues.py`
+      - `docs/14-initial-issues.md`
+      - `README.md`
+      
+      ## 涉及数据表
+      
+      无。
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] 脚本能校验 id、title、labels、milestone、body 必填字段。
+      - [ ] dry-run 输出可复制执行的 `gh issue create` 命令。
+      - [ ] 默认路径不会调用 GitHub API 或创建真实 Issue。
+      
+      ## 依赖关系
+      
+      Depends on: I002
+      
+      ## 备注
+      
+      Module 建议：GitHub Automation。发布动作必须由人工显式确认后执行。
+      
+      ---
+  - id: "I005"
+    title: "校准项目总览与需求分析课程文档"
+    epic: "Epic 2：需求分析与课程文档"
+    priority: "priority: p0"
+    milestone: "M1 - Project Setup & Documentation"
+    labels:
+      - "type: task"
+      - "type: docs"
+      - "priority: p0"
+      - "area: docs"
+    depends_on: ["I001"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      项目总览和需求分析是课程报告、Issue 拆分和实现边界的共同依据，必须准确表达 MemoryBase 不是普通 RAG，而是数据库治理系统。
+      
+      ## 目标
+      
+      校准项目定位、角色、功能需求、非功能需求、P0/P1/P2 边界和演示闭环。
+      
+      ## 任务清单
+      
+      - [ ] 更新 `docs/00-project-overview.md`，明确 Source → Memory → Evidence → Revision/Audit → Wiki 主线。
+      - [ ] 更新 `docs/01-requirements.md`，核对角色、功能表、非功能需求和不做内容。
+      - [ ] 将 README 与 `docs/summary.md` 中的 P0/P1/P2 表述统一。
+      
+      ## 涉及文件
+      
+      - `README.md`
+      - `docs/summary.md`
+      - `docs/00-project-overview.md`
+      - `docs/01-requirements.md`
+      
+      ## 涉及数据表
+      
+      无。
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] 文档明确 P0 不依赖 LLM。
+      - [ ] 角色和功能需求能映射到数据表、API 或页面。
+      - [ ] 演示闭环包含 6 份 source、20 条 memory、evidence、recall、revision、audit、3 个 Wiki 页面。
+      
+      ## 依赖关系
+      
+      Depends on: I001
+      
+      ## 备注
+      
+      Module 建议：Documentation / Requirements。
+      
+      ---
+  - id: "I006"
+    title: "补齐数据流图与数据字典文档"
+    epic: "Epic 2：需求分析与课程文档"
+    priority: "priority: p0"
+    milestone: "M1 - Project Setup & Documentation"
+    labels:
+      - "type: task"
+      - "type: docs"
+      - "priority: p0"
+      - "area: docs"
+    depends_on: ["I005"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      数据库课程要求展示数据流、数据项、数据结构、数据存储和处理过程，MemoryBase 的导入、召回、导出链路需要清晰说明。
+      
+      ## 目标
+      
+      完善 DFD 与数据字典，使后续表结构、API 和测试能按同一术语实现。
+      
+      ## 任务清单
+      
+      - [ ] 在 `docs/02-data-flow.md` 中补齐 0 层、1 层、Source 导入、Recall、Wiki 导出数据流。
+      - [ ] 在 `docs/03-data-dictionary.md` 中补齐核心数据项、数据结构、数据流和数据存储。
+      - [ ] 核对字段名与 SQL schema 中的 `doc_id`、`chunk_id`、`memory_id`、`policy_id` 等一致。
+      
+      ## 涉及文件
+      
+      - `docs/02-data-flow.md`
+      - `docs/03-data-dictionary.md`
+      - `database/01_schema_core.sql`
+      - `database/02_schema_memory.sql`
+      - `database/03_schema_governance.sql`
+      
+      ## 涉及数据表
+      
+      - `source_document`
+      - `source_chunk`
+      - `memory_item`
+      - `memory_evidence`
+      - `recall_log`
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] 每个数据存储都能对应到至少一个数据库表。
+      - [ ] Source 导入、Recall 检索、Wiki 导出都有 2 层 DFD。
+      - [ ] 数据字典中的约束和枚举值与 SQL CHECK 约束一致。
+      
+      ## 依赖关系
+      
+      Depends on: I005
+      
+      ## 备注
+      
+      Module 建议：Documentation / Data Flow。
+      
+      ---
+  - id: "I007"
+    title: "完善 E-R、逻辑结构与物理结构设计文档"
+    epic: "Epic 2：需求分析与课程文档"
+    priority: "priority: p0"
+    milestone: "M1 - Project Setup & Documentation"
+    labels:
+      - "type: task"
+      - "type: docs"
+      - "priority: p0"
+      - "area: database"
+      - "area: docs"
+    depends_on: ["I005", "I006"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      项目评分需要体现概念结构设计、E-R 到关系模型转换、3NF 分析、索引和存储安排。
+      
+      ## 目标
+      
+      将 E-R 图、关系模式和物理结构与实际 SQL 文件对齐。
+      
+      ## 任务清单
+      
+      - [ ] 更新 `docs/04-er-design.md`，确认实体、属性、联系和基数。
+      - [ ] 更新 `docs/05-logical-design.md`，列出关系模式、PK、FK、UNIQUE、CHECK 和 M:N 中间表。
+      - [ ] 更新 `docs/06-physical-design.md`，说明 PostgreSQL、索引策略、路径和备份恢复。
+      
+      ## 涉及文件
+      
+      - `docs/04-er-design.md`
+      - `docs/05-logical-design.md`
+      - `docs/06-physical-design.md`
+      - `database/*.sql`
+      
+      ## 涉及数据表
+      
+      - `workspace`
+      - `source_document`
+      - `source_chunk`
+      - `memory_item`
+      - `memory_evidence`
+      - `memory_revision`
+      - `wiki_page`
+      - `audit_log`
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] E-R 图覆盖 Source、Memory、Evidence、Governance、Wiki 五层。
+      - [ ] M:N 关系通过 `memory_evidence`、`workspace_member` 等中间表说明。
+      - [ ] 物理设计说明索引、全文检索、视图、触发器和软删除策略。
+      
+      ## 依赖关系
+      
+      Depends on: I005, I006
+      
+      ## 备注
+      
+      Module 建议：Database Design。
+      
+      ---
+  - id: "I008"
+    title: "同步架构、API、IPO、测试、演示与报告文档"
+    epic: "Epic 2：需求分析与课程文档"
+    priority: "priority: p1"
+    milestone: "M1 - Project Setup & Documentation"
+    labels:
+      - "type: task"
+      - "type: docs"
+      - "priority: p1"
+      - "area: docs"
+    depends_on: ["I005", "I007"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      系统架构、API、模块 IPO、测试计划、演示脚本和最终报告需要和实际 backlog 同步，避免后续实现与报告脱节。
+      
+      ## 目标
+      
+      更新 `docs/07` 到 `docs/13`，形成可交付的课程文档闭环。
+      
+      ## 任务清单
+      
+      - [ ] 校准架构图、模块边界和后端/前端目录建议。
+      - [ ] 校准 API 设计、IPO 表、测试用例、演示步骤和最终报告目录。
+      - [ ] 在测试计划中覆盖 Source、Memory、Recall、Wiki、Audit、Policy 关键用例。
+      
+      ## 涉及文件
+      
+      - `docs/07-system-architecture.md`
+      - `docs/08-api-design.md`
+      - `docs/09-module-ipo.md`
+      - `docs/10-test-plan.md`
+      - `docs/11-demo-script.md`
+      - `docs/13-final-report-outline.md`
+      
+      ## 涉及数据表
+      
+      无。
+      
+      ## 涉及 API
+      
+      - `POST /api/sources`
+      - `POST /api/memories`
+      - `POST /api/recall`
+      - `POST /api/wiki/export`
+      - `GET /api/audit`
+      
+      ## 验收标准
+      
+      - [ ] API 文档列出请求、响应和关键查询参数。
+      - [ ] IPO 表每个模块都能对应到表和 API。
+      - [ ] 演示脚本能在 5-8 分钟内覆盖数据库能力亮点。
+      
+      ## 依赖关系
+      
+      Depends on: I005, I007
+      
+      ## 备注
+      
+      Module 建议：Documentation / Report。
+      
+      ---
+  - id: "I009"
+    title: "实现 core schema：用户、工作区、Agent 与成员关系"
+    epic: "Epic 3：数据库 Schema 与 SQL 基础"
+    priority: "priority: p0"
+    milestone: "M2 - Database Schema & SQL Foundation"
+    labels:
+      - "type: task"
+      - "type: database"
+      - "priority: p0"
+      - "area: database"
+    depends_on: ["I001"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Workspace、用户、Agent 和成员关系是所有 Source、Memory、Policy 与 Audit 数据的归属基础。
+      
+      ## 目标
+      
+      完成 core schema，体现主键、外键、UNIQUE、CHECK 与 M:N 成员关系。
+      
+      ## 任务清单
+      
+      - [ ] 实现或校准 `user_account`、`workspace`、`agent`、`workspace_member`。
+      - [ ] 为角色、scope、agent status、member_role 增加 CHECK 约束。
+      - [ ] 确认 `workspace_member` 使用复合主键表示用户/Agent 与 workspace 的 M:N 关系。
+      
+      ## 涉及文件
+      
+      - `database/00_init.sql`
+      - `database/01_schema_core.sql`
+      - `docs/05-logical-design.md`
+      
+      ## 涉及数据表
+      
+      - `user_account`
+      - `workspace`
+      - `agent`
+      - `workspace_member`
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] SQL 可在空 PostgreSQL 数据库重复执行。
+      - [ ] 四张表都有主键，关键引用有外键。
+      - [ ] 约束覆盖角色、scope、Agent 类型和状态。
+      
+      ## 依赖关系
+      
+      Depends on: I001
+      
+      ## 备注
+      
+      Module 建议：Database / Core Schema。
+      
+      ---
+  - id: "I010"
+    title: "实现 Source / Session / Message / Chunk schema"
+    epic: "Epic 3：数据库 Schema 与 SQL 基础"
+    priority: "priority: p0"
+    milestone: "M2 - Database Schema & SQL Foundation"
+    labels:
+      - "type: task"
+      - "type: database"
+      - "priority: p0"
+      - "area: source"
+      - "area: database"
+    depends_on: ["I009"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      SourceDocument 和 SourceChunk 是 MemoryBase 的原始证据层，必须保留 checksum、原文、chunk 顺序和行号。
+      
+      ## 目标
+      
+      完成会话、消息、源文档和 chunk schema，为导入、追溯和全文检索提供表结构。
+      
+      ## 任务清单
+      
+      - [ ] 实现或校准 `agent_session`、`message`、`source_document`、`source_chunk`。
+      - [ ] 在 `source_document` 增加 checksum 唯一约束，避免重复导入。
+      - [ ] 在 `source_chunk` 保存 `chunk_no`、`start_line`、`end_line`、`token_count` 和 `search_vector`。
+      
+      ## 涉及文件
+      
+      - `database/02_schema_memory.sql`
+      - `docs/03-data-dictionary.md`
+      - `docs/06-physical-design.md`
+      
+      ## 涉及数据表
+      
+      - `agent_session`
+      - `message`
+      - `source_document`
+      - `source_chunk`
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] `source_chunk` 对 `(doc_id, chunk_no)` 有 UNIQUE 约束。
+      - [ ] 删除 source document 时 chunk 删除策略清晰。
+      - [ ] `search_vector` 可用于 PostgreSQL 全文检索。
+      
+      ## 依赖关系
+      
+      Depends on: I009
+      
+      ## 备注
+      
+      Module 建议：Database / Source Schema。
+      
+      ---
+  - id: "I011"
+    title: "实现 Memory / Evidence / Revision schema"
+    epic: "Epic 3：数据库 Schema 与 SQL 基础"
+    priority: "priority: p0"
+    milestone: "M2 - Database Schema & SQL Foundation"
+    labels:
+      - "type: task"
+      - "type: database"
+      - "priority: p0"
+      - "area: memory"
+      - "area: evidence"
+    depends_on: ["I009", "I010"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      MemoryItem、MemoryEvidence、MemoryRevision 构成 P0 可追溯、可版本化记忆闭环。
+      
+      ## 目标
+      
+      完成 memory 核心表，确保每条 memory 能绑定 source chunk 并产生 revision。
+      
+      ## 任务清单
+      
+      - [ ] 实现或校准 `memory_item`、`memory_revision`、`memory_evidence`。
+      - [ ] 为 memory type、status、access level、confidence、importance 加 CHECK 约束。
+      - [ ] 用 `memory_evidence` 表达 SourceChunk 与 MemoryItem 的 M:N 来源关系。
+      
+      ## 涉及文件
+      
+      - `database/02_schema_memory.sql`
+      - `docs/05-logical-design.md`
+      - `docs/10-test-plan.md`
+      
+      ## 涉及数据表
+      
+      - `memory_item`
+      - `memory_revision`
+      - `memory_evidence`
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] `memory_revision` 使用 `(memory_id, revision_no)` 复合主键。
+      - [ ] `memory_evidence` 防止同一 memory/chunk/role 重复绑定。
+      - [ ] `memory_item.status` 支持 active、archived、forgotten、superseded、conflicted。
+      
+      ## 依赖关系
+      
+      Depends on: I009, I010
+      
+      ## 备注
+      
+      Module 建议：Database / Memory Schema。
+      
+      ---
+  - id: "I012"
+    title: "实现 Wiki / Timeline / Recall / Audit 基础 schema"
+    epic: "Epic 3：数据库 Schema 与 SQL 基础"
+    priority: "priority: p0"
+    milestone: "M2 - Database Schema & SQL Foundation"
+    labels:
+      - "type: task"
+      - "type: database"
+      - "priority: p0"
+      - "area: wiki"
+      - "area: audit"
+    depends_on: ["I009", "I011"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      RecallLog、AuditLog、WikiPage 和 WikiPageRevision 是 P0 演示中检索、审计和 Markdown 投影的核心表。
+      
+      ## 目标
+      
+      完成表达层和审计层基础 schema，支撑 recall 记录、wiki 版本和 audit 查询。
+      
+      ## 任务清单
+      
+      - [ ] 实现或校准 `wiki_page`、`wiki_page_revision`、`timeline_entry`。
+      - [ ] 实现或校准 `recall_log`、`audit_log`。
+      - [ ] 为 wiki page slug、revision_no、action_type、event_type 等字段添加必要约束。
+      
+      ## 涉及文件
+      
+      - `database/03_schema_governance.sql`
+      - `docs/05-logical-design.md`
+      - `docs/11-demo-script.md`
+      
+      ## 涉及数据表
+      
+      - `wiki_page`
+      - `wiki_page_revision`
+      - `timeline_entry`
+      - `recall_log`
+      - `audit_log`
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] Wiki 页面能通过 `(workspace_id, page_slug)` 唯一定位。
+      - [ ] Wiki revision 使用 `(page_id, revision_no)` 复合主键。
+      - [ ] Recall 和 Audit 都能保存 workspace、actor/query、结果快照和时间。
+      
+      ## 依赖关系
+      
+      Depends on: I009, I011
+      
+      ## 备注
+      
+      Module 建议：Database / Governance Base。
+      
+      ---
+  - id: "I013"
+    title: "实现 AccessPolicy、ConflictRecord 与 ForgetRequest 治理 schema"
+    epic: "Epic 3：数据库 Schema 与 SQL 基础"
+    priority: "priority: p1"
+    milestone: "M2 - Database Schema & SQL Foundation"
+    labels:
+      - "type: task"
+      - "type: database"
+      - "priority: p1"
+      - "area: policy"
+      - "area: conflict"
+    depends_on: ["I009", "I012"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      P1 治理能力需要权限策略、冲突记录和遗忘请求来体现 Agent Memory 的数据库治理价值。
+      
+      ## 目标
+      
+      补齐 AccessPolicy、ConflictRecord、ForgetRequest 相关 schema，并保持与 P0 表兼容。
+      
+      ## 任务清单
+      
+      - [ ] 校准 `access_policy` 的 principal、resource、effect、scope 字段。
+      - [ ] 新增 `conflict_record`，关联 left/right memory 并保存处理状态。
+      - [ ] 新增 `forget_request`，以审批流程实现归档/遗忘请求而非物理删除。
+      
+      ## 涉及文件
+      
+      - `database/03_schema_governance.sql`
+      - `docs/01-requirements.md`
+      - `docs/04-er-design.md`
+      
+      ## 涉及数据表
+      
+      - `access_policy`
+      - `conflict_record`
+      - `forget_request`
+      - `memory_item`
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] `access_policy` 支持 user、agent、role 三类 principal。
+      - [ ] `conflict_record` 能关联两条 memory 并保存 open/resolved/ignored 状态。
+      - [ ] `forget_request` 不物理删除 memory，而是驱动 status 变化。
+      
+      ## 依赖关系
+      
+      Depends on: I009, I012
+      
+      ## 备注
+      
+      Module 建议：Database / Governance Schema。
+      
+      ---
+  - id: "I014"
+    title: "增加关键索引与 PostgreSQL 全文检索支持"
+    epic: "Epic 3：数据库 Schema 与 SQL 基础"
+    priority: "priority: p0"
+    milestone: "M2 - Database Schema & SQL Foundation"
+    labels:
+      - "type: task"
+      - "type: database"
+      - "priority: p0"
+      - "area: database"
+      - "area: recall"
+    depends_on: ["I010", "I011", "I012"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      P0 recall 需要在 source chunk 和 memory 上做秒级查询，课程项目也需要体现 B-tree 与 GIN 索引设计。
+      
+      ## 目标
+      
+      实现 workspace、status、type、时间、evidence join、FTS 等关键索引。
+      
+      ## 任务清单
+      
+      - [ ] 在 `database/04_indexes.sql` 中维护 source、memory、evidence、timeline、audit、policy 索引。
+      - [ ] 为 `source_chunk.search_vector` 增加 GIN 索引。
+      - [ ] 在文档中说明每个索引对应的查询场景。
+      
+      ## 涉及文件
+      
+      - `database/04_indexes.sql`
+      - `docs/06-physical-design.md`
+      - `database/08_demo_queries.sql`
+      
+      ## 涉及数据表
+      
+      - `source_document`
+      - `source_chunk`
+      - `memory_item`
+      - `memory_evidence`
+      - `timeline_entry`
+      - `audit_log`
+      
+      ## 涉及 API
+      
+      - `POST /api/recall`
+      - `GET /api/memories`
+      
+      ## 验收标准
+      
+      - [ ] SQL 初始化时所有索引可重复创建。
+      - [ ] FTS 查询能使用 `plainto_tsquery` 或等价 PostgreSQL 全文检索。
+      - [ ] Recall、memory list、audit list 查询都有匹配索引。
+      
+      ## 依赖关系
+      
+      Depends on: I010, I011, I012
+      
+      ## 备注
+      
+      Module 建议：Database / Indexing。
+      
+      ---
+  - id: "I015"
+    title: "增加核心视图、权限视图与统计视图"
+    epic: "Epic 3：数据库 Schema 与 SQL 基础"
+    priority: "priority: p1"
+    milestone: "M2 - Database Schema & SQL Foundation"
+    labels:
+      - "type: task"
+      - "type: database"
+      - "priority: p1"
+      - "area: database"
+      - "area: policy"
+    depends_on: ["I011", "I012", "I013"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      视图能让演示直接展示 active memory、来源追溯、Agent 可见数据、冲突和统计结果。
+      
+      ## 目标
+      
+      完善 `database/05_views.sql`，提供 P0 查询视图和 P1 治理视图。
+      
+      ## 任务清单
+      
+      - [ ] 校准 `v_active_memory`、`v_memory_with_source`、`v_project_timeline`、`v_memory_statistics`。
+      - [ ] 新增 `v_agent_visible_memory`，用于 AccessPolicy 权限过滤。
+      - [ ] 新增 `v_conflict_memory`，用于冲突页面和 SQL 演示。
+      
+      ## 涉及文件
+      
+      - `database/05_views.sql`
+      - `database/08_demo_queries.sql`
+      - `docs/06-physical-design.md`
+      
+      ## 涉及数据表
+      
+      - `memory_item`
+      - `memory_evidence`
+      - `source_chunk`
+      - `source_document`
+      - `access_policy`
+      - `conflict_record`
+      
+      ## 涉及 API
+      
+      - `POST /api/recall`
+      - `GET /api/conflicts`
+      - `GET /api/policies`
+      
+      ## 验收标准
+      
+      - [ ] 视图可重复创建且不破坏 SQL 初始化顺序。
+      - [ ] `v_memory_with_source` 返回 memory、evidence、source chunk 和行号。
+      - [ ] `v_agent_visible_memory` 能排除未授权 private memory。
+      
+      ## 依赖关系
+      
+      Depends on: I011, I012, I013
+      
+      ## 备注
+      
+      Module 建议：Database / Views。
+      
+      ---
+  - id: "I016"
+    title: "实现 revision、audit、soft delete 与 wiki rebuild 触发器"
+    epic: "Epic 3：数据库 Schema 与 SQL 基础"
+    priority: "priority: p0"
+    milestone: "M2 - Database Schema & SQL Foundation"
+    labels:
+      - "type: task"
+      - "type: database"
+      - "priority: p0"
+      - "area: audit"
+      - "area: memory"
+    depends_on: ["I011", "I012"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      MemoryBase 的数据库特色之一是通过触发器自动记录 revision、audit，并支持软删除和 Wiki 重建标记。
+      
+      ## 目标
+      
+      完善触发器，使 memory 创建、更新、软删除和相关 wiki 状态变化都有可审计记录。
+      
+      ## 任务清单
+      
+      - [ ] 扩展 `trg_memory_after_insert`，确保初始 revision 和 audit log 自动生成。
+      - [ ] 增加 memory update 触发器，生成下一条 `memory_revision` 和 before/after audit。
+      - [ ] 增加软删除与 `wiki_page.needs_rebuild` 标记相关触发逻辑。
+      
+      ## 涉及文件
+      
+      - `database/06_triggers.sql`
+      - `database/02_schema_memory.sql`
+      - `database/03_schema_governance.sql`
+      
+      ## 涉及数据表
+      
+      - `memory_item`
+      - `memory_revision`
+      - `audit_log`
+      - `wiki_page`
+      
+      ## 涉及 API
+      
+      - `POST /api/memories`
+      - `PATCH /api/memories/{id}`
+      - `DELETE /api/memories/{id}`
+      - `POST /api/wiki/export`
+      
+      ## 验收标准
+      
+      - [ ] 插入 memory 自动生成 revision 1。
+      - [ ] 更新 memory 自动递增 `current_revision_no` 并写 audit。
+      - [ ] 删除 API 使用 status 软删除，审计日志记录 action。
+      
+      ## 依赖关系
+      
+      Depends on: I011, I012
+      
+      ## 备注
+      
+      Module 建议：Database / Triggers。触发器错误应 fail-fast，不要静默吞掉。
+      
+      ---
+  - id: "I017"
+    title: "准备 P0 演示 seed 数据"
+    epic: "Epic 3：数据库 Schema 与 SQL 基础"
+    priority: "priority: p0"
+    milestone: "M2 - Database Schema & SQL Foundation"
+    labels:
+      - "type: task"
+      - "type: demo"
+      - "priority: p0"
+      - "area: database"
+    depends_on: ["I009", "I010", "I011", "I012", "I016"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      P0 演示需要封闭、可复现的数据集，覆盖 source、chunk、memory、evidence、revision、audit、wiki。
+      
+      ## 目标
+      
+      填充 `database/07_seed.sql` 和 demo source 文件，使系统能一键加载课程演示数据。
+      
+      ## 任务清单
+      
+      - [ ] 准备 6 份讨论记录，覆盖“为什么放弃校园食堂系统”等问题。
+      - [ ] 插入至少 20 条 memory、20 条 evidence、5 条 revision、10 条 audit、3 个 wiki page。
+      - [ ] 提供至少 1 个 private memory、1 条 conflict、1 个 retriever agent。
+      
+      ## 涉及文件
+      
+      - `database/07_seed.sql`
+      - `data/raw_sources/demo_workspace/`
+      - `scripts/import_demo_sources.py`
+      - `docs/11-demo-script.md`
+      
+      ## 涉及数据表
+      
+      - `workspace`
+      - `agent`
+      - `source_document`
+      - `source_chunk`
+      - `memory_item`
+      - `memory_evidence`
+      - `memory_revision`
+      - `audit_log`
+      - `wiki_page`
+      - `wiki_page_revision`
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] 空库执行 schema 和 seed 后，演示数据数量满足脚本要求。
+      - [ ] 每条 memory 至少有一条 evidence 可追溯到 source chunk。
+      - [ ] seed 数据可以支持 Recall 查询“为什么放弃校园食堂系统”。
+      
+      ## 依赖关系
+      
+      Depends on: I009, I010, I011, I012, I016
+      
+      ## 备注
+      
+      Module 建议：Demo Data。seed 应可重复执行或明确重置方式。
+      
+      ---
+  - id: "I018"
+    title: "编写 SQL 演示查询脚本"
+    epic: "Epic 3：数据库 Schema 与 SQL 基础"
+    priority: "priority: p1"
+    milestone: "M2 - Database Schema & SQL Foundation"
+    labels:
+      - "type: task"
+      - "type: database"
+      - "priority: p1"
+      - "area: database"
+      - "area: demo"
+    depends_on: ["I014", "I015", "I017"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      最终汇报需要直接展示 SQL 查询结果，证明项目不是只靠 UI 包装。
+      
+      ## 目标
+      
+      完善 `database/08_demo_queries.sql`，覆盖完整性、追溯、检索、权限、审计、版本和统计。
+      
+      ## 任务清单
+      
+      - [ ] 编写 active memory、memory with source、revision history、audit replay 查询。
+      - [ ] 编写 FTS recall、agent visible memory、conflict memory、statistics 查询。
+      - [ ] 为每段 SQL 添加简短注释，说明对应课程知识点。
+      
+      ## 涉及文件
+      
+      - `database/08_demo_queries.sql`
+      - `docs/11-demo-script.md`
+      - `docs/13-final-report-outline.md`
+      
+      ## 涉及数据表
+      
+      - `memory_item`
+      - `memory_revision`
+      - `memory_evidence`
+      - `source_chunk`
+      - `access_policy`
+      - `audit_log`
+      - `recall_log`
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] 每条 demo SQL 在 seed 数据库上可执行。
+      - [ ] 查询覆盖主外键 join、视图、索引、全文检索、审计、权限过滤。
+      - [ ] 查询结果可用于报告截图。
+      
+      ## 依赖关系
+      
+      Depends on: I014, I015, I017
+      
+      ## 备注
+      
+      Module 建议：Database / Demo Queries。
+      
+      ---
+  - id: "I019"
+    title: "搭建后端 health、config 与数据库连接基础"
+    epic: "Epic 4：Source 导入与 Chunk 管理"
+    priority: "priority: p0"
+    milestone: "M3 - P0 Source-Memory-Evidence MVP"
+    labels:
+      - "type: task"
+      - "type: backend"
+      - "priority: p0"
+      - "area: backend"
+    depends_on: ["I001", "I009"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      当前后端只有 health endpoint，Source、Memory、Recall 和 Wiki API 都需要稳定的配置和数据库访问层。
+      
+      ## 目标
+      
+      建立 FastAPI 基础结构、环境变量读取、数据库连接和健康检查。
+      
+      ## 任务清单
+      
+      - [ ] 实现 `backend/app/core/config.py` 和 `backend/app/core/database.py`。
+      - [ ] 保留并测试 `GET /api/health`。
+      - [ ] 建立 routers/services 目录或与现有结构一致的 API 注册方式。
+      
+      ## 涉及文件
+      
+      - `backend/app/main.py`
+      - `backend/app/core/config.py`
+      - `backend/app/core/database.py`
+      - `backend/requirements.txt`
+      - `backend/tests/test_health.py`
+      
+      ## 涉及数据表
+      
+      无。
+      
+      ## 涉及 API
+      
+      - `GET /api/health`
+      
+      ## 验收标准
+      
+      - [ ] 后端可读取 `DATABASE_URL`。
+      - [ ] health test 通过。
+      - [ ] 数据库连接失败时返回明确错误或启动失败，不静默降级为空数据。
+      
+      ## 依赖关系
+      
+      Depends on: I001, I009
+      
+      ## 备注
+      
+      Module 建议：Backend / Foundation。
+      
+      ---
+  - id: "I020"
+    title: "实现 Markdown / txt 导入服务、checksum 与 chunk 切分"
+    epic: "Epic 4：Source 导入与 Chunk 管理"
+    priority: "priority: p0"
+    milestone: "M3 - P0 Source-Memory-Evidence MVP"
+    labels:
+      - "type: task"
+      - "type: backend"
+      - "priority: p0"
+      - "area: source"
+    depends_on: ["I019", "I010"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Source ingest 是 MemoryBase 的入口，必须把人类可读文件稳定写入 SourceDocument 并切分 SourceChunk。
+      
+      ## 目标
+      
+      实现导入服务，支持 Markdown/txt 校验、checksum 去重、按行切 chunk 和 token_count 估算。
+      
+      ## 任务清单
+      
+      - [ ] 编写 `ingest_service.py` 和 chunker 工具。
+      - [ ] 对 raw_text 计算 checksum，并处理重复导入。
+      - [ ] 按行范围生成 chunk，保存 `chunk_no`、`start_line`、`end_line`、`token_count`。
+      
+      ## 涉及文件
+      
+      - `backend/app/services/ingest_service.py`
+      - `backend/app/services/chunker.py`
+      - `scripts/import_demo_sources.py`
+      - `backend/tests/test_sources.py`
+      
+      ## 涉及数据表
+      
+      - `source_document`
+      - `source_chunk`
+      - `audit_log`
+      
+      ## 涉及 API
+      
+      - `POST /api/sources`
+      
+      ## 验收标准
+      
+      - [ ] 导入 Markdown/txt 后生成 1 条 source document 和多条 source chunk。
+      - [ ] 相同 checksum 重复导入会被阻止或返回明确冲突。
+      - [ ] chunk 行号在 Source 详情和 evidence 中可追溯。
+      
+      ## 依赖关系
+      
+      Depends on: I019, I010
+      
+      ## 备注
+      
+      Module 建议：Backend / Source Ingest。
+      
+      ---
+  - id: "I021"
+    title: "实现 SourceDocument / SourceChunk API"
+    epic: "Epic 4：Source 导入与 Chunk 管理"
+    priority: "priority: p0"
+    milestone: "M3 - P0 Source-Memory-Evidence MVP"
+    labels:
+      - "type: task"
+      - "type: backend"
+      - "priority: p0"
+      - "area: source"
+    depends_on: ["I020"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      前端和演示需要通过 API 导入 source、查看 source 列表和 source chunk 明细。
+      
+      ## 目标
+      
+      实现 Source API，返回 source metadata、chunks、行号和基础统计。
+      
+      ## 任务清单
+      
+      - [ ] 实现 `POST /api/sources`。
+      - [ ] 实现 `GET /api/sources`，支持 workspace 过滤。
+      - [ ] 实现 `GET /api/sources/{id}`，返回 source 与 chunks。
+      
+      ## 涉及文件
+      
+      - `backend/app/routers/sources.py`
+      - `backend/app/services/ingest_service.py`
+      - `backend/tests/test_sources.py`
+      - `docs/08-api-design.md`
+      
+      ## 涉及数据表
+      
+      - `source_document`
+      - `source_chunk`
+      
+      ## 涉及 API
+      
+      - `POST /api/sources`
+      - `GET /api/sources`
+      - `GET /api/sources/{id}`
+      
+      ## 验收标准
+      
+      - [ ] API 响应包含 `doc_id`、title、doc_type、checksum、chunk_count。
+      - [ ] Source 详情返回 chunk_no、chunk_text、start_line、end_line。
+      - [ ] 不存在的 source id 返回 404。
+      
+      ## 依赖关系
+      
+      Depends on: I020
+      
+      ## 备注
+      
+      Module 建议：Backend / Source API。
+      
+      ---
+  - id: "I022"
+    title: "实现 MemoryItem CRUD API 与 Evidence 绑定"
+    epic: "Epic 5：Memory、Evidence 与 Revision 核心闭环"
+    priority: "priority: p0"
+    milestone: "M3 - P0 Source-Memory-Evidence MVP"
+    labels:
+      - "type: task"
+      - "type: backend"
+      - "priority: p0"
+      - "area: memory"
+      - "area: evidence"
+    depends_on: ["I019", "I011"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      MemoryItem 是长期记忆核心，P0 必须支持创建、查询、更新、软删除，并绑定 evidence chunk。
+      
+      ## 目标
+      
+      实现 Memory CRUD API，创建 memory 时能原子写入 MemoryEvidence。
+      
+      ## 任务清单
+      
+      - [ ] 实现 `POST /api/memories`，支持 `evidence_chunk_ids`。
+      - [ ] 实现 `GET /api/memories` 和 `GET /api/memories/{id}`。
+      - [ ] 实现 `PATCH` 和 `DELETE`，DELETE 只做软删除。
+      
+      ## 涉及文件
+      
+      - `backend/app/routers/memories.py`
+      - `backend/app/services/memory_service.py`
+      - `backend/tests/test_memories.py`
+      - `docs/08-api-design.md`
+      
+      ## 涉及数据表
+      
+      - `memory_item`
+      - `memory_evidence`
+      - `source_chunk`
+      
+      ## 涉及 API
+      
+      - `POST /api/memories`
+      - `GET /api/memories`
+      - `GET /api/memories/{id}`
+      - `PATCH /api/memories/{id}`
+      - `DELETE /api/memories/{id}`
+      
+      ## 验收标准
+      
+      - [ ] 创建 memory 时必须校验 evidence chunk 存在且属于同一 workspace。
+      - [ ] Memory 详情返回 evidence 列表和 source chunk 行号。
+      - [ ] 删除 memory 后 status 变为 archived，不物理删除记录。
+      
+      ## 依赖关系
+      
+      Depends on: I019, I011
+      
+      ## 备注
+      
+      Module 建议：Backend / Memory API。
+      
+      ---
+  - id: "I023"
+    title: "实现 MemoryRevision、AuditLog 与软删除后端闭环"
+    epic: "Epic 5：Memory、Evidence 与 Revision 核心闭环"
+    priority: "priority: p0"
+    milestone: "M4 - Recall, Revision & Audit"
+    labels:
+      - "type: task"
+      - "type: backend"
+      - "priority: p0"
+      - "area: memory"
+      - "area: audit"
+    depends_on: ["I022", "I016"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      演示要求修改 memory 后自动生成 revision 和 audit log，并能在详情页查询到完整时间线。
+      
+      ## 目标
+      
+      将数据库触发器和后端服务串起来，形成 update/delete 的 revision + audit 闭环。
+      
+      ## 任务清单
+      
+      - [ ] 在 memory 更新时保留 before/after，并依赖触发器生成 revision。
+      - [ ] 在 memory 详情 API 返回 revision timeline。
+      - [ ] 在软删除路径写入明确 action_type 和 audit 信息。
+      
+      ## 涉及文件
+      
+      - `backend/app/services/memory_service.py`
+      - `backend/app/services/audit_service.py`
+      - `backend/tests/test_memory_revision_audit.py`
+      - `database/06_triggers.sql`
+      
+      ## 涉及数据表
+      
+      - `memory_item`
+      - `memory_revision`
+      - `audit_log`
+      
+      ## 涉及 API
+      
+      - `GET /api/memories/{id}`
+      - `PATCH /api/memories/{id}`
+      - `DELETE /api/memories/{id}`
+      
+      ## 验收标准
+      
+      - [ ] 修改 memory 后 revision_no 自动递增。
+      - [ ] AuditLog 记录 before_json 和 after_json。
+      - [ ] Memory 详情按时间返回 revision timeline。
+      
+      ## 依赖关系
+      
+      Depends on: I022, I016
+      
+      ## 备注
+      
+      Module 建议：Backend / Revision & Audit。
+      
+      ---
+  - id: "I024"
+    title: "实现 Recall API 与 Context Pack Join"
+    epic: "Epic 6：Recall 检索与 Context Pack"
+    priority: "priority: p0"
+    milestone: "M4 - Recall, Revision & Audit"
+    labels:
+      - "type: task"
+      - "type: backend"
+      - "priority: p0"
+      - "area: recall"
+    depends_on: ["I021", "I022", "I014"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Recall 是 MemoryBase 给用户和 Agent 使用的核心检索能力，需要返回 memory、evidence 和 source chunk。
+      
+      ## 目标
+      
+      实现关键词/全文检索 API，并保存 RecallLog。
+      
+      ## 任务清单
+      
+      - [ ] 实现 `POST /api/recall`，支持 workspace、agent、query_text 和过滤条件。
+      - [ ] 使用 source_chunk FTS join memory_evidence 和 memory_item。
+      - [ ] 返回 context pack，并写入 `recall_log`。
+      
+      ## 涉及文件
+      
+      - `backend/app/routers/recall.py`
+      - `backend/app/services/recall_service.py`
+      - `backend/tests/test_recall.py`
+      - `docs/08-api-design.md`
+      
+      ## 涉及数据表
+      
+      - `source_chunk`
+      - `memory_evidence`
+      - `memory_item`
+      - `source_document`
+      - `recall_log`
+      
+      ## 涉及 API
+      
+      - `POST /api/recall`
+      
+      ## 验收标准
+      
+      - [ ] 查询“为什么放弃校园食堂系统”能返回相关 memory。
+      - [ ] 每条结果包含 source title、chunk text、line range、evidence_role。
+      - [ ] 每次 recall 写入 `recall_log`，记录 result_count 和 top memory ids。
+      
+      ## 依赖关系
+      
+      Depends on: I021, I022, I014
+      
+      ## 备注
+      
+      Module 建议：Backend / Recall。
+      
+      ---
+  - id: "I025"
+    title: "补齐 RecallLog、排序与演示问题测试"
+    epic: "Epic 6：Recall 检索与 Context Pack"
+    priority: "priority: p1"
+    milestone: "M4 - Recall, Revision & Audit"
+    labels:
+      - "type: task"
+      - "type: test"
+      - "priority: p1"
+      - "area: recall"
+    depends_on: ["I024", "I017", "I018"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Recall 演示需要稳定问题集和可解释排序，避免现场结果不可控。
+      
+      ## 目标
+      
+      为 recall 增加排序规则、日志断言和 demo 查询测试。
+      
+      ## 任务清单
+      
+      - [ ] 定义基于 FTS rank、evidence weight、importance 的排序规则。
+      - [ ] 增加 5-10 个 demo question 测试。
+      - [ ] 断言 `recall_log.context_pack_json` 保存可回放快照。
+      
+      ## 涉及文件
+      
+      - `backend/tests/test_recall.py`
+      - `database/08_demo_queries.sql`
+      - `docs/11-demo-script.md`
+      
+      ## 涉及数据表
+      
+      - `recall_log`
+      - `memory_item`
+      - `memory_evidence`
+      - `source_chunk`
+      
+      ## 涉及 API
+      
+      - `POST /api/recall`
+      
+      ## 验收标准
+      
+      - [ ] demo 问题返回稳定的 top results。
+      - [ ] RecallLog 中 result_count 与 API 返回数量一致。
+      - [ ] 测试覆盖无结果、普通结果和权限过滤后结果。
+      
+      ## 依赖关系
+      
+      Depends on: I024, I017, I018
+      
+      ## 备注
+      
+      Module 建议：Backend / Recall QA。
+      
+      ---
+  - id: "I026"
+    title: "实现 AccessPolicy API 与 Agent 可见性过滤"
+    epic: "Epic 7：AccessPolicy、Audit 与 Conflict 治理"
+    priority: "priority: p1"
+    milestone: "M4 - Recall, Revision & Audit"
+    labels:
+      - "type: task"
+      - "type: backend"
+      - "priority: p1"
+      - "area: policy"
+    depends_on: ["I013", "I024"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      AccessPolicy 和 `v_agent_visible_memory` 是 P1 课程亮点，用于证明 Agent 不能读取未授权 private memory。
+      
+      ## 目标
+      
+      实现 Policy API，并将 agent 权限过滤接入 Recall。
+      
+      ## 任务清单
+      
+      - [ ] 实现 `POST /api/policies` 和 `GET /api/policies`。
+      - [ ] 在 Recall 中根据 agent_id 应用 AccessPolicy 或 `v_agent_visible_memory`。
+      - [ ] 增加 project-only agent 看不到 private memory 的测试。
+      
+      ## 涉及文件
+      
+      - `backend/app/routers/policies.py`
+      - `backend/app/services/policy_service.py`
+      - `backend/tests/test_policy.py`
+      - `database/05_views.sql`
+      
+      ## 涉及数据表
+      
+      - `access_policy`
+      - `memory_item`
+      - `agent`
+      
+      ## 涉及 API
+      
+      - `POST /api/policies`
+      - `GET /api/policies`
+      - `POST /api/recall`
+      
+      ## 验收标准
+      
+      - [ ] allow/deny policy 可创建和查询。
+      - [ ] Recall 对 agent_id 应用权限过滤。
+      - [ ] private memory 在无授权时不进入 context pack。
+      
+      ## 依赖关系
+      
+      Depends on: I013, I024
+      
+      ## 备注
+      
+      Module 建议：Backend / Policy。
+      
+      ---
+  - id: "I027"
+    title: "实现 AuditLog 查询 API 与筛选能力"
+    epic: "Epic 7：AccessPolicy、Audit 与 Conflict 治理"
+    priority: "priority: p1"
+    milestone: "M4 - Recall, Revision & Audit"
+    labels:
+      - "type: task"
+      - "type: backend"
+      - "priority: p1"
+      - "area: audit"
+    depends_on: ["I012", "I016", "I019"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Audit 页面和最终汇报需要按 actor、action、target 和时间查询关键操作。
+      
+      ## 目标
+      
+      实现 AuditLog 查询 API，支撑审计回放和截图。
+      
+      ## 任务清单
+      
+      - [ ] 实现 `GET /api/audit`。
+      - [ ] 支持 workspace_id、actor_type、action_type、target_type、target_id、时间范围筛选。
+      - [ ] 返回 before_json、after_json 和分页信息。
+      
+      ## 涉及文件
+      
+      - `backend/app/routers/audit.py`
+      - `backend/app/services/audit_service.py`
+      - `backend/tests/test_audit.py`
+      
+      ## 涉及数据表
+      
+      - `audit_log`
+      
+      ## 涉及 API
+      
+      - `GET /api/audit`
+      
+      ## 验收标准
+      
+      - [ ] 查询结果按 created_at 倒序分页。
+      - [ ] Memory 创建、修改、删除操作都能在 audit API 中查到。
+      - [ ] 无权限或不存在 workspace 返回明确错误。
+      
+      ## 依赖关系
+      
+      Depends on: I012, I016, I019
+      
+      ## 备注
+      
+      Module 建议：Backend / Audit。
+      
+      ---
+  - id: "I028"
+    title: "实现 ConflictRecord API、视图与处理状态"
+    epic: "Epic 7：AccessPolicy、Audit 与 Conflict 治理"
+    priority: "priority: p1"
+    milestone: "M4 - Recall, Revision & Audit"
+    labels:
+      - "type: task"
+      - "type: backend"
+      - "priority: p1"
+      - "area: conflict"
+    depends_on: ["I013", "I022", "I015"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      ConflictRecord 可以展示旧决策与新决策之间的冲突，是 Memory governance 的重要 P1 能力。
+      
+      ## 目标
+      
+      实现冲突记录查询和状态处理，支持前端 Conflict 页面。
+      
+      ## 任务清单
+      
+      - [ ] 实现 `GET /api/conflicts`，返回左右 memory、状态和 resolution_note。
+      - [ ] 支持将 conflict 标记为 resolved 或 ignored。
+      - [ ] 使用 `v_conflict_memory` 或等价 join 简化查询。
+      
+      ## 涉及文件
+      
+      - `backend/app/routers/conflicts.py`
+      - `backend/app/services/conflict_service.py`
+      - `backend/tests/test_conflicts.py`
+      - `database/05_views.sql`
+      
+      ## 涉及数据表
+      
+      - `conflict_record`
+      - `memory_item`
+      
+      ## 涉及 API
+      
+      - `GET /api/conflicts`
+      - `PATCH /api/conflicts/{id}`
+      
+      ## 验收标准
+      
+      - [ ] Conflict 列表显示 left/right memory canonical_text。
+      - [ ] 状态更新写入 audit log。
+      - [ ] seed 中至少 1 条 conflict 可用于演示。
+      
+      ## 依赖关系
+      
+      Depends on: I013, I022, I015
+      
+      ## 备注
+      
+      Module 建议：Backend / Conflict。
+      
+      ---
+  - id: "I029"
+    title: "实现 Wiki Markdown 导出 API 与文件投影"
+    epic: "Epic 8：Wiki、Timeline 与文件投影"
+    priority: "priority: p0"
+    milestone: "M5 - Wiki, Timeline & Demo UI"
+    labels:
+      - "type: task"
+      - "type: backend"
+      - "priority: p0"
+      - "area: wiki"
+    depends_on: ["I012", "I022", "I023"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      MemoryBase 的双态架构要求数据库中的稳定 memory 能导出为人类可读 Markdown Wiki。
+      
+      ## 目标
+      
+      实现 Wiki 导出服务和 API，写入 WikiPage/WikiPageRevision 并生成 Markdown 文件。
+      
+      ## 任务清单
+      
+      - [ ] 实现 `POST /api/wiki/export`。
+      - [ ] 生成包含 frontmatter、正文、memory 列表和 source provenance 的 Markdown。
+      - [ ] 将导出结果写入 `data/markdown_wiki/`，并记录 wiki page revision。
+      
+      ## 涉及文件
+      
+      - `backend/app/routers/wiki.py`
+      - `backend/app/services/wiki_service.py`
+      - `data/markdown_wiki/`
+      - `backend/tests/test_wiki.py`
+      
+      ## 涉及数据表
+      
+      - `wiki_page`
+      - `wiki_page_revision`
+      - `memory_item`
+      - `memory_evidence`
+      - `source_chunk`
+      
+      ## 涉及 API
+      
+      - `POST /api/wiki/export`
+      
+      ## 验收标准
+      
+      - [ ] 导出至少 3 个 Markdown Wiki 页面。
+      - [ ] 重复导出同一 page 会生成新的 `wiki_page_revision`。
+      - [ ] Markdown frontmatter 包含 workspace、page_slug、generated_at 和 source ids。
+      
+      ## 依赖关系
+      
+      Depends on: I012, I022, I023
+      
+      ## 备注
+      
+      Module 建议：Backend / Wiki Export。
+      
+      ---
+  - id: "I030"
+    title: "实现 TimelineEntry API 与决策时间线数据服务"
+    epic: "Epic 8：Wiki、Timeline 与文件投影"
+    priority: "priority: p1"
+    milestone: "M5 - Wiki, Timeline & Demo UI"
+    labels:
+      - "type: task"
+      - "type: backend"
+      - "priority: p1"
+      - "area: timeline"
+    depends_on: ["I012", "I022"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Timeline 用于展示项目选题、需求、设计和决策演进，增强课程汇报叙事。
+      
+      ## 目标
+      
+      实现 Timeline 数据服务和 API，按事件时间输出决策时间线。
+      
+      ## 任务清单
+      
+      - [ ] 实现 `GET /api/timeline`，支持 workspace_id 筛选。
+      - [ ] 支持创建或从 seed 导入 `timeline_entry`。
+      - [ ] Join memory/source 信息，用于页面展示 provenance。
+      
+      ## 涉及文件
+      
+      - `backend/app/routers/timeline.py`
+      - `backend/app/services/timeline_service.py`
+      - `backend/tests/test_timeline.py`
+      
+      ## 涉及数据表
+      
+      - `timeline_entry`
+      - `memory_item`
+      - `source_document`
+      
+      ## 涉及 API
+      
+      - `GET /api/timeline`
+      - `POST /api/timeline`
+      
+      ## 验收标准
+      
+      - [ ] Timeline 按 event_time 倒序或正序稳定返回。
+      - [ ] 每个事件可关联 memory 或 source。
+      - [ ] seed 数据能展示 6 次讨论记录的演进。
+      
+      ## 依赖关系
+      
+      Depends on: I012, I022
+      
+      ## 备注
+      
+      Module 建议：Backend / Timeline。
+      
+      ---
+  - id: "I031"
+    title: "实现前端路由、导航与 Dashboard"
+    epic: "Epic 9：前端页面与演示界面"
+    priority: "priority: p0"
+    milestone: "M5 - Wiki, Timeline & Demo UI"
+    labels:
+      - "type: task"
+      - "type: frontend"
+      - "priority: p0"
+      - "area: frontend"
+    depends_on: ["I001", "I019"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      当前前端只是静态介绍页，演示需要可导航的 Dashboard 和各模块入口。
+      
+      ## 目标
+      
+      建立 React 前端路由、导航和 Dashboard，展示 workspace 统计。
+      
+      ## 任务清单
+      
+      - [ ] 搭建 Dashboard、Sources、Memories、Recall、Wiki、Timeline、Audit、Conflicts 路由。
+      - [ ] 实现统一 API client 和 loading/error 状态。
+      - [ ] Dashboard 展示 source、chunk、memory、recall、wiki、audit 统计。
+      
+      ## 涉及文件
+      
+      - `frontend/src/App.jsx`
+      - `frontend/src/main.jsx`
+      - `frontend/src/api/client.js`
+      - `frontend/src/pages/Dashboard.jsx`
+      
+      ## 涉及数据表
+      
+      - `source_document`
+      - `source_chunk`
+      - `memory_item`
+      - `recall_log`
+      - `wiki_page`
+      - `audit_log`
+      
+      ## 涉及 API
+      
+      - `GET /api/health`
+      - `GET /api/sources`
+      - `GET /api/memories`
+      - `GET /api/audit`
+      
+      ## 验收标准
+      
+      - [ ] 前端有稳定导航，不需要刷新页面切换模块。
+      - [ ] Dashboard 能显示 demo workspace 的核心统计。
+      - [ ] API 失败时显示明确错误状态。
+      
+      ## 依赖关系
+      
+      Depends on: I001, I019
+      
+      ## 备注
+      
+      Module 建议：Frontend / App Shell。
+      
+      ---
+  - id: "I032"
+    title: "实现 Source 列表、导入与详情页面"
+    epic: "Epic 9：前端页面与演示界面"
+    priority: "priority: p0"
+    milestone: "M5 - Wiki, Timeline & Demo UI"
+    labels:
+      - "type: task"
+      - "type: frontend"
+      - "priority: p0"
+      - "area: source"
+      - "area: frontend"
+    depends_on: ["I021", "I031"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      演示流程需要导入 6 份讨论记录，并展示 SourceDocument 和 SourceChunk 行号。
+      
+      ## 目标
+      
+      实现 Source 页面，支持导入、列表、详情和 chunk 查看。
+      
+      ## 任务清单
+      
+      - [ ] Source 列表显示 title、doc_type、checksum、imported_at、chunk_count。
+      - [ ] 导入表单支持 title、doc_type、raw_text。
+      - [ ] Source 详情展示 chunk_no、start_line、end_line、chunk_text。
+      
+      ## 涉及文件
+      
+      - `frontend/src/pages/Sources.jsx`
+      - `frontend/src/pages/SourceDetail.jsx`
+      - `frontend/src/api/sources.js`
+      
+      ## 涉及数据表
+      
+      - `source_document`
+      - `source_chunk`
+      
+      ## 涉及 API
+      
+      - `POST /api/sources`
+      - `GET /api/sources`
+      - `GET /api/sources/{id}`
+      
+      ## 验收标准
+      
+      - [ ] 可从页面导入 Markdown/txt 并看到 chunk 结果。
+      - [ ] 重复导入时展示 checksum 冲突或后端错误信息。
+      - [ ] Chunk 行号清晰可见，便于 evidence 追溯。
+      
+      ## 依赖关系
+      
+      Depends on: I021, I031
+      
+      ## 备注
+      
+      Module 建议：Frontend / Source。
+      
+      ---
+  - id: "I033"
+    title: "实现 Memory 列表、详情、Evidence 与 Revision 页面"
+    epic: "Epic 9：前端页面与演示界面"
+    priority: "priority: p0"
+    milestone: "M5 - Wiki, Timeline & Demo UI"
+    labels:
+      - "type: task"
+      - "type: frontend"
+      - "priority: p0"
+      - "area: memory"
+      - "area: frontend"
+    depends_on: ["I022", "I023", "I031"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Memory 页面是 P0 闭环核心，需要创建 memory、查看 evidence、修改后看到 revision timeline。
+      
+      ## 目标
+      
+      实现 Memory 列表和详情页面，覆盖 CRUD、Evidence 面板和 Revision 时间线。
+      
+      ## 任务清单
+      
+      - [ ] Memory 列表支持 type、status、access_level、keyword 筛选。
+      - [ ] Memory 详情展示 canonical_text、summary、evidence source chunk。
+      - [ ] 编辑 memory 后详情页展示新增 revision 和 audit 状态。
+      
+      ## 涉及文件
+      
+      - `frontend/src/pages/Memories.jsx`
+      - `frontend/src/pages/MemoryDetail.jsx`
+      - `frontend/src/api/memories.js`
+      
+      ## 涉及数据表
+      
+      - `memory_item`
+      - `memory_evidence`
+      - `memory_revision`
+      - `source_chunk`
+      
+      ## 涉及 API
+      
+      - `POST /api/memories`
+      - `GET /api/memories`
+      - `GET /api/memories/{id}`
+      - `PATCH /api/memories/{id}`
+      - `DELETE /api/memories/{id}`
+      
+      ## 验收标准
+      
+      - [ ] 可从 chunk 创建 memory 并绑定 evidence。
+      - [ ] Memory 详情能追溯到 source title、chunk_no、行号。
+      - [ ] 修改 memory 后 revision timeline 增加一条记录。
+      
+      ## 依赖关系
+      
+      Depends on: I022, I023, I031
+      
+      ## 备注
+      
+      Module 建议：Frontend / Memory。
+      
+      ---
+  - id: "I034"
+    title: "实现 Recall 检索页面与 Context Pack 展示"
+    epic: "Epic 9：前端页面与演示界面"
+    priority: "priority: p0"
+    milestone: "M5 - Wiki, Timeline & Demo UI"
+    labels:
+      - "type: task"
+      - "type: frontend"
+      - "priority: p0"
+      - "area: recall"
+      - "area: frontend"
+    depends_on: ["I024", "I031"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Recall 页面是演示“为什么放弃校园食堂系统”的主场景，需要展示 memory 与来源证据。
+      
+      ## 目标
+      
+      实现 Recall 查询页面，展示 context pack、source chunk 和 recall log 结果。
+      
+      ## 任务清单
+      
+      - [ ] 查询表单支持 workspace、agent、query_text。
+      - [ ] 结果列表显示 memory、score、evidence、source chunk 和行号。
+      - [ ] 展示 result_count，并能跳转到 Memory 或 Source 详情。
+      
+      ## 涉及文件
+      
+      - `frontend/src/pages/Recall.jsx`
+      - `frontend/src/api/recall.js`
+      - `frontend/src/components/ContextPack.jsx`
+      
+      ## 涉及数据表
+      
+      - `memory_item`
+      - `memory_evidence`
+      - `source_chunk`
+      - `recall_log`
+      
+      ## 涉及 API
+      
+      - `POST /api/recall`
+      
+      ## 验收标准
+      
+      - [ ] 输入“为什么放弃校园食堂系统”能展示相关 memory。
+      - [ ] 每条结果都能看到 source chunk 原文。
+      - [ ] 查询错误、空结果和加载状态都有清晰 UI。
+      
+      ## 依赖关系
+      
+      Depends on: I024, I031
+      
+      ## 备注
+      
+      Module 建议：Frontend / Recall。
+      
+      ---
+  - id: "I035"
+    title: "实现 Wiki 预览、导出与 provenance 展示页面"
+    epic: "Epic 9：前端页面与演示界面"
+    priority: "priority: p0"
+    milestone: "M5 - Wiki, Timeline & Demo UI"
+    labels:
+      - "type: task"
+      - "type: frontend"
+      - "priority: p0"
+      - "area: wiki"
+      - "area: frontend"
+    depends_on: ["I029", "I031"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Wiki 页面展示文件—数据库双态架构的最终投影，必须能预览 Markdown 和来源 provenance。
+      
+      ## 目标
+      
+      实现 Wiki 页面，支持触发导出、查看 wiki revision 和 provenance。
+      
+      ## 任务清单
+      
+      - [ ] Wiki 列表显示 page_slug、page_type、title、current_revision_no、needs_rebuild。
+      - [ ] 提供导出按钮调用 `POST /api/wiki/export`。
+      - [ ] 预览 Markdown body 和 frontmatter，并展示关联 memory/source。
+      
+      ## 涉及文件
+      
+      - `frontend/src/pages/Wiki.jsx`
+      - `frontend/src/pages/WikiDetail.jsx`
+      - `frontend/src/api/wiki.js`
+      
+      ## 涉及数据表
+      
+      - `wiki_page`
+      - `wiki_page_revision`
+      - `memory_item`
+      - `source_chunk`
+      
+      ## 涉及 API
+      
+      - `POST /api/wiki/export`
+      - `GET /api/wiki`
+      - `GET /api/wiki/{id}`
+      
+      ## 验收标准
+      
+      - [ ] 可从页面导出至少 3 个 wiki 页面。
+      - [ ] Wiki 预览显示 frontmatter 和 Markdown 正文。
+      - [ ] 页面能说明 wiki 内容来自哪些 memory 和 source chunk。
+      
+      ## 依赖关系
+      
+      Depends on: I029, I031
+      
+      ## 备注
+      
+      Module 建议：Frontend / Wiki。
+      
+      ---
+  - id: "I036"
+    title: "实现 Timeline、Audit 与 Conflict 演示页面"
+    epic: "Epic 9：前端页面与演示界面"
+    priority: "priority: p1"
+    milestone: "M5 - Wiki, Timeline & Demo UI"
+    labels:
+      - "type: task"
+      - "type: frontend"
+      - "priority: p1"
+      - "area: timeline"
+      - "area: audit"
+      - "area: conflict"
+    depends_on: ["I027", "I028", "I030", "I031"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Timeline、Audit、Conflict 页面用于展示 P1 治理能力和课程加分点。
+      
+      ## 目标
+      
+      实现三个轻量页面，支撑演示决策演进、审计回放和冲突处理。
+      
+      ## 任务清单
+      
+      - [ ] Timeline 页面展示事件、时间、关联 memory/source。
+      - [ ] Audit 页面支持按 action、target、actor 筛选。
+      - [ ] Conflict 页面展示左右 memory，并支持 resolved/ignored 操作。
+      
+      ## 涉及文件
+      
+      - `frontend/src/pages/Timeline.jsx`
+      - `frontend/src/pages/Audit.jsx`
+      - `frontend/src/pages/Conflicts.jsx`
+      - `frontend/src/api/timeline.js`
+      - `frontend/src/api/audit.js`
+      - `frontend/src/api/conflicts.js`
+      
+      ## 涉及数据表
+      
+      - `timeline_entry`
+      - `audit_log`
+      - `conflict_record`
+      - `memory_item`
+      
+      ## 涉及 API
+      
+      - `GET /api/timeline`
+      - `GET /api/audit`
+      - `GET /api/conflicts`
+      - `PATCH /api/conflicts/{id}`
+      
+      ## 验收标准
+      
+      - [ ] 三个页面都能使用 seed 数据展示内容。
+      - [ ] Audit 页面可用于展示 memory.update 的 before/after。
+      - [ ] Conflict 状态更新后页面和数据库一致。
+      
+      ## 依赖关系
+      
+      Depends on: I027, I028, I030, I031
+      
+      ## 备注
+      
+      Module 建议：Frontend / Governance UI。
+      
+      ---
+  - id: "I037"
+    title: "建立 P0 API、SQL、权限、检索与 UI 回归测试"
+    epic: "Epic 10：测试、演示数据与最终汇报"
+    priority: "priority: p0"
+    milestone: "M6 - Final Report & Presentation"
+    labels:
+      - "type: task"
+      - "type: test"
+      - "priority: p0"
+      - "area: test"
+    depends_on: ["I021", "I023", "I024", "I029", "I032", "I033", "I034", "I035"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Done 必须等于已实现并验证；P0 闭环涉及数据库、后端、前端和演示数据，需要系统测试兜底。
+      
+      ## 目标
+      
+      建立覆盖 P0 演示闭环的自动化与手动回归测试清单。
+      
+      ## 任务清单
+      
+      - [ ] 增加 API 测试：source import、memory CRUD、recall、wiki export、audit。
+      - [ ] 增加 SQL 测试：schema 初始化、seed、views、triggers、demo queries。
+      - [ ] 增加前端 smoke 测试或手动 QA 清单，覆盖 Dashboard、Source、Memory、Recall、Wiki。
+      
+      ## 涉及文件
+      
+      - `backend/tests/`
+      - `database/08_demo_queries.sql`
+      - `docs/10-test-plan.md`
+      - `docs/11-demo-script.md`
+      
+      ## 涉及数据表
+      
+      - `source_document`
+      - `source_chunk`
+      - `memory_item`
+      - `memory_evidence`
+      - `memory_revision`
+      - `audit_log`
+      - `recall_log`
+      - `wiki_page`
+      - `wiki_page_revision`
+      
+      ## 涉及 API
+      
+      - `POST /api/sources`
+      - `POST /api/memories`
+      - `PATCH /api/memories/{id}`
+      - `POST /api/recall`
+      - `POST /api/wiki/export`
+      - `GET /api/audit`
+      
+      ## 验收标准
+      
+      - [ ] 测试能跑通“导入 6 份 source → 20 memory → recall → revision/audit → 3 wiki”闭环。
+      - [ ] CI 至少运行后端测试、SQL 初始化和前端构建。
+      - [ ] 失败用例返回明确错误，不能用空默认值掩盖问题。
+      
+      ## 依赖关系
+      
+      Depends on: I021, I023, I024, I029, I032, I033, I034, I035
+      
+      ## 备注
+      
+      Module 建议：QA / Regression。
+      
+      ---
+  - id: "I038"
+    title: "整理演示脚本、截图清单、最终报告材料与 Release"
+    epic: "Epic 10：测试、演示数据与最终汇报"
+    priority: "priority: p1"
+    milestone: "M6 - Final Report & Presentation"
+    labels:
+      - "type: task"
+      - "type: demo"
+      - "priority: p1"
+      - "area: demo"
+      - "area: docs"
+    depends_on: ["I017", "I018", "I037"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      最终提交需要报告、截图、SQL 结果、代码说明和可复现 release，而不只是功能完成。
+      
+      ## 目标
+      
+      整理课程汇报材料，形成最终演示和发布版本。
+      
+      ## 任务清单
+      
+      - [ ] 更新 `docs/11-demo-script.md`，记录 5-8 分钟演示步骤和讲解词。
+      - [ ] 更新 `docs/13-final-report-outline.md`，补齐截图清单和附录材料。
+      - [ ] 创建 release checklist，包含 SQL、后端、前端、demo 数据和报告验证。
+      
+      ## 涉及文件
+      
+      - `docs/11-demo-script.md`
+      - `docs/13-final-report-outline.md`
+      - `docs/10-test-plan.md`
+      - `README.md`
+      
+      ## 涉及数据表
+      
+      无。
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] 截图清单覆盖 Dashboard、Source、Memory、Recall、Revision、Audit、Policy、Conflict、Wiki、SQL。
+      - [ ] 最终报告大纲能映射到仓库文档和实现证据。
+      - [ ] Release 前检查项全部可执行且结果记录清楚。
+      
+      ## 依赖关系
+      
+      Depends on: I017, I018, I037
+      
+      ## 备注
+      
+      Module 建议：Demo / Final Report。
+      
+      ---
+  - id: "I039"
+    title: "增加 Entity 与 MemoryScene 轻量关系模型"
+    epic: "Epic 5：Memory、Evidence 与 Revision 核心闭环"
+    priority: "priority: p2"
+    milestone: "M4 - Recall, Revision & Audit"
+    labels:
+      - "type: task"
+      - "type: feature"
+      - "priority: p2"
+      - "area: memory"
+    depends_on: ["I011", "I007"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      Entity 和 MemoryScene 能增强语义组织能力，但不属于 P0 闭环。
+      
+      ## 目标
+      
+      以轻量方式增加实体、场景和 M:N 关系，服务高级检索和报告亮点。
+      
+      ## 任务清单
+      
+      - [ ] 设计 `entity`、`memory_entity`、`memory_scene`、`memory_scene_cell` schema。
+      - [ ] 增加基础 seed 和 demo 查询。
+      - [ ] 在 Memory 详情或 Wiki 中展示关联实体/场景。
+      
+      ## 涉及文件
+      
+      - `database/02_schema_memory.sql`
+      - `database/05_views.sql`
+      - `database/07_seed.sql`
+      - `docs/04-er-design.md`
+      
+      ## 涉及数据表
+      
+      - `entity`
+      - `memory_entity`
+      - `memory_scene`
+      - `memory_scene_cell`
+      - `memory_item`
+      
+      ## 涉及 API
+      
+      - `GET /api/memories/{id}`
+      
+      ## 验收标准
+      
+      - [ ] 实体和场景关系不影响 P0 schema 初始化。
+      - [ ] M:N 关系有明确主键、外键和唯一约束。
+      - [ ] 至少一个 demo scene 能聚合选题决策 memory。
+      
+      ## 依赖关系
+      
+      Depends on: I011, I007
+      
+      ## 备注
+      
+      Module 建议：Memory / Semantic Extension。
+      
+      ---
+  - id: "I040"
+    title: "增加 ForgetRequest 与更完整权限治理流程"
+    epic: "Epic 7：AccessPolicy、Audit 与 Conflict 治理"
+    priority: "priority: p2"
+    milestone: "M4 - Recall, Revision & Audit"
+    labels:
+      - "type: task"
+      - "type: feature"
+      - "priority: p2"
+      - "area: policy"
+    depends_on: ["I013", "I026"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      遗忘请求和更完整权限流程可以展示治理能力，但 P0 只要求软删除和基础权限过滤。
+      
+      ## 目标
+      
+      实现轻量 ForgetRequest 流程，并扩展 policy 测试覆盖。
+      
+      ## 任务清单
+      
+      - [ ] 为 `forget_request` 增加提交、审批、拒绝状态。
+      - [ ] 审批通过后将 memory status 改为 forgotten 或 archived。
+      - [ ] 记录 audit log，并验证 recall 不返回 forgotten memory。
+      
+      ## 涉及文件
+      
+      - `database/03_schema_governance.sql`
+      - `backend/app/services/policy_service.py`
+      - `backend/tests/test_forget_request.py`
+      
+      ## 涉及数据表
+      
+      - `forget_request`
+      - `memory_item`
+      - `audit_log`
+      - `access_policy`
+      
+      ## 涉及 API
+      
+      - `POST /api/forget-requests`
+      - `PATCH /api/forget-requests/{id}`
+      - `POST /api/recall`
+      
+      ## 验收标准
+      
+      - [ ] ForgetRequest 不物理删除数据。
+      - [ ] 审批动作可审计。
+      - [ ] Recall 和 agent visible view 排除 forgotten memory。
+      
+      ## 依赖关系
+      
+      Depends on: I013, I026
+      
+      ## 备注
+      
+      Module 建议：Governance / Forgetting。
+      
+      ---
+  - id: "I041"
+    title: "增强统计图表与 Wiki source provenance 深度"
+    epic: "Epic 8：Wiki、Timeline 与文件投影"
+    priority: "priority: p2"
+    milestone: "M5 - Wiki, Timeline & Demo UI"
+    labels:
+      - "type: task"
+      - "type: feature"
+      - "priority: p2"
+      - "area: wiki"
+      - "area: frontend"
+    depends_on: ["I015", "I035", "I036"]
+    template: "task"
+    body: |
+      ## 背景
+      
+      统计图表和更深 provenance 可以提升课程展示效果，但不应阻塞 P0。
+      
+      ## 目标
+      
+      在 Dashboard/Wiki 中展示更丰富统计和来源链路。
+      
+      ## 任务清单
+      
+      - [ ] 扩展 `v_memory_statistics` 或新增统计 API。
+      - [ ] Dashboard 增加 memory type、status、access level 分布。
+      - [ ] Wiki provenance 展示 memory → evidence → source chunk → source document 链路。
+      
+      ## 涉及文件
+      
+      - `database/05_views.sql`
+      - `frontend/src/pages/Dashboard.jsx`
+      - `frontend/src/pages/WikiDetail.jsx`
+      - `backend/app/routers/stats.py`
+      
+      ## 涉及数据表
+      
+      - `memory_item`
+      - `memory_evidence`
+      - `source_chunk`
+      - `source_document`
+      - `wiki_page_revision`
+      
+      ## 涉及 API
+      
+      - `GET /api/stats`
+      - `GET /api/wiki/{id}`
+      
+      ## 验收标准
+      
+      - [ ] 统计结果与 SQL 查询一致。
+      - [ ] Wiki provenance 不只展示 source title，还能定位 chunk 行号。
+      - [ ] 前端图表在 demo 数据量下布局稳定。
+      
+      ## 依赖关系
+      
+      Depends on: I015, I035, I036
+      
+      ## 备注
+      
+      Module 建议：Frontend / Reporting。
+      
+      ---
+  - id: "I042"
+    title: "记录 Future 路线图：pgvector、LLM、Agent 协作与同步生态"
+    epic: "Epic 10：测试、演示数据与最终汇报"
+    priority: "priority: future"
+    milestone: "M6 - Final Report & Presentation"
+    labels:
+      - "type: feature"
+      - "priority: future"
+      - "area: project"
+    depends_on: ["I038"]
+    template: "feature_request"
+    body: |
+      ## 背景
+      
+      pgvector、LLM 自动抽取、多 Agent 自动协作、Obsidian 插件和 Git 双向同步有价值，但不属于当前课程 P0/P1 必做范围。
+      
+      ## 目标
+      
+      在报告和 backlog 中记录 Future 路线图，防止这些功能误入 MVP。
+      
+      ## 任务清单
+      
+      - [ ] 在最终报告展望中列出 pgvector、LLM 自动抽取、temporal knowledge graph、多 Agent 协作。
+      - [ ] 说明 Obsidian 插件、Git 双向同步、SkillMemory 自动归纳的可能架构。
+      - [ ] 明确 Future 功能不阻塞当前 P0 演示。
+      
+      ## 涉及文件
+      
+      - `docs/13-final-report-outline.md`
+      - `docs/00-project-overview.md`
+      - `docs/01-requirements.md`
+      
+      ## 涉及数据表
+      
+      无。
+      
+      ## 涉及 API
+      
+      无。
+      
+      ## 验收标准
+      
+      - [ ] Future 路线图单独成段，不混入 P0/P1 验收。
+      - [ ] 文档明确 LLM 自动抽取不是 MVP 必需项。
+      - [ ] 展望与当前 schema 的扩展点相连。
+      
+      ## 依赖关系
+      
+      Depends on: I038
+      
+      ## 备注
+      
+      Module 建议：Roadmap / Future。
