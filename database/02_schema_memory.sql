@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS source_chunk (
 CREATE TABLE IF NOT EXISTS memory_item (
   memory_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
-  created_from_doc_id UUID REFERENCES source_document(doc_id),
+  created_from_doc_id UUID REFERENCES source_document(doc_id) ON DELETE SET NULL,
   memory_type VARCHAR(30) NOT NULL
     CHECK (memory_type IN ('episodic', 'semantic', 'profile', 'procedural', 'decision', 'preference', 'task', 'risk')),
   canonical_text TEXT NOT NULL,
