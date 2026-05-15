@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS conflict_record (
   resolution_note TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   resolved_at TIMESTAMPTZ,
-  CHECK (left_memory_id <> right_memory_id),
+  CHECK (left_memory_id < right_memory_id),
   UNIQUE(left_memory_id, right_memory_id, conflict_type)
 );
 
