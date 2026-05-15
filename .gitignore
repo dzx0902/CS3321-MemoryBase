@@ -44,3 +44,5 @@ data/markdown_wiki/
 .coverage
 coverage/
 htmlcov/
+docs/prompt.md
+docs/summary.md
