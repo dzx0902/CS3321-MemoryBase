@@ -19,8 +19,9 @@
 - Before starting work, check live GitHub issue state with `gh issue view/list`; do not rely only on local issue IDs.
 - Confirm or add assignment before work starts.
 - Personal owner branch is `jflin`, based on latest `dev`; PRs go from `jflin` to `dev`. `main` is updated only by integration PRs.
-- Work one issue at a time. Finish validation before moving to the next issue.
-- Use `Refs #<number>` for PRs to `dev`; close issues only after the agreed integration/closure step.
+- Default to one issue at a time, but time-boxed phase work may batch several related issues into one PR.
+- Even in a batched PR, keep one commit per issue, validate each issue separately, and comment evidence on each GitHub issue before moving on.
+- Use `Refs #<number>` for PRs to `dev`; include every issue number in batched PR bodies. Close issues only after the agreed integration/closure step.
 
 ## GitHub Comments
 
