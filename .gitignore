@@ -1,0 +1,46 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+node_modules/
+dist/
+
+# Logs
+*.log
+logs/
+data/logs/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database / Local data
+*.sqlite3
+*.db
+data/uploads/
+data/exports/
+data/backups/
+data/markdown_wiki/
+
+# Coverage / test outputs
+.coverage
+coverage/
+htmlcov/

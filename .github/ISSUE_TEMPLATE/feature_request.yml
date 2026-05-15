@@ -1,0 +1,19 @@
+name: Feature Request
+description: 提交一个新功能建议
+title: "[Feature] "
+labels: ["feature"]
+body:
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景
+      description: 为什么需要这个功能？
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: 建议方案
+      description: 你期望如何实现这个功能？
+    validations:
+      required: true

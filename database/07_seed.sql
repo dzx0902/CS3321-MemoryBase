@@ -1,0 +1,11 @@
+-- Demo seed should be filled after schema is finalized.
+-- Suggested demo data:
+-- 1 workspace
+-- 4 users
+-- 1 retriever agent
+-- 6 source documents
+-- 20 memory items
+-- 20 memory evidence records
+-- several audit logs, timeline entries and wiki pages
+-- Source files are prepared under data/raw_sources/demo_workspace/
+-- Helper script: scripts/import_demo_sources.py

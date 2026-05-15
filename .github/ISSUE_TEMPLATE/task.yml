@@ -1,0 +1,29 @@
+name: Task
+description: 通用开发任务
+title: "[Task] "
+labels: ["type: task"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目标
+      description: 这个 issue 要完成什么？
+    validations:
+      required: true
+  - type: textarea
+    id: tasks
+    attributes:
+      label: 任务清单
+      value: |
+        - [ ]
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收标准
+      description: 什么情况下认为这个 issue 完成？
+    validations:
+      required: true
