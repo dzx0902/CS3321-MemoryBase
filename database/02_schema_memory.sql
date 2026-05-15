@@ -64,11 +64,11 @@ CREATE TABLE IF NOT EXISTS memory_item (
     CHECK (status IN ('active', 'archived', 'forgotten', 'superseded', 'conflicted')),
   access_level VARCHAR(20) NOT NULL DEFAULT 'project'
     CHECK (access_level IN ('public', 'project', 'team', 'private')),
-  owner_user_id UUID REFERENCES user_account(user_id),
-  owner_agent_id UUID REFERENCES agent(agent_id),
+  owner_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
+  owner_agent_id UUID REFERENCES agent(agent_id) ON DELETE SET NULL,
   valid_from TIMESTAMPTZ NOT NULL DEFAULT now(),
   valid_to TIMESTAMPTZ,
-  superseded_by_memory_id UUID REFERENCES memory_item(memory_id),
+  superseded_by_memory_id UUID REFERENCES memory_item(memory_id) ON DELETE SET NULL,
   current_revision_no INT NOT NULL DEFAULT 1,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
