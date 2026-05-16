@@ -194,6 +194,14 @@ FOR EACH ROW EXECUTE FUNCTION fn_memory_after_update();
 CREATE OR REPLACE FUNCTION fn_memory_soft_delete()
 RETURNS TRIGGER AS $$
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM workspace
+    WHERE workspace_id = OLD.workspace_id
+  ) THEN
+    RETURN OLD;
+  END IF;
+
   UPDATE memory_item
   SET status = 'archived',
       valid_to = coalesce(valid_to, now())
