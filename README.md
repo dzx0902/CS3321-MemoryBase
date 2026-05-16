@@ -228,6 +228,23 @@ psql postgresql://memorybase:memorybase@localhost:5432/memorybase_db -c "\dt"
 - docs/14-initial-issues.md
 - docs/15-api-contract-plan.md
 
+## GitHub Workflows
+
+- `.github/workflows/ci.yml`
+  - `push` 到 `main/dev` 时执行主线持续集成
+  - 包含基础文件检查、Python/Frontend 静态检查、后端 smoke test
+- `.github/workflows/pr-build-check.yml`
+  - `pull_request` 到 `main/dev` 时执行 PR 构建校验
+  - 包含基础文件检查、静态检查、后端检查、前端构建
+- `.github/workflows/sql-check.yml`
+  - 针对 `database/` 目录相关变更执行 PostgreSQL SQL 检查
+  - 包含建库、建表、索引、视图、触发器加载与烟雾测试
+- `.github/workflows/pages.yml`
+  - `main` 分支触发 GitHub Pages 前端静态站点部署
+- `.github/workflows/codeql.yml`
+  - 可选安全扫描工作流
+  - 对 `Python` 与 `JavaScript` 进行 CodeQL 分析
+
 ## Demo 数据
 
 - 原始讨论记录位于 `data/raw_sources/demo_workspace/`

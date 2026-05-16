@@ -37,29 +37,16 @@ PR 必须：
 ## 4. Label 建议
 
 ```text
-type: docs
-type: database
-type: backend
-type: frontend
-type: test
-type: ci
-type: demo
-
-priority: p0
-priority: p1
-priority: p2
-priority: future
-
-area: source
-area: memory
-area: evidence
-area: recall
-area: policy
-area: audit
-area: wiki
-area: timeline
-area: conflict
+lane: database
+lane: backend
+lane: frontend
+lane: docs-qa-demo
 ```
+
+说明：
+
+- GitHub 标签只保留四条泳道，用于按负责人或看板列过滤
+- 优先级、领域、阶段等信息保留在 Issue 正文、Milestone 和开发文档中，不再做标签
 
 ## 5. Milestone
 
@@ -87,3 +74,28 @@ AI 不可以：
 - 直接合并 main
 - 单独决定数据库结构
 - 单独决定权限和删除逻辑
+
+## 7. Workflow 约定
+
+仓库当前采用以下 GitHub Actions 工作流：
+
+- `ci.yml`
+  - 主线持续集成
+  - 在 `push -> main/dev` 时运行
+  - 负责基础结构检查、静态检查、后端 smoke test
+- `pr-build-check.yml`
+  - PR 合入前检查
+  - 在 `pull_request -> main/dev` 时运行
+  - 负责基础结构检查、静态检查、后端检查、前端构建
+- `sql-check.yml`
+  - SQL 专项检查
+  - 在数据库目录或工作流自身变更时运行
+  - 负责 PostgreSQL 环境下的 SQL 执行、视图/触发器加载与烟雾测试
+- `pages.yml`
+  - GitHub Pages 部署
+  - 在 `push -> main` 时运行
+  - 负责构建并发布前端静态页面
+- `codeql.yml`
+  - 安全扫描
+  - 对 `Python` 与 `JavaScript` 进行 CodeQL 分析
+  - 可在 PR、push 和定时任务下运行
