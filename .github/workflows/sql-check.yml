@@ -1,0 +1,54 @@
+name: SQL Check
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "database/**"
+      - ".github/workflows/sql-check.yml"
+  push:
+    branches: [main, dev]
+    paths:
+      - "database/**"
+      - ".github/workflows/sql-check.yml"
+  workflow_dispatch:
+
+jobs:
+  database-check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: memorybase_db
+          POSTGRES_USER: memorybase
+          POSTGRES_PASSWORD: memorybase
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U memorybase -d memorybase_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Apply SQL files
+        env:
+          PGPASSWORD: memorybase
+        run: |
+          psql -h localhost -U memorybase -d memorybase_db -f database/00_init.sql
+          psql -h localhost -U memorybase -d memorybase_db -f database/01_schema_core.sql
+          psql -h localhost -U memorybase -d memorybase_db -f database/02_schema_memory.sql
+          psql -h localhost -U memorybase -d memorybase_db -f database/03_schema_governance.sql
+          psql -h localhost -U memorybase -d memorybase_db -f database/04_indexes.sql
+          psql -h localhost -U memorybase -d memorybase_db -f database/05_views.sql
+          psql -h localhost -U memorybase -d memorybase_db -f database/06_triggers.sql
+      - name: Smoke check tables
+        env:
+          PGPASSWORD: memorybase
+        run: |
+          psql -h localhost -U memorybase -d memorybase_db -c "\dt"

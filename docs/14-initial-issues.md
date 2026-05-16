@@ -2,62 +2,79 @@
 
 本文档将 MemoryBase 当前文档、SQL 设计、后端/前端骨架与 GitHub 模板整理为一套可发布到 GitHub Projects 的初始 Issues。仓库现有 Issue 模板为 `.github/ISSUE_TEMPLATE/task.yml`、`.github/ISSUE_TEMPLATE/feature_request.yml`、`.github/ISSUE_TEMPLATE/bug_report.yml`；本拆分主要使用 `task`，Future 展望使用 `feature_request`。
 
+## 开发分线与阶段约定
+
+### 四条泳道 Label
+
+- `lane: database`：数据库负责人主线，覆盖 schema、索引、视图、触发器、seed、demo SQL
+- `lane: backend`：后端负责人主线，覆盖 FastAPI 基础、Source/Memory/Recall/Wiki/Audit/Policy/Conflict API
+- `lane: frontend`：前端负责人主线，覆盖路由、Dashboard、Source、Memory、Recall、Wiki、Timeline/Audit/Conflict 页面
+- `lane: docs-qa-demo`：文档 / QA / Demo 负责人主线，覆盖需求/设计文档、测试计划、演示脚本、截图清单、回归验收
+
+### 阶段规划
+
+- 第 0 阶段：契约冻结与统一术语，先统一 SQL 字段、API 契约、demo 数据规模
+- 第 1 阶段：基础地基，先把 schema、触发器、后端配置、前端壳子搭稳
+- 第 2 阶段：P0 主闭环，跑通 Source → Chunk → Memory + Evidence → Recall → Revision / Audit
+- 第 3 阶段：Wiki 与演示闭环，补齐导出、Wiki 页面、回归验证和最终演示材料
+- 第 4 阶段：P1/P2 加分项，包含权限、冲突、时间线、统计增强和 Future 路线图
+
 ## Issue Summary
 
 | No. | Title | Epic | Priority | Milestone | Labels | Depends On |
 |---|---|---|---|---|---|---|
-| I001 | 梳理 MemoryBase 仓库结构与本地启动入口 | Epic 1：项目初始化与 GitHub 工程规范 | priority: p0 | M1 - Project Setup & Documentation | type: task, type: chore, priority: p0, area: project, area: docs | 无 |
-| I002 | 统一 GitHub Issue / PR 模板与协作规则 | Epic 1：项目初始化与 GitHub 工程规范 | priority: p0 | M1 - Project Setup & Documentation | type: task, type: chore, priority: p0, area: project, area: docs | I001 |
-| I003 | 完善 CI 与 GitHub Pages 发布检查 | Epic 1：项目初始化与 GitHub 工程规范 | priority: p1 | M1 - Project Setup & Documentation | type: task, type: ci, priority: p1, area: project | I001, I002 |
-| I004 | 提供从 .github/issues.yaml 发布 Issues 的本地脚本 | Epic 1：项目初始化与 GitHub 工程规范 | priority: p1 | M1 - Project Setup & Documentation | type: task, type: chore, priority: p1, area: project | I002 |
-| I005 | 校准项目总览与需求分析课程文档 | Epic 2：需求分析与课程文档 | priority: p0 | M1 - Project Setup & Documentation | type: task, type: docs, priority: p0, area: docs | I001 |
-| I006 | 补齐数据流图与数据字典文档 | Epic 2：需求分析与课程文档 | priority: p0 | M1 - Project Setup & Documentation | type: task, type: docs, priority: p0, area: docs | I005 |
-| I007 | 完善 E-R、逻辑结构与物理结构设计文档 | Epic 2：需求分析与课程文档 | priority: p0 | M1 - Project Setup & Documentation | type: task, type: docs, priority: p0, area: database, area: docs | I005, I006 |
-| I008 | 同步架构、API、IPO、测试、演示与报告文档 | Epic 2：需求分析与课程文档 | priority: p1 | M1 - Project Setup & Documentation | type: task, type: docs, priority: p1, area: docs | I005, I007 |
-| I009 | 实现 core schema：用户、工作区、Agent 与成员关系 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | type: task, type: database, priority: p0, area: database | I001 |
-| I010 | 实现 Source / Session / Message / Chunk schema | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | type: task, type: database, priority: p0, area: source, area: database | I009 |
-| I011 | 实现 Memory / Evidence / Revision schema | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | type: task, type: database, priority: p0, area: memory, area: evidence | I009, I010 |
-| I012 | 实现 Wiki / Timeline / Recall / Audit 基础 schema | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | type: task, type: database, priority: p0, area: wiki, area: audit | I009, I011 |
-| I013 | 实现 AccessPolicy、ConflictRecord 与 ForgetRequest 治理 schema | Epic 3：数据库 Schema 与 SQL 基础 | priority: p1 | M2 - Database Schema & SQL Foundation | type: task, type: database, priority: p1, area: policy, area: conflict | I009, I012 |
-| I014 | 增加关键索引与 PostgreSQL 全文检索支持 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | type: task, type: database, priority: p0, area: database, area: recall | I010, I011, I012 |
-| I015 | 增加核心视图、权限视图与统计视图 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p1 | M2 - Database Schema & SQL Foundation | type: task, type: database, priority: p1, area: database, area: policy | I011, I012, I013 |
-| I016 | 实现 revision、audit、soft delete 与 wiki rebuild 触发器 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | type: task, type: database, priority: p0, area: audit, area: memory | I011, I012 |
-| I017 | 准备 P0 演示 seed 数据 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | type: task, type: demo, priority: p0, area: database | I009, I010, I011, I012, I016 |
-| I018 | 编写 SQL 演示查询脚本 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p1 | M2 - Database Schema & SQL Foundation | type: task, type: database, priority: p1, area: database, area: demo | I014, I015, I017 |
-| I019 | 搭建后端 health、config 与数据库连接基础 | Epic 4：Source 导入与 Chunk 管理 | priority: p0 | M3 - P0 Source-Memory-Evidence MVP | type: task, type: backend, priority: p0, area: backend | I001, I009 |
-| I020 | 实现 Markdown / txt 导入服务、checksum 与 chunk 切分 | Epic 4：Source 导入与 Chunk 管理 | priority: p0 | M3 - P0 Source-Memory-Evidence MVP | type: task, type: backend, priority: p0, area: source | I019, I010 |
-| I021 | 实现 SourceDocument / SourceChunk API | Epic 4：Source 导入与 Chunk 管理 | priority: p0 | M3 - P0 Source-Memory-Evidence MVP | type: task, type: backend, priority: p0, area: source | I020 |
-| I022 | 实现 MemoryItem CRUD API 与 Evidence 绑定 | Epic 5：Memory、Evidence 与 Revision 核心闭环 | priority: p0 | M3 - P0 Source-Memory-Evidence MVP | type: task, type: backend, priority: p0, area: memory, area: evidence | I019, I011 |
-| I023 | 实现 MemoryRevision、AuditLog 与软删除后端闭环 | Epic 5：Memory、Evidence 与 Revision 核心闭环 | priority: p0 | M4 - Recall, Revision & Audit | type: task, type: backend, priority: p0, area: memory, area: audit | I022, I016 |
-| I024 | 实现 Recall API 与 Context Pack Join | Epic 6：Recall 检索与 Context Pack | priority: p0 | M4 - Recall, Revision & Audit | type: task, type: backend, priority: p0, area: recall | I021, I022, I014 |
-| I025 | 补齐 RecallLog、排序与演示问题测试 | Epic 6：Recall 检索与 Context Pack | priority: p1 | M4 - Recall, Revision & Audit | type: task, type: test, priority: p1, area: recall | I024, I017, I018 |
-| I026 | 实现 AccessPolicy API 与 Agent 可见性过滤 | Epic 7：AccessPolicy、Audit 与 Conflict 治理 | priority: p1 | M4 - Recall, Revision & Audit | type: task, type: backend, priority: p1, area: policy | I013, I024 |
-| I027 | 实现 AuditLog 查询 API 与筛选能力 | Epic 7：AccessPolicy、Audit 与 Conflict 治理 | priority: p1 | M4 - Recall, Revision & Audit | type: task, type: backend, priority: p1, area: audit | I012, I016, I019 |
-| I028 | 实现 ConflictRecord API、视图与处理状态 | Epic 7：AccessPolicy、Audit 与 Conflict 治理 | priority: p1 | M4 - Recall, Revision & Audit | type: task, type: backend, priority: p1, area: conflict | I013, I022, I015 |
-| I029 | 实现 Wiki Markdown 导出 API 与文件投影 | Epic 8：Wiki、Timeline 与文件投影 | priority: p0 | M5 - Wiki, Timeline & Demo UI | type: task, type: backend, priority: p0, area: wiki | I012, I022, I023 |
-| I030 | 实现 TimelineEntry API 与决策时间线数据服务 | Epic 8：Wiki、Timeline 与文件投影 | priority: p1 | M5 - Wiki, Timeline & Demo UI | type: task, type: backend, priority: p1, area: timeline | I012, I022 |
-| I031 | 实现前端路由、导航与 Dashboard | Epic 9：前端页面与演示界面 | priority: p0 | M5 - Wiki, Timeline & Demo UI | type: task, type: frontend, priority: p0, area: frontend | I001, I019 |
-| I032 | 实现 Source 列表、导入与详情页面 | Epic 9：前端页面与演示界面 | priority: p0 | M5 - Wiki, Timeline & Demo UI | type: task, type: frontend, priority: p0, area: source, area: frontend | I021, I031 |
-| I033 | 实现 Memory 列表、详情、Evidence 与 Revision 页面 | Epic 9：前端页面与演示界面 | priority: p0 | M5 - Wiki, Timeline & Demo UI | type: task, type: frontend, priority: p0, area: memory, area: frontend | I022, I023, I031 |
-| I034 | 实现 Recall 检索页面与 Context Pack 展示 | Epic 9：前端页面与演示界面 | priority: p0 | M5 - Wiki, Timeline & Demo UI | type: task, type: frontend, priority: p0, area: recall, area: frontend | I024, I031 |
-| I035 | 实现 Wiki 预览、导出与 provenance 展示页面 | Epic 9：前端页面与演示界面 | priority: p0 | M5 - Wiki, Timeline & Demo UI | type: task, type: frontend, priority: p0, area: wiki, area: frontend | I029, I031 |
-| I036 | 实现 Timeline、Audit 与 Conflict 演示页面 | Epic 9：前端页面与演示界面 | priority: p1 | M5 - Wiki, Timeline & Demo UI | type: task, type: frontend, priority: p1, area: timeline, area: audit, area: conflict | I027, I028, I030, I031 |
-| I037 | 建立 P0 API、SQL、权限、检索与 UI 回归测试 | Epic 10：测试、演示数据与最终汇报 | priority: p0 | M6 - Final Report & Presentation | type: task, type: test, priority: p0, area: test | I021, I023, I024, I029, I032, I033, I034, I035 |
-| I038 | 整理演示脚本、截图清单、最终报告材料与 Release | Epic 10：测试、演示数据与最终汇报 | priority: p1 | M6 - Final Report & Presentation | type: task, type: demo, priority: p1, area: demo, area: docs | I017, I018, I037 |
-| I039 | 增加 Entity 与 MemoryScene 轻量关系模型 | Epic 5：Memory、Evidence 与 Revision 核心闭环 | priority: p2 | M4 - Recall, Revision & Audit | type: task, type: feature, priority: p2, area: memory | I011, I007 |
-| I040 | 增加 ForgetRequest 与更完整权限治理流程 | Epic 7：AccessPolicy、Audit 与 Conflict 治理 | priority: p2 | M4 - Recall, Revision & Audit | type: task, type: feature, priority: p2, area: policy | I013, I026 |
-| I041 | 增强统计图表与 Wiki source provenance 深度 | Epic 8：Wiki、Timeline 与文件投影 | priority: p2 | M5 - Wiki, Timeline & Demo UI | type: task, type: feature, priority: p2, area: wiki, area: frontend | I015, I035, I036 |
-| I042 | 记录 Future 路线图：pgvector、LLM、Agent 协作与同步生态 | Epic 10：测试、演示数据与最终汇报 | priority: future | M6 - Final Report & Presentation | type: feature, priority: future, area: project | I038 |
+| I001 | 梳理 MemoryBase 仓库结构与本地启动入口 | Epic 1：项目初始化与 GitHub 工程规范 | priority: p0 | M1 - Project Setup & Documentation | lane: docs-qa-demo | 无 |
+| I002 | 统一 GitHub Issue / PR 模板与协作规则 | Epic 1：项目初始化与 GitHub 工程规范 | priority: p0 | M1 - Project Setup & Documentation | lane: docs-qa-demo | I001 |
+| I003 | 完善 CI 与 GitHub Pages 发布检查 | Epic 1：项目初始化与 GitHub 工程规范 | priority: p1 | M1 - Project Setup & Documentation | lane: docs-qa-demo | I001, I002 |
+| I004 | 提供从 .github/issues.yaml 发布 Issues 的本地脚本 | Epic 1：项目初始化与 GitHub 工程规范 | priority: p1 | M1 - Project Setup & Documentation | lane: docs-qa-demo | I002 |
+| I005 | 校准项目总览与需求分析课程文档 | Epic 2：需求分析与课程文档 | priority: p0 | M1 - Project Setup & Documentation | lane: docs-qa-demo | I001 |
+| I006 | 补齐数据流图与数据字典文档 | Epic 2：需求分析与课程文档 | priority: p0 | M1 - Project Setup & Documentation | lane: docs-qa-demo | I005 |
+| I007 | 完善 E-R、逻辑结构与物理结构设计文档 | Epic 2：需求分析与课程文档 | priority: p0 | M1 - Project Setup & Documentation | lane: docs-qa-demo | I005, I006 |
+| I008 | 同步架构、API、IPO、测试、演示与报告文档 | Epic 2：需求分析与课程文档 | priority: p1 | M1 - Project Setup & Documentation | lane: docs-qa-demo | I005, I007 |
+| I009 | 实现 core schema：用户、工作区、Agent 与成员关系 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | lane: database | I001 |
+| I010 | 实现 Source / Session / Message / Chunk schema | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | lane: database | I009 |
+| I011 | 实现 Memory / Evidence / Revision schema | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | lane: database | I009, I010 |
+| I012 | 实现 Wiki / Timeline / Recall / Audit 基础 schema | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | lane: database | I009, I011 |
+| I013 | 实现 AccessPolicy、ConflictRecord 与 ForgetRequest 治理 schema | Epic 3：数据库 Schema 与 SQL 基础 | priority: p1 | M2 - Database Schema & SQL Foundation | lane: database | I009, I012 |
+| I014 | 增加关键索引与 PostgreSQL 全文检索支持 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | lane: database | I010, I011, I012 |
+| I015 | 增加核心视图、权限视图与统计视图 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p1 | M2 - Database Schema & SQL Foundation | lane: database | I011, I012, I013 |
+| I016 | 实现 revision、audit、soft delete 与 wiki rebuild 触发器 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | lane: database | I011, I012 |
+| I017 | 准备 P0 演示 seed 数据 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p0 | M2 - Database Schema & SQL Foundation | lane: database | I009, I010, I011, I012, I016 |
+| I018 | 编写 SQL 演示查询脚本 | Epic 3：数据库 Schema 与 SQL 基础 | priority: p1 | M2 - Database Schema & SQL Foundation | lane: database | I014, I015, I017 |
+| I019 | 搭建后端 health、config 与数据库连接基础 | Epic 4：Source 导入与 Chunk 管理 | priority: p0 | M3 - P0 Source-Memory-Evidence MVP | lane: backend | I001, I009 |
+| I020 | 实现 Markdown / txt 导入服务、checksum 与 chunk 切分 | Epic 4：Source 导入与 Chunk 管理 | priority: p0 | M3 - P0 Source-Memory-Evidence MVP | lane: backend | I019, I010 |
+| I021 | 实现 SourceDocument / SourceChunk API | Epic 4：Source 导入与 Chunk 管理 | priority: p0 | M3 - P0 Source-Memory-Evidence MVP | lane: backend | I020 |
+| I022 | 实现 MemoryItem CRUD API 与 Evidence 绑定 | Epic 5：Memory、Evidence 与 Revision 核心闭环 | priority: p0 | M3 - P0 Source-Memory-Evidence MVP | lane: backend | I019, I011 |
+| I023 | 实现 MemoryRevision、AuditLog 与软删除后端闭环 | Epic 5：Memory、Evidence 与 Revision 核心闭环 | priority: p0 | M4 - Recall, Revision & Audit | lane: backend | I022, I016 |
+| I024 | 实现 Recall API 与 Context Pack Join | Epic 6：Recall 检索与 Context Pack | priority: p0 | M4 - Recall, Revision & Audit | lane: backend | I021, I022, I014 |
+| I025 | 补齐 RecallLog、排序与演示问题测试 | Epic 6：Recall 检索与 Context Pack | priority: p1 | M4 - Recall, Revision & Audit | lane: docs-qa-demo | I024, I017, I018 |
+| I026 | 实现 AccessPolicy API 与 Agent 可见性过滤 | Epic 7：AccessPolicy、Audit 与 Conflict 治理 | priority: p1 | M4 - Recall, Revision & Audit | lane: backend | I013, I024 |
+| I027 | 实现 AuditLog 查询 API 与筛选能力 | Epic 7：AccessPolicy、Audit 与 Conflict 治理 | priority: p1 | M4 - Recall, Revision & Audit | lane: backend | I012, I016, I019 |
+| I028 | 实现 ConflictRecord API、视图与处理状态 | Epic 7：AccessPolicy、Audit 与 Conflict 治理 | priority: p1 | M4 - Recall, Revision & Audit | lane: backend | I013, I022, I015 |
+| I029 | 实现 Wiki Markdown 导出 API 与文件投影 | Epic 8：Wiki、Timeline 与文件投影 | priority: p0 | M5 - Wiki, Timeline & Demo UI | lane: backend | I012, I022, I023 |
+| I030 | 实现 TimelineEntry API 与决策时间线数据服务 | Epic 8：Wiki、Timeline 与文件投影 | priority: p1 | M5 - Wiki, Timeline & Demo UI | lane: backend | I012, I022 |
+| I031 | 实现前端路由、导航与 Dashboard | Epic 9：前端页面与演示界面 | priority: p0 | M5 - Wiki, Timeline & Demo UI | lane: frontend | I001, I019 |
+| I032 | 实现 Source 列表、导入与详情页面 | Epic 9：前端页面与演示界面 | priority: p0 | M5 - Wiki, Timeline & Demo UI | lane: frontend | I021, I031 |
+| I033 | 实现 Memory 列表、详情、Evidence 与 Revision 页面 | Epic 9：前端页面与演示界面 | priority: p0 | M5 - Wiki, Timeline & Demo UI | lane: frontend | I022, I023, I031 |
+| I034 | 实现 Recall 检索页面与 Context Pack 展示 | Epic 9：前端页面与演示界面 | priority: p0 | M5 - Wiki, Timeline & Demo UI | lane: frontend | I024, I031 |
+| I035 | 实现 Wiki 预览、导出与 provenance 展示页面 | Epic 9：前端页面与演示界面 | priority: p0 | M5 - Wiki, Timeline & Demo UI | lane: frontend | I029, I031 |
+| I036 | 实现 Timeline、Audit 与 Conflict 演示页面 | Epic 9：前端页面与演示界面 | priority: p1 | M5 - Wiki, Timeline & Demo UI | lane: frontend | I027, I028, I030, I031 |
+| I037 | 建立 P0 API、SQL、权限、检索与 UI 回归测试 | Epic 10：测试、演示数据与最终汇报 | priority: p0 | M6 - Final Report & Presentation | lane: docs-qa-demo | I021, I023, I024, I029, I032, I033, I034, I035 |
+| I038 | 整理演示脚本、截图清单、最终报告材料与 Release | Epic 10：测试、演示数据与最终汇报 | priority: p1 | M6 - Final Report & Presentation | lane: docs-qa-demo | I017, I018, I037 |
+| I039 | 增加 Entity 与 MemoryScene 轻量关系模型 | Epic 5：Memory、Evidence 与 Revision 核心闭环 | priority: p2 | M4 - Recall, Revision & Audit | lane: database | I011, I007 |
+| I040 | 增加 ForgetRequest 与更完整权限治理流程 | Epic 7：AccessPolicy、Audit 与 Conflict 治理 | priority: p2 | M4 - Recall, Revision & Audit | lane: database | I013, I026 |
+| I041 | 增强统计图表与 Wiki source provenance 深度 | Epic 8：Wiki、Timeline 与文件投影 | priority: p2 | M5 - Wiki, Timeline & Demo UI | lane: frontend | I015, I035, I036 |
+| I042 | 记录 Future 路线图：pgvector、LLM、Agent 协作与同步生态 | Epic 10：测试、演示数据与最终汇报 | priority: future | M6 - Final Report & Presentation | lane: docs-qa-demo | I038 |
 
 ## Epic 1：项目初始化与 GitHub 工程规范
 
 ### Issue 1：梳理 MemoryBase 仓库结构与本地启动入口
 
-**ID**: I001  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M1 - Project Setup & Documentation  
-**Labels**: type: task, type: chore, priority: p0, area: project, area: docs
+**ID**: I001
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M1 - Project Setup & Documentation
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
@@ -108,11 +125,11 @@ Module 建议：Project / Onboarding。不要引入新框架，重点是让后�
 
 ### Issue 2：统一 GitHub Issue / PR 模板与协作规则
 
-**ID**: I002  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M1 - Project Setup & Documentation  
-**Labels**: type: task, type: chore, priority: p0, area: project, area: docs
+**ID**: I002
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M1 - Project Setup & Documentation
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
@@ -163,11 +180,11 @@ Module 建议：GitHub Workflow。现有模板不得删除；如需新增字段�
 
 ### Issue 3：完善 CI 与 GitHub Pages 发布检查
 
-**ID**: I003  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M1 - Project Setup & Documentation  
-**Labels**: type: task, type: ci, priority: p1, area: project
+**ID**: I003
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M1 - Project Setup & Documentation
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
@@ -216,11 +233,11 @@ Module 建议：CI / Release。Pages 是 P1，不阻塞 P0 MVP。
 
 ### Issue 4：提供从 .github/issues.yaml 发布 Issues 的本地脚本
 
-**ID**: I004  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M1 - Project Setup & Documentation  
-**Labels**: type: task, type: chore, priority: p1, area: project
+**ID**: I004
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M1 - Project Setup & Documentation
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
@@ -271,11 +288,11 @@ Module 建议：GitHub Automation。发布动作必须由人工显式确认后�
 
 ### Issue 5：校准项目总览与需求分析课程文档
 
-**ID**: I005  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M1 - Project Setup & Documentation  
-**Labels**: type: task, type: docs, priority: p0, area: docs
+**ID**: I005
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M1 - Project Setup & Documentation
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
@@ -324,11 +341,11 @@ Module 建议：Documentation / Requirements。
 
 ### Issue 6：补齐数据流图与数据字典文档
 
-**ID**: I006  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M1 - Project Setup & Documentation  
-**Labels**: type: task, type: docs, priority: p0, area: docs
+**ID**: I006
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M1 - Project Setup & Documentation
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
@@ -382,11 +399,11 @@ Module 建议：Documentation / Data Flow。
 
 ### Issue 7：完善 E-R、逻辑结构与物理结构设计文档
 
-**ID**: I007  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M1 - Project Setup & Documentation  
-**Labels**: type: task, type: docs, priority: p0, area: database, area: docs
+**ID**: I007
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M1 - Project Setup & Documentation
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
@@ -442,11 +459,11 @@ Module 建议：Database Design。
 
 ### Issue 8：同步架构、API、IPO、测试、演示与报告文档
 
-**ID**: I008  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M1 - Project Setup & Documentation  
-**Labels**: type: task, type: docs, priority: p1, area: docs
+**ID**: I008
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M1 - Project Setup & Documentation
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
@@ -503,11 +520,11 @@ Module 建议：Documentation / Report。
 
 ### Issue 9：实现 core schema：用户、工作区、Agent 与成员关系
 
-**ID**: I009  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M2 - Database Schema & SQL Foundation  
-**Labels**: type: task, type: database, priority: p0, area: database
+**ID**: I009
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M2 - Database Schema & SQL Foundation
+**Labels**: lane: database
 
 ## 背景
 
@@ -558,11 +575,11 @@ Module 建议：Database / Core Schema。
 
 ### Issue 10：实现 Source / Session / Message / Chunk schema
 
-**ID**: I010  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M2 - Database Schema & SQL Foundation  
-**Labels**: type: task, type: database, priority: p0, area: source, area: database
+**ID**: I010
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M2 - Database Schema & SQL Foundation
+**Labels**: lane: database
 
 ## 背景
 
@@ -613,11 +630,11 @@ Module 建议：Database / Source Schema。
 
 ### Issue 11：实现 Memory / Evidence / Revision schema
 
-**ID**: I011  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M2 - Database Schema & SQL Foundation  
-**Labels**: type: task, type: database, priority: p0, area: memory, area: evidence
+**ID**: I011
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M2 - Database Schema & SQL Foundation
+**Labels**: lane: database
 
 ## 背景
 
@@ -667,11 +684,11 @@ Module 建议：Database / Memory Schema。
 
 ### Issue 12：实现 Wiki / Timeline / Recall / Audit 基础 schema
 
-**ID**: I012  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M2 - Database Schema & SQL Foundation  
-**Labels**: type: task, type: database, priority: p0, area: wiki, area: audit
+**ID**: I012
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M2 - Database Schema & SQL Foundation
+**Labels**: lane: database
 
 ## 背景
 
@@ -723,11 +740,11 @@ Module 建议：Database / Governance Base。
 
 ### Issue 13：实现 AccessPolicy、ConflictRecord 与 ForgetRequest 治理 schema
 
-**ID**: I013  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M2 - Database Schema & SQL Foundation  
-**Labels**: type: task, type: database, priority: p1, area: policy, area: conflict
+**ID**: I013
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M2 - Database Schema & SQL Foundation
+**Labels**: lane: database
 
 ## 背景
 
@@ -778,11 +795,11 @@ Module 建议：Database / Governance Schema。
 
 ### Issue 14：增加关键索引与 PostgreSQL 全文检索支持
 
-**ID**: I014  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M2 - Database Schema & SQL Foundation  
-**Labels**: type: task, type: database, priority: p0, area: database, area: recall
+**ID**: I014
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M2 - Database Schema & SQL Foundation
+**Labels**: lane: database
 
 ## 背景
 
@@ -836,11 +853,11 @@ Module 建议：Database / Indexing。
 
 ### Issue 15：增加核心视图、权限视图与统计视图
 
-**ID**: I015  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M2 - Database Schema & SQL Foundation  
-**Labels**: type: task, type: database, priority: p1, area: database, area: policy
+**ID**: I015
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M2 - Database Schema & SQL Foundation
+**Labels**: lane: database
 
 ## 背景
 
@@ -895,11 +912,11 @@ Module 建议：Database / Views。
 
 ### Issue 16：实现 revision、audit、soft delete 与 wiki rebuild 触发器
 
-**ID**: I016  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M2 - Database Schema & SQL Foundation  
-**Labels**: type: task, type: database, priority: p0, area: audit, area: memory
+**ID**: I016
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M2 - Database Schema & SQL Foundation
+**Labels**: lane: database
 
 ## 背景
 
@@ -953,11 +970,11 @@ Module 建议：Database / Triggers。触发器错误应 fail-fast，不要静�
 
 ### Issue 17：准备 P0 演示 seed 数据
 
-**ID**: I017  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M2 - Database Schema & SQL Foundation  
-**Labels**: type: task, type: demo, priority: p0, area: database
+**ID**: I017
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M2 - Database Schema & SQL Foundation
+**Labels**: lane: database
 
 ## 背景
 
@@ -1015,11 +1032,11 @@ Module 建议：Demo Data。seed 应可重复执行或明确重置方式。
 
 ### Issue 18：编写 SQL 演示查询脚本
 
-**ID**: I018  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M2 - Database Schema & SQL Foundation  
-**Labels**: type: task, type: database, priority: p1, area: database, area: demo
+**ID**: I018
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M2 - Database Schema & SQL Foundation
+**Labels**: lane: database
 
 ## 背景
 
@@ -1075,11 +1092,11 @@ Module 建议：Database / Demo Queries。
 
 ### Issue 19：搭建后端 health、config 与数据库连接基础
 
-**ID**: I019  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M3 - P0 Source-Memory-Evidence MVP  
-**Labels**: type: task, type: backend, priority: p0, area: backend
+**ID**: I019
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M3 - P0 Source-Memory-Evidence MVP
+**Labels**: lane: backend
 
 ## 背景
 
@@ -1129,11 +1146,11 @@ Module 建议：Backend / Foundation。
 
 ### Issue 20：实现 Markdown / txt 导入服务、checksum 与 chunk 切分
 
-**ID**: I020  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M3 - P0 Source-Memory-Evidence MVP  
-**Labels**: type: task, type: backend, priority: p0, area: source
+**ID**: I020
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M3 - P0 Source-Memory-Evidence MVP
+**Labels**: lane: backend
 
 ## 背景
 
@@ -1184,11 +1201,11 @@ Module 建议：Backend / Source Ingest。
 
 ### Issue 21：实现 SourceDocument / SourceChunk API
 
-**ID**: I021  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M3 - P0 Source-Memory-Evidence MVP  
-**Labels**: type: task, type: backend, priority: p0, area: source
+**ID**: I021
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M3 - P0 Source-Memory-Evidence MVP
+**Labels**: lane: backend
 
 ## 背景
 
@@ -1242,11 +1259,11 @@ Module 建议：Backend / Source API。
 
 ### Issue 22：实现 MemoryItem CRUD API 与 Evidence 绑定
 
-**ID**: I022  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M3 - P0 Source-Memory-Evidence MVP  
-**Labels**: type: task, type: backend, priority: p0, area: memory, area: evidence
+**ID**: I022
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M3 - P0 Source-Memory-Evidence MVP
+**Labels**: lane: backend
 
 ## 背景
 
@@ -1301,11 +1318,11 @@ Module 建议：Backend / Memory API。
 
 ### Issue 23：实现 MemoryRevision、AuditLog 与软删除后端闭环
 
-**ID**: I023  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M4 - Recall, Revision & Audit  
-**Labels**: type: task, type: backend, priority: p0, area: memory, area: audit
+**ID**: I023
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M4 - Recall, Revision & Audit
+**Labels**: lane: backend
 
 ## 背景
 
@@ -1358,11 +1375,11 @@ Module 建议：Backend / Revision & Audit。
 
 ### Issue 39：增加 Entity 与 MemoryScene 轻量关系模型
 
-**ID**: I039  
-**Template**: task  
-**Priority**: priority: p2  
-**Milestone**: M4 - Recall, Revision & Audit  
-**Labels**: type: task, type: feature, priority: p2, area: memory
+**ID**: I039
+**Template**: task
+**Priority**: priority: p2
+**Milestone**: M4 - Recall, Revision & Audit
+**Labels**: lane: database
 
 ## 背景
 
@@ -1417,11 +1434,11 @@ Module 建议：Memory / Semantic Extension。
 
 ### Issue 24：实现 Recall API 与 Context Pack Join
 
-**ID**: I024  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M4 - Recall, Revision & Audit  
-**Labels**: type: task, type: backend, priority: p0, area: recall
+**ID**: I024
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M4 - Recall, Revision & Audit
+**Labels**: lane: backend
 
 ## 背景
 
@@ -1474,11 +1491,11 @@ Module 建议：Backend / Recall。
 
 ### Issue 25：补齐 RecallLog、排序与演示问题测试
 
-**ID**: I025  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M4 - Recall, Revision & Audit  
-**Labels**: type: task, type: test, priority: p1, area: recall
+**ID**: I025
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M4 - Recall, Revision & Audit
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
@@ -1531,11 +1548,11 @@ Module 建议：Backend / Recall QA。
 
 ### Issue 26：实现 AccessPolicy API 与 Agent 可见性过滤
 
-**ID**: I026  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M4 - Recall, Revision & Audit  
-**Labels**: type: task, type: backend, priority: p1, area: policy
+**ID**: I026
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M4 - Recall, Revision & Audit
+**Labels**: lane: backend
 
 ## 背景
 
@@ -1588,11 +1605,11 @@ Module 建议：Backend / Policy。
 
 ### Issue 27：实现 AuditLog 查询 API 与筛选能力
 
-**ID**: I027  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M4 - Recall, Revision & Audit  
-**Labels**: type: task, type: backend, priority: p1, area: audit
+**ID**: I027
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M4 - Recall, Revision & Audit
+**Labels**: lane: backend
 
 ## 背景
 
@@ -1640,11 +1657,11 @@ Module 建议：Backend / Audit。
 
 ### Issue 28：实现 ConflictRecord API、视图与处理状态
 
-**ID**: I028  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M4 - Recall, Revision & Audit  
-**Labels**: type: task, type: backend, priority: p1, area: conflict
+**ID**: I028
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M4 - Recall, Revision & Audit
+**Labels**: lane: backend
 
 ## 背景
 
@@ -1695,11 +1712,11 @@ Module 建议：Backend / Conflict。
 
 ### Issue 40：增加 ForgetRequest 与更完整权限治理流程
 
-**ID**: I040  
-**Template**: task  
-**Priority**: priority: p2  
-**Milestone**: M4 - Recall, Revision & Audit  
-**Labels**: type: task, type: feature, priority: p2, area: policy
+**ID**: I040
+**Template**: task
+**Priority**: priority: p2
+**Milestone**: M4 - Recall, Revision & Audit
+**Labels**: lane: database
 
 ## 背景
 
@@ -1754,11 +1771,11 @@ Module 建议：Governance / Forgetting。
 
 ### Issue 29：实现 Wiki Markdown 导出 API 与文件投影
 
-**ID**: I029  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M5 - Wiki, Timeline & Demo UI  
-**Labels**: type: task, type: backend, priority: p0, area: wiki
+**ID**: I029
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M5 - Wiki, Timeline & Demo UI
+**Labels**: lane: backend
 
 ## 背景
 
@@ -1811,11 +1828,11 @@ Module 建议：Backend / Wiki Export。
 
 ### Issue 30：实现 TimelineEntry API 与决策时间线数据服务
 
-**ID**: I030  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M5 - Wiki, Timeline & Demo UI  
-**Labels**: type: task, type: backend, priority: p1, area: timeline
+**ID**: I030
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M5 - Wiki, Timeline & Demo UI
+**Labels**: lane: backend
 
 ## 背景
 
@@ -1866,11 +1883,11 @@ Module 建议：Backend / Timeline。
 
 ### Issue 41：增强统计图表与 Wiki source provenance 深度
 
-**ID**: I041  
-**Template**: task  
-**Priority**: priority: p2  
-**Milestone**: M5 - Wiki, Timeline & Demo UI  
-**Labels**: type: task, type: feature, priority: p2, area: wiki, area: frontend
+**ID**: I041
+**Template**: task
+**Priority**: priority: p2
+**Milestone**: M5 - Wiki, Timeline & Demo UI
+**Labels**: lane: frontend
 
 ## 背景
 
@@ -1926,11 +1943,11 @@ Module 建议：Frontend / Reporting。
 
 ### Issue 31：实现前端路由、导航与 Dashboard
 
-**ID**: I031  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M5 - Wiki, Timeline & Demo UI  
-**Labels**: type: task, type: frontend, priority: p0, area: frontend
+**ID**: I031
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M5 - Wiki, Timeline & Demo UI
+**Labels**: lane: frontend
 
 ## 背景
 
@@ -1987,11 +2004,11 @@ Module 建议：Frontend / App Shell。
 
 ### Issue 32：实现 Source 列表、导入与详情页面
 
-**ID**: I032  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M5 - Wiki, Timeline & Demo UI  
-**Labels**: type: task, type: frontend, priority: p0, area: source, area: frontend
+**ID**: I032
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M5 - Wiki, Timeline & Demo UI
+**Labels**: lane: frontend
 
 ## 背景
 
@@ -2042,11 +2059,11 @@ Module 建议：Frontend / Source。
 
 ### Issue 33：实现 Memory 列表、详情、Evidence 与 Revision 页面
 
-**ID**: I033  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M5 - Wiki, Timeline & Demo UI  
-**Labels**: type: task, type: frontend, priority: p0, area: memory, area: frontend
+**ID**: I033
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M5 - Wiki, Timeline & Demo UI
+**Labels**: lane: frontend
 
 ## 背景
 
@@ -2101,11 +2118,11 @@ Module 建议：Frontend / Memory。
 
 ### Issue 34：实现 Recall 检索页面与 Context Pack 展示
 
-**ID**: I034  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M5 - Wiki, Timeline & Demo UI  
-**Labels**: type: task, type: frontend, priority: p0, area: recall, area: frontend
+**ID**: I034
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M5 - Wiki, Timeline & Demo UI
+**Labels**: lane: frontend
 
 ## 背景
 
@@ -2156,11 +2173,11 @@ Module 建议：Frontend / Recall。
 
 ### Issue 35：实现 Wiki 预览、导出与 provenance 展示页面
 
-**ID**: I035  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M5 - Wiki, Timeline & Demo UI  
-**Labels**: type: task, type: frontend, priority: p0, area: wiki, area: frontend
+**ID**: I035
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M5 - Wiki, Timeline & Demo UI
+**Labels**: lane: frontend
 
 ## 背景
 
@@ -2213,11 +2230,11 @@ Module 建议：Frontend / Wiki。
 
 ### Issue 36：实现 Timeline、Audit 与 Conflict 演示页面
 
-**ID**: I036  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M5 - Wiki, Timeline & Demo UI  
-**Labels**: type: task, type: frontend, priority: p1, area: timeline, area: audit, area: conflict
+**ID**: I036
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M5 - Wiki, Timeline & Demo UI
+**Labels**: lane: frontend
 
 ## 背景
 
@@ -2276,11 +2293,11 @@ Module 建议：Frontend / Governance UI。
 
 ### Issue 37：建立 P0 API、SQL、权限、检索与 UI 回归测试
 
-**ID**: I037  
-**Template**: task  
-**Priority**: priority: p0  
-**Milestone**: M6 - Final Report & Presentation  
-**Labels**: type: task, type: test, priority: p0, area: test
+**ID**: I037
+**Template**: task
+**Priority**: priority: p0
+**Milestone**: M6 - Final Report & Presentation
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
@@ -2342,11 +2359,11 @@ Module 建议：QA / Regression。
 
 ### Issue 38：整理演示脚本、截图清单、最终报告材料与 Release
 
-**ID**: I038  
-**Template**: task  
-**Priority**: priority: p1  
-**Milestone**: M6 - Final Report & Presentation  
-**Labels**: type: task, type: demo, priority: p1, area: demo, area: docs
+**ID**: I038
+**Template**: task
+**Priority**: priority: p1
+**Milestone**: M6 - Final Report & Presentation
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
@@ -2395,11 +2412,11 @@ Module 建议：Demo / Final Report。
 
 ### Issue 42：记录 Future 路线图：pgvector、LLM、Agent 协作与同步生态
 
-**ID**: I042  
-**Template**: feature_request  
-**Priority**: priority: future  
-**Milestone**: M6 - Final Report & Presentation  
-**Labels**: type: feature, priority: future, area: project
+**ID**: I042
+**Template**: feature_request
+**Priority**: priority: future
+**Milestone**: M6 - Final Report & Presentation
+**Labels**: lane: docs-qa-demo
 
 ## 背景
 
