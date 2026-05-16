@@ -191,9 +191,9 @@ VALUES
   ('00000000-0000-0000-0000-000000000619', '00000000-0000-0000-0000-000000000506', 2, 'The key recall question is why did we abandon the campus cafeteria system. The expected answer is that the cafeteria system was too CRUD-heavy and did not demonstrate enough database features.', 8, 8, 29),
   ('00000000-0000-0000-0000-000000000620', '00000000-0000-0000-0000-000000000506', 3, 'Include one conflict about whether LLM extraction is required for MVP. The MVP should not depend on LLM automatic extraction.', 14, 14, 19);
 
-SELECT set_config('app.actor_type', 'system', true);
-SELECT set_config('app.actor_id', '', true);
-SELECT set_config('app.revision_reason', 'seed import', true);
+SELECT set_config('app.actor_type', 'system', false);
+SELECT set_config('app.actor_id', '', false);
+SELECT set_config('app.revision_reason', 'seed import', false);
 
 INSERT INTO memory_item(
   memory_id, workspace_id, created_from_doc_id, memory_type, canonical_text, summary,
@@ -244,7 +244,7 @@ VALUES
   ('00000000-0000-0000-0000-000000000719', '00000000-0000-0000-0000-000000000619', 'supports', 1.000, 'Expected recall answer.'),
   ('00000000-0000-0000-0000-000000000720', '00000000-0000-0000-0000-000000000620', 'supports', 0.950, 'MVP does not require LLM extraction.');
 
-SELECT set_config('app.revision_reason', 'seed correction', true);
+SELECT set_config('app.revision_reason', 'seed correction', false);
 
 UPDATE memory_item
 SET summary = 'Reason cafeteria topic was rejected.'
@@ -345,6 +345,6 @@ VALUES
     '2026-03-25 11:22:00+00'
   );
 
-SELECT set_config('app.actor_type', '', true);
-SELECT set_config('app.actor_id', '', true);
-SELECT set_config('app.revision_reason', '', true);
+SELECT set_config('app.actor_type', '', false);
+SELECT set_config('app.actor_id', '', false);
+SELECT set_config('app.revision_reason', '', false);

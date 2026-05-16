@@ -21,6 +21,8 @@ SELECT workspace_id, memory_type, status, access_level, memory_count, avg_confid
 FROM v_memory_statistics;
 
 -- 5. Query agent-visible memory after the app sets app.agent_id
+SELECT set_config('app.agent_id', '00000000-0000-0000-0000-000000000301', false);
+
 SELECT memory_id, memory_type, canonical_text, access_level, confidence
 FROM v_agent_visible_memory
 ORDER BY importance DESC, updated_at DESC

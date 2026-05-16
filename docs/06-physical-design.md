@@ -64,7 +64,7 @@ project-root/
 | 实体召回 | memory_entity(entity_id, memory_id) |
 | 审计回放 | audit_log(workspace_id, created_at DESC) |
 | 权限过滤 | access_policy(workspace_id, principal_type, principal_id) |
-| role/global 权限去重 | access_policy partial UNIQUE indexes for NULL / non-NULL principal_id |
+| role/global 权限去重 | access_policy 表级 UNIQUE 防止非 NULL principal 重复；partial UNIQUE index 防止 NULL principal 重复 |
 | 冲突列表 | conflict_record(workspace_id, status, created_at DESC) |
 | 遗忘请求列表 | forget_request(workspace_id, status, requested_at DESC) |
 
