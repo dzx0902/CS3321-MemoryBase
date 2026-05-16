@@ -17,11 +17,20 @@
 ## Issue Workflow
 
 - Before starting work, check live GitHub issue state with `gh issue view/list`; do not rely only on local issue IDs.
-- Confirm or add assignment before work starts.
+- Confirm assignment before work starts; ask the owner before adding or changing assignees.
 - Personal owner branch is `jflin`, based on latest `dev`; PRs go from `jflin` to `dev`. `main` is updated only by integration PRs.
 - Default to one issue at a time, but time-boxed phase work may batch several related issues into one PR.
-- Even in a batched PR, keep one commit per issue, validate each issue separately, and comment evidence on each GitHub issue before moving on.
+- Even in a batched PR, keep one reviewable change per issue, validate each issue separately, and prepare evidence for each GitHub issue before moving on.
 - Use `Refs #<number>` for PRs to `dev`; include every issue number in batched PR bodies. Close issues only after the agreed integration/closure step.
+
+## Approval Boundary
+
+- Default workflow is local edit plus validation plus diff summary, then stop for owner review.
+- Do not run `git commit`, `git push`, `gh pr create`, `gh pr edit`, `gh pr merge`, `gh issue edit`, `gh issue comment`, or `gh issue close` unless the project owner explicitly requests that exact remote or git action in the current context.
+- Words such as "continue", "fix", "implement", "proceed", or "按照流程" do not authorize commit, push, PR mutation, issue mutation, merge, or close.
+- If the owner says "commit", only create the local commit after showing validation evidence or using already reviewed evidence.
+- If the owner says "push", only push already-reviewed local commits to the requested branch; do not bundle new edits into that push.
+- After local implementation, provide changed files, validation commands, residual risks, and a suggested commit message instead of committing automatically.
 
 ## GitHub Comments
 
