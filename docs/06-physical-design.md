@@ -68,7 +68,19 @@ project-root/
 | 冲突列表 | conflict_record(workspace_id, status, created_at DESC) |
 | 遗忘请求列表 | forget_request(workspace_id, status, requested_at DESC) |
 
-## 6. 备份与恢复
+## 6. 视图策略
+
+| 视图 | 用途 |
+|---|---|
+| v_active_memory | 查询 active 且仍在有效期内的 memory，使用显式列名避免 schema 漂移 |
+| v_memory_with_source | 串联 memory、evidence、source chunk 和 source document，支持来源追溯与行号展示 |
+| v_agent_visible_memory | 基于 `app.agent_id` 和 AccessPolicy 过滤 Agent 可见 memory，未设置 agent 时默认不返回数据 |
+| v_project_timeline | 串联 timeline、memory 和 source，支持项目决策演进展示 |
+| v_conflict_memory | 展开 conflict_record 两端 memory，支持冲突页面和 SQL 演示 |
+| v_wiki_page_sources | 追溯 WikiPage 由 memory 到 evidence/source chunk 的来源链路 |
+| v_memory_statistics | 按 workspace、类型、状态、访问级别统计 memory |
+
+## 7. 备份与恢复
 
 | 对象 | 备份方式 | 恢复方式 |
 |---|---|---|
