@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS forget_request (
     CHECK (target_type IN ('memory_item', 'source_document', 'wiki_page', 'entity')),
   target_id UUID NOT NULL,
   requester_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
+  reviewed_by_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
   reason TEXT NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'approved', 'rejected', 'done')),
