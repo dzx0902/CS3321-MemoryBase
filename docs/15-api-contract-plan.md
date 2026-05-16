@@ -336,7 +336,7 @@ Rules:
 - `confidence` between 0 and 1.
 - `importance` between 1 and 5.
 - Every evidence chunk must exist and belong to the same workspace.
-- `evidence_chunk_ids` may be accepted as a shorthand for `supports` evidence, but the object form above is the preferred contract.
+- P0 backend implements only the `evidence` object-array form. Do not implement `evidence_chunk_ids` shorthand unless a later issue explicitly adds backward compatibility.
 - Insert `memory_item`; trigger creates revision 1 and audit log.
 
 Response:
@@ -693,6 +693,7 @@ Rules:
 
 - Duplicate policy returns `409 duplicate_policy`.
 - `principal_id = null` is allowed for role/global policies.
+- P1 follow-up: add `DELETE /api/policies/{policy_id}` when the UI needs policy removal. It is not required for the P0 recall demo.
 
 ### GET /api/policies
 
@@ -704,6 +705,68 @@ principal_type=optional
 principal_id=optional
 resource_type=optional
 effect=optional
+```
+
+### DELETE /api/policies/{policy_id}
+
+P1 deferred endpoint. Not required for the P0 backend handoff, but keep this contract so policy removal is not forgotten.
+
+Query:
+
+```text
+workspace_id=uuid
+```
+
+Response:
+
+```json
+{
+  "policy_id": "uuid",
+  "deleted": true
+}
+```
+
+Rules:
+
+- Delete only the matching policy in the given workspace.
+- Return 404 if the policy does not exist or does not belong to the workspace.
+- If later audit coverage is required, write `audit_log` from the API layer because no policy trigger exists.
+
+### POST /api/conflicts
+
+P1 deferred endpoint. Seed data already provides one conflict for demo, but manual conflict creation should use this contract when implemented.
+
+Request:
+
+```json
+{
+  "workspace_id": "uuid",
+  "left_memory_id": "uuid",
+  "right_memory_id": "uuid",
+  "conflict_type": "uncertain",
+  "resolution_note": "Clarify whether LLM extraction belongs to MVP."
+}
+```
+
+Rules:
+
+- Validate both memories exist in the same workspace.
+- Normalize the pair before insert so `left_memory_id < right_memory_id`; callers should not need to know UUID ordering.
+- Duplicate conflict returns `409 duplicate_conflict`.
+- `conflict_type`: `contradiction`, `supersession`, `duplicate`, `uncertain`.
+- Initial status is `open`.
+
+Response:
+
+```json
+{
+  "conflict_id": "uuid",
+  "workspace_id": "uuid",
+  "left_memory_id": "uuid",
+  "right_memory_id": "uuid",
+  "conflict_type": "uncertain",
+  "status": "open"
+}
 ```
 
 ### GET /api/conflicts
@@ -741,6 +804,68 @@ Rules:
 - `status`: `open`, `resolved`, `ignored`.
 - If status becomes `resolved` or `ignored`, set `resolved_at = now()`.
 - Write audit log from API layer because no conflict trigger exists in P0.
+
+### POST /api/forget-requests
+
+P1 deferred endpoint. The schema exists, but P0 does not require a full ForgetRequest workflow.
+
+Request:
+
+```json
+{
+  "workspace_id": "uuid",
+  "target_type": "memory_item",
+  "target_id": "uuid",
+  "requester_user_id": "uuid",
+  "reason": "Private memory should be archived for the demo."
+}
+```
+
+Rules:
+
+- `target_type`: `memory_item`, `source_document`, `wiki_page`, `entity`.
+- Initial status is `pending`.
+- Validate the requester exists when provided.
+- Validate target existence for supported P0 tables; `entity` may remain schema-only until entity tables are added.
+
+### GET /api/forget-requests
+
+P1 deferred endpoint.
+
+Query:
+
+```text
+workspace_id=uuid
+status=optional
+target_type=optional
+page=1
+page_size=20
+```
+
+### PATCH /api/forget-requests/{request_id}
+
+P1 deferred endpoint for approval / rejection / completion.
+
+Query:
+
+```text
+workspace_id=uuid
+```
+
+Request:
+
+```json
+{
+  "status": "approved",
+  "reviewed_by_user_id": "uuid"
+}
+```
+
+Rules:
+
+- `status`: `pending`, `approved`, `rejected`, `done`.
+- When status becomes `approved`, `rejected`, or `done`, set `resolved_at = now()` and store `reviewed_by_user_id`.
+- Actual memory archival / forgetting can be implemented by API service logic in the same transaction; no forget trigger is required for P0.
 
 ### GET /api/timeline
 
