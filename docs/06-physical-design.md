@@ -54,6 +54,9 @@ project-root/
 
 | 场景 | 索引 |
 |---|---|
+| workspace 下查询 source | source_document(workspace_id, imported_at DESC) |
+| 会话列表 | agent_session(workspace_id, started_at DESC) |
+| 会话消息 | message(session_id, created_at) |
 | workspace 下查询 memory | memory_item(workspace_id, status) |
 | 按类型筛选 | memory_item(workspace_id, memory_type, status) |
 | 时间线 | timeline_entry(workspace_id, event_time DESC) |
@@ -61,6 +64,9 @@ project-root/
 | 实体召回 | memory_entity(entity_id, memory_id) |
 | 审计回放 | audit_log(workspace_id, created_at DESC) |
 | 权限过滤 | access_policy(workspace_id, principal_type, principal_id) |
+| role/global 权限去重 | access_policy partial UNIQUE indexes for NULL / non-NULL principal_id |
+| 冲突列表 | conflict_record(workspace_id, status, created_at DESC) |
+| 遗忘请求列表 | forget_request(workspace_id, status, requested_at DESC) |
 
 ## 6. 备份与恢复
 
