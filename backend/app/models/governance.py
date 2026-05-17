@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Literal
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+PrincipalType = Literal["user", "agent", "role"]
+ResourceType = Literal["memory_item", "source_document", "wiki_page", "workspace"]
+ResourceScope = Literal["public", "project", "team", "private", "all"]
+PolicyEffect = Literal["allow", "deny"]
+TimelineEventType = Literal["meeting", "proposal", "decision", "revision", "conflict", "resolution"]
+ConflictStatus = Literal["open", "resolved", "ignored"]
+
+
+class PolicyCreateRequest(BaseModel):
+    workspace_id: UUID
+    principal_type: PrincipalType
+    principal_id: UUID | None = None
+    resource_type: ResourceType
+    resource_scope: ResourceScope = "project"
+    effect: PolicyEffect
+    predicate_json: dict[str, Any] = Field(default_factory=dict)
+
+
+class PolicyResponse(BaseModel):
+    policy_id: UUID
+    workspace_id: UUID
+    principal_type: PrincipalType
+    principal_id: UUID | None = None
+    resource_type: ResourceType
+    resource_scope: ResourceScope
+    effect: PolicyEffect
+    predicate_json: dict[str, Any]
+    created_at: datetime
+
+
+class AuditQueryResponse(BaseModel):
+    items: list["AuditEntryResponse"]
+    page: int
+    page_size: int
+    total: int
+
+
+class AuditEntryResponse(BaseModel):
+    audit_id: UUID
+    workspace_id: UUID
+    actor_type: str
+    actor_id: UUID | None = None
+    action_type: str
+    target_type: str
+    target_id: UUID | None = None
+    before_json: dict[str, Any] | None = None
+    after_json: dict[str, Any] | None = None
+    created_at: datetime
+
+
+class ConflictResponse(BaseModel):
+    conflict_id: UUID
+    workspace_id: UUID
+    conflict_type: str
+    status: ConflictStatus
+    resolution_note: str | None = None
+    resolved_by_actor_type: str | None = None
+    resolved_by_actor_id: UUID | None = None
+    resolved_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    left_memory_id: UUID
+    left_memory_type: str
+    left_memory_text: str
+    left_memory_summary: str | None = None
+    right_memory_id: UUID
+    right_memory_type: str
+    right_memory_text: str
+    right_memory_summary: str | None = None
+
+
+class ConflictUpdateRequest(BaseModel):
+    status: ConflictStatus
+    resolution_note: str | None = None
+    actor_type: Literal["user", "agent", "system"] = "user"
+    actor_id: UUID | None = None
+
+
+class TimelineCreateRequest(BaseModel):
+    workspace_id: UUID
+    title: str = Field(min_length=1, max_length=240)
+    event_type: TimelineEventType
+    event_time: datetime
+    description: str | None = None
+    importance: int = Field(default=3, ge=1, le=5)
+    memory_id: UUID | None = None
+    doc_id: UUID | None = None
+
+
+class TimelineEntryResponse(BaseModel):
+    timeline_id: UUID
+    workspace_id: UUID
+    event_time: datetime
+    event_type: TimelineEventType
+    title: str
+    description: str | None = None
+    importance: int
+    memory_id: UUID | None = None
+    doc_id: UUID | None = None
+    memory_type: str | None = None
+    memory_text: str | None = None
+    source_title: str | None = None

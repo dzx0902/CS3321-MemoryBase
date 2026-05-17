@@ -99,11 +99,15 @@ page_size
 {
   "workspace_id": "uuid",
   "agent_id": "uuid",
-  "query_text": "为什么放弃校园食堂系统？"
+  "query_text": "为什么放弃校园食堂系统？",
+  "memory_type": "decision",
+  "access_level": "project",
+  "status": "active",
+  "limit": 10
 }
 ```
 
-返回 memory + evidence + source chunk。
+返回 memory + evidence + source chunk，并写入 `recall_log`。
 
 ## 5. Wiki API
 
@@ -111,11 +115,59 @@ page_size
 
 导出 Markdown Wiki。
 
+返回：
+
+```json
+{
+  "page_id": "uuid",
+  "workspace_id": "uuid",
+  "page_slug": "demo-report",
+  "title": "Demo Report",
+  "page_type": "report",
+  "revision_no": 2,
+  "body_markdown": "# Demo Report\n...",
+  "needs_rebuild": false,
+  "output_path": "data/markdown_wiki/demo-report.md",
+  "frontmatter_json": {
+    "workspace_id": "uuid",
+    "page_slug": "demo-report",
+    "generated_at": "2026-05-16T12:00:00Z",
+    "source_ids": ["uuid"]
+  },
+  "source_doc_ids": ["uuid"]
+}
+```
+
 ## 6. Audit API
 
 ### GET /api/audit
 
 查询审计日志。
+
+支持参数：
+
+```text
+workspace_id
+actor_type
+action_type
+target_type
+target_id
+start_time
+end_time
+page
+page_size
+```
+
+返回：
+
+```json
+{
+  "items": [],
+  "page": 1,
+  "page_size": 20,
+  "total": 0
+}
+```
 
 ## 7. Policy API
 
@@ -131,4 +183,40 @@ page_size
 
 ### GET /api/conflicts
 
-查询冲突记忆。
+查询冲突记录及左右两侧 memory。
+
+### PATCH /api/conflicts/{id}
+
+更新 conflict 状态。
+
+```json
+{
+  "status": "resolved",
+  "resolution_note": "accepted MemoryBase direction",
+  "actor_type": "user",
+  "actor_id": "uuid"
+}
+```
+
+## 9. Timeline API
+
+### GET /api/timeline
+
+查询时间线，支持 `workspace_id` 参数。
+
+### POST /api/timeline
+
+新增时间线事件。
+
+```json
+{
+  "workspace_id": "uuid",
+  "title": "补齐 P0/P1 后端闭环",
+  "event_type": "revision",
+  "event_time": "2026-05-16T12:00:00Z",
+  "description": "完成 recall、policy、conflict 和 wiki export 的后端收口。",
+  "importance": 5,
+  "memory_id": "uuid",
+  "doc_id": "uuid"
+}
+```

@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+from functools import lru_cache
+
+from ..core.config import Settings, get_settings
+from ..core.database import Database
+from ..services.governance_service import GovernanceService, PostgresGovernanceRepository
+from ..services.memory_service import MemoryService, PostgresMemoryRepository
+from ..services.recall_service import PostgresRecallRepository, RecallService
+from ..services.source_service import PostgresSourceRepository, SourceService
+from ..services.wiki_service import PostgresWikiRepository, WikiService
+
+
+@lru_cache(maxsize=1)
+def get_database() -> Database:
+    settings = get_settings()
+    return Database(settings.database_url)
+
+
+def get_source_service() -> SourceService:
+    settings = get_settings()
+    repository = PostgresSourceRepository(get_database())
+    return SourceService(
+        repository=repository,
+        chunk_max_chars=settings.chunk_max_chars,
+        chunk_overlap_lines=settings.chunk_overlap_lines,
+    )
+
+
+def get_memory_service() -> MemoryService:
+    repository = PostgresMemoryRepository(get_database())
+    return MemoryService(repository=repository)
+
+
+def get_recall_service() -> RecallService:
+    repository = PostgresRecallRepository(get_database())
+    return RecallService(repository=repository)
+
+
+def get_governance_service() -> GovernanceService:
+    repository = PostgresGovernanceRepository(get_database())
+    return GovernanceService(repository=repository)
+
+
+def get_wiki_service() -> WikiService:
+    repository = PostgresWikiRepository(get_database())
+    return WikiService(repository=repository)
+
+
+def get_app_settings() -> Settings:
+    return get_settings()
