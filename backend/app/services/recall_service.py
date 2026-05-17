@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
-from app.core.database import Database
-from app.models.recall import RecallRequest, RecallResponse
+from ..core.database import Database
+from ..models.recall import RecallRequest, RecallResponse
 
 
 class RecallRepository(Protocol):

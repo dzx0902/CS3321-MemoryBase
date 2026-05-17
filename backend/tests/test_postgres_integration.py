@@ -6,9 +6,9 @@ import psycopg
 
 WORKSPACE_ID = "00000000-0000-0000-0000-000000000201"
 AGENT_ID = "00000000-0000-0000-0000-000000000301"
-PRIVATE_MEMORY_ID = "00000000-0000-0000-0000-000000000604"
-MEMORY_ID = "00000000-0000-0000-0000-000000000602"
-CONFLICT_ID = "00000000-0000-0000-0000-000000000901"
+PRIVATE_MEMORY_ID = "00000000-0000-0000-0000-000000000713"
+MEMORY_ID = "00000000-0000-0000-0000-000000000711"
+CONFLICT_ID = "00000000-0000-0000-0000-000000001001"
 
 
 def test_memory_revision_and_audit_end_to_end(integration_client, integration_db: str) -> None:
@@ -73,7 +73,7 @@ def test_recall_policy_visibility_and_log_end_to_end(
         json={
             "workspace_id": WORKSPACE_ID,
             "agent_id": "00000000-0000-0000-0000-000000000302",
-            "query_text": "私有路线图",
+            "query_text": "Private budget",
         },
     )
     assert hidden_response.status_code == 200
@@ -98,7 +98,7 @@ def test_recall_policy_visibility_and_log_end_to_end(
         json={
             "workspace_id": WORKSPACE_ID,
             "agent_id": "00000000-0000-0000-0000-000000000302",
-            "query_text": "私有路线图",
+            "query_text": "Private budget",
         },
     )
     assert visible_response.status_code == 200
@@ -153,7 +153,7 @@ def test_conflict_timeline_and_audit_end_to_end(integration_client, integration_
             "description": "完成 recall、policy、conflict 和 wiki export 的后端收口。",
             "importance": 5,
             "memory_id": MEMORY_ID,
-            "doc_id": "00000000-0000-0000-0000-000000000402",
+            "doc_id": "00000000-0000-0000-0000-000000000504",
         },
     )
     assert timeline_create.status_code == 201

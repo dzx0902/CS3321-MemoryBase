@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from app.api.deps import get_wiki_service
-from app.models.wiki import WikiExportRequest, WikiExportResponse
-from app.services.wiki_service import WikiService
 from fastapi import APIRouter, Depends
+
+from ..models.wiki import WikiExportRequest, WikiExportResponse
+from ..services.wiki_service import WikiService
+from .deps import get_wiki_service
 
 router = APIRouter(prefix="/wiki", tags=["wiki"])
 

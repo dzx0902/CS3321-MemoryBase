@@ -2,19 +2,20 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from app.api.deps import get_source_service
-from app.models.source import (
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from ..models.source import (
     SourceCreateRequest,
     SourceDetailResponse,
     SourceImportResponse,
     SourceSummaryResponse,
 )
-from app.services.source_service import (
+from ..services.source_service import (
     SourceConflictError,
     SourceNotFoundError,
     SourceService,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from .deps import get_source_service
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 

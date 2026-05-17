@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from app.core.config import Settings, get_settings
-from app.core.database import Database
-from app.services.governance_service import GovernanceService, PostgresGovernanceRepository
-from app.services.memory_service import MemoryService, PostgresMemoryRepository
-from app.services.recall_service import PostgresRecallRepository, RecallService
-from app.services.source_service import PostgresSourceRepository, SourceService
-from app.services.wiki_service import PostgresWikiRepository, WikiService
+from ..core.config import Settings, get_settings
+from ..core.database import Database
+from ..services.governance_service import GovernanceService, PostgresGovernanceRepository
+from ..services.memory_service import MemoryService, PostgresMemoryRepository
+from ..services.recall_service import PostgresRecallRepository, RecallService
+from ..services.source_service import PostgresSourceRepository, SourceService
+from ..services.wiki_service import PostgresWikiRepository, WikiService
 
 
 @lru_cache(maxsize=1)

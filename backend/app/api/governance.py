@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from app.api.deps import get_governance_service
-from app.models.governance import (
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from ..models.governance import (
     AuditQueryResponse,
     ConflictResponse,
     ConflictUpdateRequest,
@@ -13,12 +14,12 @@ from app.models.governance import (
     TimelineCreateRequest,
     TimelineEntryResponse,
 )
-from app.services.governance_service import (
+from ..services.governance_service import (
     ConflictNotFoundError,
     GovernanceService,
     WorkspaceNotFoundError,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from .deps import get_governance_service
 
 router = APIRouter(tags=["governance"])
 

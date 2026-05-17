@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.core.database import Database
-from app.models.governance import (
+from ..core.database import Database
+from ..models.governance import (
     AuditEntryResponse,
     AuditQueryResponse,
     ConflictResponse,

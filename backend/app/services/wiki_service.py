@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
-from app.core.database import Database
-from app.models.wiki import WikiExportRequest, WikiExportResponse
+from ..core.database import Database
+from ..models.wiki import WikiExportRequest, WikiExportResponse
 
 
 class WikiRepository(Protocol):

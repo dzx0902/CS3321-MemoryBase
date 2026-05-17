@@ -67,22 +67,6 @@ CREATE TABLE IF NOT EXISTS access_policy (
   UNIQUE(workspace_id, principal_type, principal_id, resource_type, resource_scope, effect)
 );
 
-CREATE TABLE IF NOT EXISTS conflict_record (
-  conflict_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
-  left_memory_id UUID NOT NULL REFERENCES memory_item(memory_id) ON DELETE CASCADE,
-  right_memory_id UUID NOT NULL REFERENCES memory_item(memory_id) ON DELETE CASCADE,
-  conflict_type VARCHAR(30) NOT NULL
-    CHECK (conflict_type IN ('contradiction', 'supersession', 'duplicate', 'uncertain')),
-  status VARCHAR(20) NOT NULL DEFAULT 'open'
-    CHECK (status IN ('open', 'resolved', 'ignored')),
-  resolution_note TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  resolved_at TIMESTAMPTZ,
-  CHECK (left_memory_id < right_memory_id),
-  UNIQUE(left_memory_id, right_memory_id, conflict_type)
-);
-
 CREATE TABLE IF NOT EXISTS forget_request (
   request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -104,7 +88,17 @@ CREATE TABLE IF NOT EXISTS conflict_record (
   left_memory_id UUID NOT NULL REFERENCES memory_item(memory_id) ON DELETE CASCADE,
   right_memory_id UUID NOT NULL REFERENCES memory_item(memory_id) ON DELETE CASCADE,
   conflict_type VARCHAR(30) NOT NULL DEFAULT 'semantic'
-    CHECK (conflict_type IN ('semantic', 'temporal', 'policy', 'duplicate')),
+    CHECK (
+      conflict_type IN (
+        'semantic',
+        'temporal',
+        'policy',
+        'duplicate',
+        'contradiction',
+        'supersession',
+        'uncertain'
+      )
+    ),
   status VARCHAR(20) NOT NULL DEFAULT 'open'
     CHECK (status IN ('open', 'resolved', 'ignored')),
   resolution_note TEXT,

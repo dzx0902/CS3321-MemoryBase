@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from app.api.deps import get_recall_service
-from app.models.recall import RecallRequest, RecallResponse
-from app.services.recall_service import RecallService
 from fastapi import APIRouter, Depends
+
+from ..models.recall import RecallRequest, RecallResponse
+from ..services.recall_service import RecallService
+from .deps import get_recall_service
 
 router = APIRouter(prefix="/recall", tags=["recall"])
 

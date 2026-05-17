@@ -5,15 +5,16 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
-from app.core.database import Database
-from app.models.source import (
+from psycopg.errors import UniqueViolation
+
+from ..core.database import Database
+from ..models.source import (
     SourceCreateRequest,
     SourceDetailResponse,
     SourceImportResponse,
     SourceSummaryResponse,
 )
-from app.services.chunking import build_chunks
-from psycopg.errors import UniqueViolation
+from .chunking import build_chunks
 
 
 class SourceConflictError(Exception):

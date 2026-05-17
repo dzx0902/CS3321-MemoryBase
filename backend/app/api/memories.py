@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from app.api.deps import get_memory_service
-from app.models.memory import (
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from ..models.memory import (
     MemoryCreateRequest,
     MemoryDeleteResponse,
     MemoryDetailResponse,
     MemorySummaryResponse,
     MemoryUpdateRequest,
 )
-from app.services.memory_service import MemoryNotFoundError, MemoryService
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from ..services.memory_service import MemoryNotFoundError, MemoryService
+from .deps import get_memory_service
 
 router = APIRouter(prefix="/memories", tags=["memories"])
 

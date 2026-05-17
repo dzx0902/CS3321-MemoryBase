@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
-from app.core.database import Database
-from app.models.memory import (
+from ..core.database import Database
+from ..models.memory import (
     MemoryCreateRequest,
     MemoryDeleteResponse,
     MemoryDetailResponse,
@@ -252,11 +252,27 @@ class PostgresMemoryRepository:
         if existing is None:
             return None
 
-        next_revision_no = existing["current_revision_no"] + 1
-        updated_row = None
-
         with self._database.connection() as conn:
             with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT set_config('app.actor_type', %(actor_type)s, true)
+                    """,
+                    {"actor_type": payload.editor_type},
+                )
+                cur.execute(
+                    """
+                    SELECT set_config('app.actor_id', %(actor_id)s, true)
+                    """,
+                    {"actor_id": str(payload.editor_id) if payload.editor_id else ""},
+                )
+                cur.execute(
+                    """
+                    SELECT set_config('app.revision_reason', %(revision_reason)s, true)
+                    """,
+                    {"revision_reason": payload.revision_reason},
+                )
+
                 cur.execute(
                     """
                     UPDATE memory_item
@@ -266,8 +282,7 @@ class PostgresMemoryRepository:
                         confidence = %(confidence)s,
                         importance = %(importance)s,
                         status = %(status)s,
-                        access_level = %(access_level)s,
-                        current_revision_no = %(current_revision_no)s
+                        access_level = %(access_level)s
                     WHERE memory_id = %(memory_id)s
                     RETURNING *
                     """,
@@ -285,44 +300,11 @@ class PostgresMemoryRepository:
                         else existing["importance"],
                         "status": payload.status or existing["status"],
                         "access_level": payload.access_level or existing["access_level"],
-                        "current_revision_no": next_revision_no,
                     },
                 )
                 updated_row = cur.fetchone()
                 if updated_row is None:
                     return None
-
-                cur.execute(
-                    """
-                    INSERT INTO memory_revision (
-                        memory_id,
-                        revision_no,
-                        revision_text,
-                        revision_summary,
-                        revision_reason,
-                        editor_type,
-                        editor_id
-                    )
-                    VALUES (
-                        %(memory_id)s,
-                        %(revision_no)s,
-                        %(revision_text)s,
-                        %(revision_summary)s,
-                        %(revision_reason)s,
-                        %(editor_type)s,
-                        %(editor_id)s
-                    )
-                    """,
-                    {
-                        "memory_id": memory_id,
-                        "revision_no": next_revision_no,
-                        "revision_text": updated_row["canonical_text"],
-                        "revision_summary": updated_row["summary"],
-                        "revision_reason": payload.revision_reason,
-                        "editor_type": payload.editor_type,
-                        "editor_id": payload.editor_id,
-                    },
-                )
 
                 if payload.evidence_chunk_ids is not None:
                     cur.execute(
@@ -342,40 +324,6 @@ class PostgresMemoryRepository:
                             """,
                             {"memory_id": memory_id, "chunk_id": chunk_id},
                         )
-
-                cur.execute(
-                    """
-                    INSERT INTO audit_log (
-                        workspace_id,
-                        actor_type,
-                        actor_id,
-                        action_type,
-                        target_type,
-                        target_id,
-                        before_json,
-                        after_json
-                    )
-                    VALUES (
-                        %(workspace_id)s,
-                        %(actor_type)s,
-                        %(actor_id)s,
-                        'memory.update',
-                        'memory_item',
-                        %(target_id)s,
-                        %(before_json)s::jsonb,
-                        %(after_json)s::jsonb
-                    )
-                    """,
-                    {
-                        "workspace_id": existing["workspace_id"],
-                        "actor_type": payload.editor_type,
-                        "actor_id": payload.editor_id,
-                        "target_id": memory_id,
-                        "before_json": _json_dumps(existing),
-                        "after_json": _json_dumps(updated_row),
-                    },
-                )
-
             conn.commit()
 
         return self.get_memory(memory_id)
@@ -389,6 +337,21 @@ class PostgresMemoryRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
+                    SELECT set_config('app.actor_type', 'system', true)
+                    """
+                )
+                cur.execute(
+                    """
+                    SELECT set_config('app.actor_id', '', true)
+                    """
+                )
+                cur.execute(
+                    """
+                    SELECT set_config('app.revision_reason', 'memory soft delete', true)
+                    """
+                )
+                cur.execute(
+                    """
                     UPDATE memory_item
                     SET status = 'archived'
                     WHERE memory_id = %(memory_id)s
@@ -399,34 +362,6 @@ class PostgresMemoryRepository:
                 row = cur.fetchone()
                 if row is None:
                     return None
-                cur.execute(
-                    """
-                    INSERT INTO audit_log (
-                        workspace_id,
-                        actor_type,
-                        action_type,
-                        target_type,
-                        target_id,
-                        before_json,
-                        after_json
-                    )
-                    VALUES (
-                        %(workspace_id)s,
-                        'system',
-                        'memory.soft_delete',
-                        'memory_item',
-                        %(target_id)s,
-                        %(before_json)s::jsonb,
-                        %(after_json)s::jsonb
-                    )
-                    """,
-                    {
-                        "workspace_id": existing["workspace_id"],
-                        "target_id": memory_id,
-                        "before_json": _json_dumps(existing),
-                        "after_json": _json_dumps(row),
-                    },
-                )
             conn.commit()
         return MemoryDeleteResponse(**row)
 

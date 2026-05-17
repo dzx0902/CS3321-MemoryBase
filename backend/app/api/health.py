@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from app.api.deps import get_app_settings, get_database
-from app.core.config import Settings
-from app.core.database import Database
-from app.models.source import HealthDatabaseStatus, HealthResponse
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
+
+from ..core.config import Settings
+from ..core.database import Database
+from ..models.source import HealthDatabaseStatus, HealthResponse
+from .deps import get_app_settings, get_database
 
 router = APIRouter(tags=["health"])
 
