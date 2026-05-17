@@ -49,6 +49,10 @@ RecallLog(recall_id PK, workspace_id FK, agent_id FK, user_id FK, query_text, fi
 
 AccessPolicy(policy_id PK, workspace_id FK, principal_type, principal_id, resource_type, resource_scope, effect, predicate_json, created_at)
 
+ConflictRecord(conflict_id PK, workspace_id FK, left_memory_id FK, right_memory_id FK, conflict_type, status, resolution_note, created_at, resolved_at, UNIQUE(left_memory_id, right_memory_id, conflict_type))
+
+ForgetRequest(request_id PK, workspace_id FK, target_type, target_id, requester_user_id FK, reviewed_by_user_id FK, reason, status, requested_at, resolved_at)
+
 AuditLog(audit_id PK, workspace_id FK, actor_type, actor_id, action_type, target_type, target_id, before_json, after_json, created_at)
 ```
 

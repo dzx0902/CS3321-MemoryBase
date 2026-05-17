@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS workspace (
   description TEXT,
   scope_type VARCHAR(30) NOT NULL DEFAULT 'project'
     CHECK (scope_type IN ('personal', 'team', 'project')),
-  owner_user_id UUID REFERENCES user_account(user_id),
+  owner_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS agent (
     CHECK (agent_type IN ('retriever', 'editor', 'reviewer', 'exporter', 'demo')),
   status VARCHAR(20) NOT NULL DEFAULT 'active'
     CHECK (status IN ('active', 'disabled')),
-  owner_user_id UUID REFERENCES user_account(user_id),
+  owner_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(workspace_id, name)
 );

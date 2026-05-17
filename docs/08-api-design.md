@@ -1,5 +1,7 @@
 # API 设计文档
 
+本文档是课程报告用的 API 摘要。后端实现、前端 mock 与集成验收以 `docs/15-api-contract-plan.md` 的执行契约为准。
+
 ## 1. Health
 
 ### GET /api/health

@@ -256,6 +256,8 @@ npm run db:check
 - docs/11-demo-script.md
 - docs/12-github-workflow\.md
 - docs/13-final-report-outline.md
+- docs/14-initial-issues.md
+- docs/15-api-contract-plan.md
 
 ## GitHub Workflows
 

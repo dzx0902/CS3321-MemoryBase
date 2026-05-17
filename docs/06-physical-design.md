@@ -54,6 +54,9 @@ project-root/
 
 | 场景 | 索引 |
 |---|---|
+| workspace 下查询 source | source_document(workspace_id, imported_at DESC) |
+| 会话列表 | agent_session(workspace_id, started_at DESC) |
+| 会话消息 | message(session_id, created_at) |
 | workspace 下查询 memory | memory_item(workspace_id, status) |
 | 按类型筛选 | memory_item(workspace_id, memory_type, status) |
 | 时间线 | timeline_entry(workspace_id, event_time DESC) |
@@ -61,8 +64,23 @@ project-root/
 | 实体召回 | memory_entity(entity_id, memory_id) |
 | 审计回放 | audit_log(workspace_id, created_at DESC) |
 | 权限过滤 | access_policy(workspace_id, principal_type, principal_id) |
+| role/global 权限去重 | access_policy 表级 UNIQUE 防止非 NULL principal 重复；partial UNIQUE index 防止 NULL principal 重复 |
+| 冲突列表 | conflict_record(workspace_id, status, created_at DESC) |
+| 遗忘请求列表 | forget_request(workspace_id, status, requested_at DESC) |
 
-## 6. 备份与恢复
+## 6. 视图策略
+
+| 视图 | 用途 |
+|---|---|
+| v_active_memory | 查询 active 且仍在有效期内的 memory，使用显式列名避免 schema 漂移 |
+| v_memory_with_source | 串联 memory、evidence、source chunk 和 source document，支持来源追溯与行号展示 |
+| v_agent_visible_memory | 基于 `app.agent_id` 和 AccessPolicy 过滤 Agent 可见 memory，未设置 agent 时默认不返回数据 |
+| v_project_timeline | 串联 timeline、memory 和 source，支持项目决策演进展示 |
+| v_conflict_memory | 展开 conflict_record 两端 memory，支持冲突页面和 SQL 演示 |
+| v_wiki_page_sources | 追溯 WikiPage 由 memory 到 evidence/source chunk 的来源链路 |
+| v_memory_statistics | 按 workspace、类型、状态、访问级别统计 memory |
+
+## 7. 备份与恢复
 
 | 对象 | 备份方式 | 恢复方式 |
 |---|---|---|
