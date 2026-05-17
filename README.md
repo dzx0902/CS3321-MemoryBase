@@ -99,7 +99,26 @@ npm run dev
 
 ### 4. 数据库初始化
 
-数据库启动后，按顺序执行：
+数据库启动后，可以优先直接用仓库内置快捷命令：
+
+```bash
+npm run db:init
+npm run db:seed
+npm run db:check
+```
+
+常用命令说明：
+
+- `npm run db:init`：执行 `00_init.sql` 到 `06_triggers.sql`
+- `npm run db:seed`：执行 `07_seed.sql` 和 `08_demo_queries.sql`
+- `npm run db:reset`：重建 `public schema` 后重新执行初始化和 seed
+- `npm run db:check`：检查核心表与 demo 数据
+- `npm run db:setup`：等价于 `db:reset`
+
+这些命令由跨平台的 `python scripts/db_cli.py` 统一驱动。
+会优先读取当前终端的 `DATABASE_URL`，如果没设置，则自动读取项目根目录 `.env`，若 `.env` 不存在则回退读取 `.env.example`。
+
+如果你暂时不想用快捷命令，也可以继续按顺序手动执行：
 
 ```bash
 psql "$DATABASE_URL" -f database/00_init.sql
@@ -123,6 +142,12 @@ psql $env:DATABASE_URL -f database/04_indexes.sql
 psql $env:DATABASE_URL -f database/05_views.sql
 psql $env:DATABASE_URL -f database/06_triggers.sql
 psql $env:DATABASE_URL -f database/07_seed.sql
+```
+
+如果使用快捷命令，确保本机 `python` 与 `psql` 都在 PATH 中，并在项目根目录执行：
+
+```bash
+npm run db:init
 ```
 
 ## PostgreSQL 本机安装指南
@@ -207,6 +232,12 @@ FRONTEND_PORT=5173
 
 ```powershell
 psql postgresql://memorybase:memorybase@localhost:5432/memorybase_db -c "\dt"
+```
+
+或者直接使用：
+
+```bash
+npm run db:check
 ```
 
 ## 文档目录

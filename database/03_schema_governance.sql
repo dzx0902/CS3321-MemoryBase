@@ -64,6 +64,26 @@ CREATE TABLE IF NOT EXISTS access_policy (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS conflict_record (
+  conflict_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
+  left_memory_id UUID NOT NULL REFERENCES memory_item(memory_id) ON DELETE CASCADE,
+  right_memory_id UUID NOT NULL REFERENCES memory_item(memory_id) ON DELETE CASCADE,
+  conflict_type VARCHAR(30) NOT NULL DEFAULT 'semantic'
+    CHECK (conflict_type IN ('semantic', 'temporal', 'policy', 'duplicate')),
+  status VARCHAR(20) NOT NULL DEFAULT 'open'
+    CHECK (status IN ('open', 'resolved', 'ignored')),
+  resolution_note TEXT,
+  resolved_by_actor_type VARCHAR(20)
+    CHECK (resolved_by_actor_type IN ('user', 'agent', 'system')),
+  resolved_by_actor_id UUID,
+  resolved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (left_memory_id <> right_memory_id),
+  UNIQUE(left_memory_id, right_memory_id)
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   audit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,

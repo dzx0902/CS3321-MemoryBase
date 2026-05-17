@@ -1,8 +1,25 @@
+from __future__ import annotations
+
+from app.api.governance import router as governance_router
+from app.api.health import router as health_router
+from app.api.memories import router as memories_router
+from app.api.recall import router as recall_router
+from app.api.sources import router as sources_router
+from app.api.wiki import router as wiki_router
+from app.core.config import get_settings
 from fastapi import FastAPI
 
-app = FastAPI(title="MemoryBase API")
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+    app = FastAPI(title=settings.app_name, version=settings.app_version)
+    app.include_router(health_router, prefix="/api")
+    app.include_router(sources_router, prefix="/api")
+    app.include_router(memories_router, prefix="/api")
+    app.include_router(recall_router, prefix="/api")
+    app.include_router(wiki_router, prefix="/api")
+    app.include_router(governance_router, prefix="/api")
+    return app
 
 
-@app.get("/api/health")
-def health_check():
-    return {"status": "ok", "service": "memorybase"}
+app = create_app()

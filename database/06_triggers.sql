@@ -18,6 +18,10 @@ CREATE TRIGGER trg_wiki_touch
 BEFORE UPDATE ON wiki_page
 FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
 
+CREATE TRIGGER trg_conflict_touch
+BEFORE UPDATE ON conflict_record
+FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
+
 CREATE OR REPLACE FUNCTION fn_memory_after_insert()
 RETURNS TRIGGER AS $$
 BEGIN

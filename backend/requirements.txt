@@ -3,3 +3,5 @@ uvicorn
 psycopg[binary]
 pydantic
 python-dotenv
+pytest
+httpx
