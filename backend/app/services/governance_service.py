@@ -9,12 +9,15 @@ from ..core.database import Database
 from ..models.governance import (
     AuditEntryResponse,
     AuditQueryResponse,
+    ConflictListResponse,
     ConflictResponse,
     ConflictUpdateRequest,
     PolicyCreateRequest,
+    PolicyListResponse,
     PolicyResponse,
     TimelineCreateRequest,
     TimelineEntryResponse,
+    TimelineListResponse,
 )
 
 
@@ -30,7 +33,9 @@ class GovernanceRepository(Protocol):
     def create_policy(self, payload: PolicyCreateRequest) -> PolicyResponse:
         ...
 
-    def list_policies(self, *, workspace_id: UUID | None) -> list[PolicyResponse]:
+    def list_policies(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> PolicyListResponse:
         ...
 
     def list_audit_logs(
@@ -48,15 +53,19 @@ class GovernanceRepository(Protocol):
     ) -> AuditQueryResponse:
         ...
 
-    def list_conflicts(self, *, workspace_id: UUID | None) -> list[ConflictResponse]:
+    def list_conflicts(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> ConflictListResponse:
         ...
 
     def update_conflict(
-        self, conflict_id: UUID, payload: ConflictUpdateRequest
+        self, conflict_id: UUID, workspace_id: UUID, payload: ConflictUpdateRequest
     ) -> ConflictResponse | None:
         ...
 
-    def list_timeline(self, *, workspace_id: UUID | None) -> list[TimelineEntryResponse]:
+    def list_timeline(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> TimelineListResponse:
         ...
 
     def create_timeline_entry(self, payload: TimelineCreateRequest) -> TimelineEntryResponse:
@@ -70,8 +79,14 @@ class GovernanceService:
     def create_policy(self, payload: PolicyCreateRequest) -> PolicyResponse:
         return self.repository.create_policy(payload)
 
-    def list_policies(self, *, workspace_id: UUID | None) -> list[PolicyResponse]:
-        return self.repository.list_policies(workspace_id=workspace_id)
+    def list_policies(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> PolicyListResponse:
+        return self.repository.list_policies(
+            workspace_id=workspace_id,
+            page=page,
+            page_size=page_size,
+        )
 
     def list_audit_logs(
         self,
@@ -98,19 +113,31 @@ class GovernanceService:
             page_size=page_size,
         )
 
-    def list_conflicts(self, *, workspace_id: UUID | None) -> list[ConflictResponse]:
-        return self.repository.list_conflicts(workspace_id=workspace_id)
+    def list_conflicts(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> ConflictListResponse:
+        return self.repository.list_conflicts(
+            workspace_id=workspace_id,
+            page=page,
+            page_size=page_size,
+        )
 
     def update_conflict(
-        self, conflict_id: UUID, payload: ConflictUpdateRequest
+        self, conflict_id: UUID, workspace_id: UUID, payload: ConflictUpdateRequest
     ) -> ConflictResponse:
-        conflict = self.repository.update_conflict(conflict_id, payload)
+        conflict = self.repository.update_conflict(conflict_id, workspace_id, payload)
         if conflict is None:
             raise ConflictNotFoundError(f"conflict {conflict_id} not found")
         return conflict
 
-    def list_timeline(self, *, workspace_id: UUID | None) -> list[TimelineEntryResponse]:
-        return self.repository.list_timeline(workspace_id=workspace_id)
+    def list_timeline(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> TimelineListResponse:
+        return self.repository.list_timeline(
+            workspace_id=workspace_id,
+            page=page,
+            page_size=page_size,
+        )
 
     def create_timeline_entry(self, payload: TimelineCreateRequest) -> TimelineEntryResponse:
         return self.repository.create_timeline_entry(payload)
@@ -162,7 +189,9 @@ class PostgresGovernanceRepository:
             raise RuntimeError("failed to create policy")
         return PolicyResponse(**row)
 
-    def list_policies(self, *, workspace_id: UUID | None) -> list[PolicyResponse]:
+    def list_policies(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> PolicyListResponse:
         query = """
             SELECT
                 policy_id,
@@ -176,17 +205,29 @@ class PostgresGovernanceRepository:
                 created_at
             FROM access_policy
         """
-        params: dict[str, object] = {}
+        count_query = "SELECT COUNT(*) AS total FROM access_policy"
+        params: dict[str, object] = {
+            "limit": page_size,
+            "offset": (page - 1) * page_size,
+        }
         if workspace_id is not None:
             query += " WHERE workspace_id = %(workspace_id)s"
+            count_query += " WHERE workspace_id = %(workspace_id)s"
             params["workspace_id"] = workspace_id
-        query += " ORDER BY created_at DESC"
+        query += " ORDER BY created_at DESC LIMIT %(limit)s OFFSET %(offset)s"
 
         with self._database.connection() as conn:
             with conn.cursor() as cur:
+                cur.execute(count_query, params)
+                total = cur.fetchone()["total"]
                 cur.execute(query, params)
                 rows = cur.fetchall()
-        return [PolicyResponse(**row) for row in rows]
+        return PolicyListResponse(
+            items=[PolicyResponse(**row) for row in rows],
+            page=page,
+            page_size=page_size,
+            total=total,
+        )
 
     def list_audit_logs(
         self,
@@ -260,7 +301,9 @@ class PostgresGovernanceRepository:
             total=total,
         )
 
-    def list_conflicts(self, *, workspace_id: UUID | None) -> list[ConflictResponse]:
+    def list_conflicts(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> ConflictListResponse:
         query = """
             SELECT
                 conflict_id,
@@ -284,19 +327,31 @@ class PostgresGovernanceRepository:
                 right_memory_summary
             FROM v_conflict_memory
         """
-        params: dict[str, object] = {}
+        count_query = "SELECT COUNT(*) AS total FROM v_conflict_memory"
+        params: dict[str, object] = {
+            "limit": page_size,
+            "offset": (page - 1) * page_size,
+        }
         if workspace_id is not None:
             query += " WHERE workspace_id = %(workspace_id)s"
+            count_query += " WHERE workspace_id = %(workspace_id)s"
             params["workspace_id"] = workspace_id
-        query += " ORDER BY updated_at DESC, created_at DESC"
+        query += " ORDER BY updated_at DESC, created_at DESC LIMIT %(limit)s OFFSET %(offset)s"
         with self._database.connection() as conn:
             with conn.cursor() as cur:
+                cur.execute(count_query, params)
+                total = cur.fetchone()["total"]
                 cur.execute(query, params)
                 rows = cur.fetchall()
-        return [ConflictResponse(**row) for row in rows]
+        return ConflictListResponse(
+            items=[ConflictResponse(**row) for row in rows],
+            page=page,
+            page_size=page_size,
+            total=total,
+        )
 
     def update_conflict(
-        self, conflict_id: UUID, payload: ConflictUpdateRequest
+        self, conflict_id: UUID, workspace_id: UUID, payload: ConflictUpdateRequest
     ) -> ConflictResponse | None:
         with self._database.connection() as conn:
             with conn.cursor() as cur:
@@ -305,8 +360,9 @@ class PostgresGovernanceRepository:
                     SELECT *
                     FROM conflict_record
                     WHERE conflict_id = %(conflict_id)s
+                      AND workspace_id = %(workspace_id)s
                     """,
-                    {"conflict_id": conflict_id},
+                    {"conflict_id": conflict_id, "workspace_id": workspace_id},
                 )
                 before_row = cur.fetchone()
                 if before_row is None:
@@ -325,10 +381,12 @@ class PostgresGovernanceRepository:
                             ELSE NULL
                         END
                     WHERE conflict_id = %(conflict_id)s
+                      AND workspace_id = %(workspace_id)s
                     RETURNING *
                     """,
                     {
                         "conflict_id": conflict_id,
+                        "workspace_id": workspace_id,
                         "status": payload.status,
                         "resolution_note": payload.resolution_note,
                         "actor_type": payload.actor_type,
@@ -372,9 +430,11 @@ class PostgresGovernanceRepository:
                     },
                 )
             conn.commit()
-        return self._get_conflict(conflict_id)
+        return self._get_conflict(conflict_id, workspace_id)
 
-    def list_timeline(self, *, workspace_id: UUID | None) -> list[TimelineEntryResponse]:
+    def list_timeline(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> TimelineListResponse:
         query = """
             SELECT
                 timeline_id,
@@ -391,16 +451,28 @@ class PostgresGovernanceRepository:
                 source_title
             FROM v_project_timeline
         """
-        params: dict[str, object] = {}
+        count_query = "SELECT COUNT(*) AS total FROM v_project_timeline"
+        params: dict[str, object] = {
+            "limit": page_size,
+            "offset": (page - 1) * page_size,
+        }
         if workspace_id is not None:
             query += " WHERE workspace_id = %(workspace_id)s"
+            count_query += " WHERE workspace_id = %(workspace_id)s"
             params["workspace_id"] = workspace_id
-        query += " ORDER BY event_time DESC, importance DESC"
+        query += " ORDER BY event_time DESC, importance DESC LIMIT %(limit)s OFFSET %(offset)s"
         with self._database.connection() as conn:
             with conn.cursor() as cur:
+                cur.execute(count_query, params)
+                total = cur.fetchone()["total"]
                 cur.execute(query, params)
                 rows = cur.fetchall()
-        return [TimelineEntryResponse(**row) for row in rows]
+        return TimelineListResponse(
+            items=[TimelineEntryResponse(**row) for row in rows],
+            page=page,
+            page_size=page_size,
+            total=total,
+        )
 
     def create_timeline_entry(self, payload: TimelineCreateRequest) -> TimelineEntryResponse:
         with self._database.connection() as conn:
@@ -440,11 +512,17 @@ class PostgresGovernanceRepository:
             raise RuntimeError("created timeline entry cannot be loaded")
         return timeline
 
-    def _get_conflict(self, conflict_id: UUID) -> ConflictResponse | None:
+    def _get_conflict(
+        self, conflict_id: UUID, workspace_id: UUID | None = None
+    ) -> ConflictResponse | None:
+        workspace_filter = "AND workspace_id = %(workspace_id)s" if workspace_id else ""
+        params: dict[str, object] = {"conflict_id": conflict_id}
+        if workspace_id:
+            params["workspace_id"] = workspace_id
         with self._database.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         conflict_id,
                         workspace_id,
@@ -466,8 +544,9 @@ class PostgresGovernanceRepository:
                         right_memory_summary
                     FROM v_conflict_memory
                     WHERE conflict_id = %(conflict_id)s
+                    {workspace_filter}
                     """,
-                    {"conflict_id": conflict_id},
+                    params,
                 )
                 row = cur.fetchone()
         return ConflictResponse(**row) if row is not None else None

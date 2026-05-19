@@ -8,12 +8,15 @@ from app.main import create_app
 from app.models.governance import (
     AuditEntryResponse,
     AuditQueryResponse,
+    ConflictListResponse,
     ConflictResponse,
     ConflictUpdateRequest,
     PolicyCreateRequest,
+    PolicyListResponse,
     PolicyResponse,
     TimelineCreateRequest,
     TimelineEntryResponse,
+    TimelineListResponse,
 )
 from app.services.governance_service import ConflictNotFoundError
 from fastapi.testclient import TestClient
@@ -91,10 +94,12 @@ class FakeGovernanceService:
         self.policy = self.policy.model_copy(update={"workspace_id": payload.workspace_id})
         return self.policy
 
-    def list_policies(self, *, workspace_id: UUID | None) -> list[PolicyResponse]:
+    def list_policies(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> PolicyListResponse:
         if workspace_id is not None and workspace_id != self.workspace_id:
-            return []
-        return [self.policy]
+            return PolicyListResponse(items=[], page=page, page_size=page_size, total=0)
+        return PolicyListResponse(items=[self.policy], page=page, page_size=page_size, total=1)
 
     def list_audit_logs(
         self,
@@ -125,15 +130,17 @@ class FakeGovernanceService:
             return AuditQueryResponse(items=[], page=page, page_size=page_size, total=0)
         return self.audit_log
 
-    def list_conflicts(self, *, workspace_id: UUID | None) -> list[ConflictResponse]:
+    def list_conflicts(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> ConflictListResponse:
         if workspace_id is not None and workspace_id != self.workspace_id:
-            return []
-        return [self.conflict]
+            return ConflictListResponse(items=[], page=page, page_size=page_size, total=0)
+        return ConflictListResponse(items=[self.conflict], page=page, page_size=page_size, total=1)
 
     def update_conflict(
-        self, conflict_id: UUID, payload: ConflictUpdateRequest
+        self, conflict_id: UUID, workspace_id: UUID, payload: ConflictUpdateRequest
     ) -> ConflictResponse:
-        if conflict_id != self.conflict_id:
+        if conflict_id != self.conflict_id or workspace_id != self.workspace_id:
             raise ConflictNotFoundError(f"conflict {conflict_id} not found")
         self.conflict = self.conflict.model_copy(
             update={
@@ -146,10 +153,14 @@ class FakeGovernanceService:
         )
         return self.conflict
 
-    def list_timeline(self, *, workspace_id: UUID | None) -> list[TimelineEntryResponse]:
+    def list_timeline(
+        self, *, workspace_id: UUID | None, page: int, page_size: int
+    ) -> TimelineListResponse:
         if workspace_id is not None and workspace_id != self.workspace_id:
-            return []
-        return [self.timeline_entry]
+            return TimelineListResponse(items=[], page=page, page_size=page_size, total=0)
+        return TimelineListResponse(
+            items=[self.timeline_entry], page=page, page_size=page_size, total=1
+        )
 
     def create_timeline_entry(self, payload: TimelineCreateRequest) -> TimelineEntryResponse:
         self.timeline_entry = self.timeline_entry.model_copy(
@@ -199,7 +210,7 @@ def test_list_policies_returns_items() -> None:
     response = client.get("/api/policies", params={"workspace_id": str(fake_service.workspace_id)})
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
+    assert response.json()["total"] == 1
 
 
 def test_list_audit_returns_logs() -> None:
@@ -218,8 +229,8 @@ def test_list_conflicts_returns_records() -> None:
     response = client.get("/api/conflicts", params={"workspace_id": str(fake_service.workspace_id)})
 
     assert response.status_code == 200
-    assert response.json()[0]["status"] == "open"
-    assert response.json()[0]["left_memory_text"] == "继续推进校园食堂系统。"
+    assert response.json()["items"][0]["status"] == "open"
+    assert response.json()["items"][0]["left_memory_text"] == "继续推进校园食堂系统。"
 
 
 def test_update_conflict_returns_new_status() -> None:
@@ -227,6 +238,7 @@ def test_update_conflict_returns_new_status() -> None:
 
     response = client.patch(
         f"/api/conflicts/{fake_service.conflict_id}",
+        params={"workspace_id": str(fake_service.workspace_id)},
         json={"status": "resolved", "resolution_note": "accepted new direction"},
     )
 
@@ -240,7 +252,7 @@ def test_list_timeline_returns_entries() -> None:
     response = client.get("/api/timeline", params={"workspace_id": str(fake_service.workspace_id)})
 
     assert response.status_code == 200
-    assert response.json()[0]["title"] == "项目方向确认"
+    assert response.json()["items"][0]["title"] == "项目方向确认"
 
 
 def test_create_timeline_entry_returns_created_item() -> None:

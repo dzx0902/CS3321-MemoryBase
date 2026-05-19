@@ -7,12 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..models.governance import (
     AuditQueryResponse,
+    ConflictListResponse,
     ConflictResponse,
     ConflictUpdateRequest,
     PolicyCreateRequest,
+    PolicyListResponse,
     PolicyResponse,
     TimelineCreateRequest,
     TimelineEntryResponse,
+    TimelineListResponse,
 )
 from ..services.governance_service import (
     ConflictNotFoundError,
@@ -32,12 +35,14 @@ def create_policy(
     return service.create_policy(payload)
 
 
-@router.get("/policies", response_model=list[PolicyResponse])
+@router.get("/policies", response_model=PolicyListResponse)
 def list_policies(
     workspace_id: UUID | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     service: GovernanceService = Depends(get_governance_service),
-) -> list[PolicyResponse]:
-    return service.list_policies(workspace_id=workspace_id)
+) -> PolicyListResponse:
+    return service.list_policies(workspace_id=workspace_id, page=page, page_size=page_size)
 
 
 @router.get("/audit", response_model=AuditQueryResponse)
@@ -69,32 +74,37 @@ def list_audit_logs(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.get("/conflicts", response_model=list[ConflictResponse])
+@router.get("/conflicts", response_model=ConflictListResponse)
 def list_conflicts(
     workspace_id: UUID | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     service: GovernanceService = Depends(get_governance_service),
-) -> list[ConflictResponse]:
-    return service.list_conflicts(workspace_id=workspace_id)
+) -> ConflictListResponse:
+    return service.list_conflicts(workspace_id=workspace_id, page=page, page_size=page_size)
 
 
 @router.patch("/conflicts/{conflict_id}", response_model=ConflictResponse)
 def update_conflict(
     conflict_id: UUID,
     payload: ConflictUpdateRequest,
+    workspace_id: UUID = Query(...),
     service: GovernanceService = Depends(get_governance_service),
 ) -> ConflictResponse:
     try:
-        return service.update_conflict(conflict_id, payload)
+        return service.update_conflict(conflict_id, workspace_id, payload)
     except ConflictNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.get("/timeline", response_model=list[TimelineEntryResponse])
+@router.get("/timeline", response_model=TimelineListResponse)
 def list_timeline(
     workspace_id: UUID | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     service: GovernanceService = Depends(get_governance_service),
-) -> list[TimelineEntryResponse]:
-    return service.list_timeline(workspace_id=workspace_id)
+) -> TimelineListResponse:
+    return service.list_timeline(workspace_id=workspace_id, page=page, page_size=page_size)
 
 
 @router.post("/timeline", response_model=TimelineEntryResponse, status_code=status.HTTP_201_CREATED)

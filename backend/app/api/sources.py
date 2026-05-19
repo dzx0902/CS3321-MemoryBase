@@ -8,7 +8,7 @@ from ..models.source import (
     SourceCreateRequest,
     SourceDetailResponse,
     SourceImportResponse,
-    SourceSummaryResponse,
+    SourceListResponse,
 )
 from ..services.source_service import (
     SourceConflictError,
@@ -34,20 +34,29 @@ def create_source(
         ) from exc
 
 
-@router.get("", response_model=list[SourceSummaryResponse])
+@router.get("", response_model=SourceListResponse)
 def list_sources(
     workspace_id: UUID | None = Query(default=None),
+    keyword: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     service: SourceService = Depends(get_source_service),
-) -> list[SourceSummaryResponse]:
-    return service.list_sources(workspace_id=workspace_id)
+) -> SourceListResponse:
+    return service.list_sources(
+        workspace_id=workspace_id,
+        keyword=keyword,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/{doc_id}", response_model=SourceDetailResponse)
 def get_source(
     doc_id: UUID,
+    workspace_id: UUID = Query(...),
     service: SourceService = Depends(get_source_service),
 ) -> SourceDetailResponse:
     try:
-        return service.get_source(doc_id)
+        return service.get_source(doc_id, workspace_id)
     except SourceNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
