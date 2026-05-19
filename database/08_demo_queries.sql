@@ -29,7 +29,7 @@ ORDER BY importance DESC, updated_at DESC
 LIMIT 20;
 
 -- 6. Query conflict memory pairs
-SELECT conflict_id, conflict_type, conflict_status, left_memory_text, right_memory_text
+SELECT conflict_id, conflict_type, status AS conflict_status, left_memory_text, right_memory_text
 FROM v_conflict_memory
 ORDER BY created_at DESC
 LIMIT 20;

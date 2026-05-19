@@ -12,6 +12,7 @@ from ..models.source import (
     SourceCreateRequest,
     SourceDetailResponse,
     SourceImportResponse,
+    SourceListResponse,
     SourceSummaryResponse,
 )
 from .chunking import build_chunks
@@ -35,10 +36,17 @@ class SourceRepository(Protocol):
     ) -> SourceImportResponse:
         ...
 
-    def list_sources(self, *, workspace_id: UUID | None) -> list[SourceSummaryResponse]:
+    def list_sources(
+        self,
+        *,
+        workspace_id: UUID | None,
+        keyword: str | None,
+        page: int,
+        page_size: int,
+    ) -> SourceListResponse:
         ...
 
-    def get_source(self, doc_id: UUID) -> SourceDetailResponse | None:
+    def get_source(self, doc_id: UUID, workspace_id: UUID) -> SourceDetailResponse | None:
         ...
 
 
@@ -55,11 +63,23 @@ class SourceService:
             chunk_overlap_lines=self.chunk_overlap_lines,
         )
 
-    def list_sources(self, *, workspace_id: UUID | None) -> list[SourceSummaryResponse]:
-        return self.repository.list_sources(workspace_id=workspace_id)
+    def list_sources(
+        self,
+        *,
+        workspace_id: UUID | None,
+        keyword: str | None,
+        page: int,
+        page_size: int,
+    ) -> SourceListResponse:
+        return self.repository.list_sources(
+            workspace_id=workspace_id,
+            keyword=keyword,
+            page=page,
+            page_size=page_size,
+        )
 
-    def get_source(self, doc_id: UUID) -> SourceDetailResponse:
-        source = self.repository.get_source(doc_id)
+    def get_source(self, doc_id: UUID, workspace_id: UUID) -> SourceDetailResponse:
+        source = self.repository.get_source(doc_id, workspace_id)
         if source is None:
             raise SourceNotFoundError(f"source {doc_id} not found")
         return source
@@ -163,7 +183,14 @@ class PostgresSourceRepository:
                 "source document with the same checksum already exists"
             ) from exc
 
-    def list_sources(self, *, workspace_id: UUID | None) -> list[SourceSummaryResponse]:
+    def list_sources(
+        self,
+        *,
+        workspace_id: UUID | None,
+        keyword: str | None,
+        page: int,
+        page_size: int,
+    ) -> SourceListResponse:
         query = """
             SELECT
                 sd.doc_id,
@@ -176,23 +203,45 @@ class PostgresSourceRepository:
             FROM source_document sd
             LEFT JOIN source_chunk sc ON sc.doc_id = sd.doc_id
         """
-        params: dict[str, object] = {}
+        count_query = "SELECT COUNT(*) AS total FROM source_document sd"
+        filters: list[str] = []
+        params: dict[str, object] = {
+            "limit": page_size,
+            "offset": (page - 1) * page_size,
+        }
         if workspace_id is not None:
-            query += " WHERE sd.workspace_id = %(workspace_id)s"
+            filters.append("sd.workspace_id = %(workspace_id)s")
             params["workspace_id"] = workspace_id
+        if keyword is not None:
+            filters.append(
+                "(sd.title ILIKE %(keyword)s OR COALESCE(sd.source_path, '') ILIKE %(keyword)s)"
+            )
+            params["keyword"] = f"%{keyword}%"
+        if filters:
+            where_clause = f" WHERE {' AND '.join(filters)}"
+            query += where_clause
+            count_query += where_clause
         query += """
             GROUP BY
                 sd.doc_id, sd.workspace_id, sd.title, sd.doc_type, sd.source_path, sd.imported_at
             ORDER BY sd.imported_at DESC
+            LIMIT %(limit)s OFFSET %(offset)s
         """
 
         with self._database.connection() as conn:
             with conn.cursor() as cur:
+                cur.execute(count_query, params)
+                total = cur.fetchone()["total"]
                 cur.execute(query, params)
                 rows = cur.fetchall()
-        return [SourceSummaryResponse(**row) for row in rows]
+        return SourceListResponse(
+            items=[SourceSummaryResponse(**row) for row in rows],
+            page=page,
+            page_size=page_size,
+            total=total,
+        )
 
-    def get_source(self, doc_id: UUID) -> SourceDetailResponse | None:
+    def get_source(self, doc_id: UUID, workspace_id: UUID) -> SourceDetailResponse | None:
         with self._database.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -211,6 +260,7 @@ class PostgresSourceRepository:
                     FROM source_document sd
                     LEFT JOIN source_chunk sc ON sc.doc_id = sd.doc_id
                     WHERE sd.doc_id = %(doc_id)s
+                      AND sd.workspace_id = %(workspace_id)s
                     GROUP BY
                         sd.doc_id,
                         sd.workspace_id,
@@ -222,7 +272,7 @@ class PostgresSourceRepository:
                         sd.raw_text,
                         sd.imported_at
                     """,
-                    {"doc_id": doc_id},
+                    {"doc_id": doc_id, "workspace_id": workspace_id},
                 )
                 source_row = cur.fetchone()
                 if source_row is None:

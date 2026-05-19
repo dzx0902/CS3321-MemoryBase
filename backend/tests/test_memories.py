@@ -7,9 +7,11 @@ from uuid import UUID, uuid4
 from app.api.deps import get_memory_service
 from app.main import create_app
 from app.models.memory import (
+    ActorContext,
     MemoryCreateRequest,
     MemoryDeleteResponse,
     MemoryDetailResponse,
+    MemoryListResponse,
     MemorySummaryResponse,
     MemoryUpdateRequest,
 )
@@ -81,7 +83,7 @@ class FakeMemoryService:
                 "confidence": payload.confidence,
                 "importance": payload.importance,
                 "access_level": payload.access_level,
-                "evidence_count": len(payload.evidence_chunk_ids),
+                "evidence_count": len(payload.evidence),
             }
         )
         return MemorySummaryResponse(**self.memory.model_dump(exclude={"evidence", "revisions"}))
@@ -96,18 +98,25 @@ class FakeMemoryService:
         keyword: str | None,
         page: int,
         page_size: int,
-    ) -> list[MemorySummaryResponse]:
+    ) -> MemoryListResponse:
         if workspace_id is not None and workspace_id != self.workspace_id:
-            return []
-        return [MemorySummaryResponse(**self.memory.model_dump(exclude={"evidence", "revisions"}))]
+            return MemoryListResponse(items=[], page=page, page_size=page_size, total=0)
+        item = MemorySummaryResponse(**self.memory.model_dump(exclude={"evidence", "revisions"}))
+        return MemoryListResponse(items=[item], page=page, page_size=page_size, total=1)
 
-    def get_memory(self, memory_id: UUID) -> MemoryDetailResponse:
-        if memory_id != self.memory_id:
+    def get_memory(self, memory_id: UUID, workspace_id: UUID) -> MemoryDetailResponse:
+        if memory_id != self.memory_id or workspace_id != self.workspace_id:
             raise MemoryNotFoundError(f"memory {memory_id} not found")
         return deepcopy(self.memory)
 
-    def update_memory(self, memory_id: UUID, payload: MemoryUpdateRequest) -> MemoryDetailResponse:
-        if memory_id != self.memory_id:
+    def update_memory(
+        self,
+        memory_id: UUID,
+        workspace_id: UUID,
+        payload: MemoryUpdateRequest,
+        actor: ActorContext,
+    ) -> MemoryDetailResponse:
+        if memory_id != self.memory_id or workspace_id != self.workspace_id:
             raise MemoryNotFoundError(f"memory {memory_id} not found")
         updated = self.memory.model_copy(
             update={
@@ -120,10 +129,14 @@ class FakeMemoryService:
         self.memory = updated
         return deepcopy(self.memory)
 
-    def delete_memory(self, memory_id: UUID) -> MemoryDeleteResponse:
-        if memory_id != self.memory_id:
+    def delete_memory(
+        self, memory_id: UUID, workspace_id: UUID, actor: ActorContext
+    ) -> MemoryDeleteResponse:
+        if memory_id != self.memory_id or workspace_id != self.workspace_id:
             raise MemoryNotFoundError(f"memory {memory_id} not found")
-        self.memory = self.memory.model_copy(update={"status": "archived"})
+        self.memory = self.memory.model_copy(
+            update={"status": "archived", "valid_to": datetime(2026, 5, 16, tzinfo=timezone.utc)}
+        )
         return MemoryDeleteResponse(memory_id=self.memory_id, status="archived")
 
 
@@ -147,7 +160,14 @@ def test_create_memory_returns_summary() -> None:
             "confidence": 0.9,
             "importance": 5,
             "access_level": "project",
-            "evidence_chunk_ids": [str(fake_service.chunk_id)],
+            "evidence": [
+                {
+                    "chunk_id": str(fake_service.chunk_id),
+                    "evidence_role": "supports",
+                    "weight": 0.9,
+                    "note": "Direct source chunk.",
+                }
+            ],
         },
     )
 
@@ -162,14 +182,17 @@ def test_list_memories_returns_collection() -> None:
     response = client.get("/api/memories", params={"workspace_id": str(fake_service.workspace_id)})
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["summary"] == "项目选题决策"
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["summary"] == "项目选题决策"
 
 
 def test_get_memory_returns_detail() -> None:
     client, fake_service = build_client()
 
-    response = client.get(f"/api/memories/{fake_service.memory_id}")
+    response = client.get(
+        f"/api/memories/{fake_service.memory_id}",
+        params={"workspace_id": str(fake_service.workspace_id)},
+    )
 
     assert response.status_code == 200
     assert response.json()["current_revision_no"] == 1
@@ -181,10 +204,14 @@ def test_update_memory_returns_new_revision_state() -> None:
 
     response = client.patch(
         f"/api/memories/{fake_service.memory_id}",
+        params={"workspace_id": str(fake_service.workspace_id)},
+        headers={
+            "X-Actor-Type": "user",
+            "X-Revision-Reason": "manual update",
+        },
         json={
             "canonical_text": "最终选择 MemoryBase 作为数据库课程项目，并优先完成后端。",
             "summary": "项目选题与分工更新",
-            "revision_reason": "manual update",
         },
     )
 
@@ -196,7 +223,10 @@ def test_update_memory_returns_new_revision_state() -> None:
 def test_delete_memory_soft_deletes_record() -> None:
     client, fake_service = build_client()
 
-    response = client.delete(f"/api/memories/{fake_service.memory_id}")
+    response = client.delete(
+        f"/api/memories/{fake_service.memory_id}",
+        params={"workspace_id": str(fake_service.workspace_id)},
+    )
 
     assert response.status_code == 200
     assert response.json() == {"memory_id": str(fake_service.memory_id), "status": "archived"}
@@ -205,6 +235,6 @@ def test_delete_memory_soft_deletes_record() -> None:
 def test_memory_endpoints_return_404_for_unknown_record() -> None:
     client, _ = build_client()
 
-    response = client.get(f"/api/memories/{uuid4()}")
+    response = client.get(f"/api/memories/{uuid4()}", params={"workspace_id": str(uuid4())})
 
     assert response.status_code == 404

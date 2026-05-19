@@ -14,18 +14,23 @@ CONFLICT_ID = "00000000-0000-0000-0000-000000001001"
 def test_memory_revision_and_audit_end_to_end(integration_client, integration_db: str) -> None:
     response = integration_client.patch(
         f"/api/memories/{MEMORY_ID}",
+        params={"workspace_id": WORKSPACE_ID},
+        headers={
+            "X-Actor-Type": "user",
+            "X-Revision-Reason": "integration update",
+        },
         json={
             "canonical_text": "团队放弃了校园食堂系统，并优先完成 MemoryBase 后端。",
             "summary": "项目方向与分工更新",
-            "revision_reason": "integration update",
-            "editor_type": "user",
         },
     )
 
     assert response.status_code == 200
     assert response.json()["current_revision_no"] == 2
 
-    detail_response = integration_client.get(f"/api/memories/{MEMORY_ID}")
+    detail_response = integration_client.get(
+        f"/api/memories/{MEMORY_ID}", params={"workspace_id": WORKSPACE_ID}
+    )
     assert detail_response.status_code == 200
     assert len(detail_response.json()["revisions"]) == 2
     assert detail_response.json()["revisions"][-1]["revision_no"] == 2
@@ -125,15 +130,99 @@ def test_recall_policy_visibility_and_log_end_to_end(
     assert row[2]["top_memory_ids"] == [PRIVATE_MEMORY_ID]
 
 
+def test_source_list_keyword_filter_end_to_end(integration_client, integration_db: str) -> None:
+    response = integration_client.get(
+        "/api/sources",
+        params={
+            "workspace_id": WORKSPACE_ID,
+            "keyword": "Policy and Recall",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["title"] == "Discussion 04: Policy and Recall"
+
+
+def test_chinese_demo_recall_finds_cafeteria_memory(
+    integration_client, integration_db: str
+) -> None:
+    response = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "agent_id": AGENT_ID,
+            "query_text": "为什么放弃校园食堂系统？",
+            "limit": 5,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["result_count"] >= 1
+    memory_texts = [item["canonical_text"] for item in response.json()["memories"]]
+    assert any("cafeteria system" in text for text in memory_texts)
+    assert any(item["evidence"] for item in response.json()["memories"])
+
+
+def test_memory_create_accepts_evidence_objects(integration_client, integration_db: str) -> None:
+    response = integration_client.post(
+        "/api/memories",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "created_from_doc_id": "00000000-0000-0000-0000-000000000501",
+            "memory_type": "decision",
+            "canonical_text": "Evidence objects preserve role, weight, and note.",
+            "summary": "Evidence object contract",
+            "confidence": 0.91,
+            "importance": 4,
+            "access_level": "project",
+            "evidence": [
+                {
+                    "chunk_id": "00000000-0000-0000-0000-000000000602",
+                    "evidence_role": "context",
+                    "weight": 0.7,
+                    "note": "Custom evidence metadata.",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 201
+    memory_id = response.json()["memory_id"]
+    detail = integration_client.get(
+        f"/api/memories/{memory_id}", params={"workspace_id": WORKSPACE_ID}
+    )
+    assert detail.status_code == 200
+    evidence = detail.json()["evidence"][0]
+    assert evidence["evidence_role"] == "context"
+    assert evidence["weight"] == 0.7
+    assert evidence["note"] == "Custom evidence metadata."
+
+
+def test_memory_delete_sets_valid_to(integration_client, integration_db: str) -> None:
+    response = integration_client.delete(
+        f"/api/memories/{MEMORY_ID}", params={"workspace_id": WORKSPACE_ID}
+    )
+    assert response.status_code == 200
+
+    detail = integration_client.get(
+        f"/api/memories/{MEMORY_ID}", params={"workspace_id": WORKSPACE_ID}
+    )
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "archived"
+    assert detail.json()["valid_to"] is not None
+
+
 def test_conflict_timeline_and_audit_end_to_end(integration_client, integration_db: str) -> None:
     conflict_response = integration_client.get(
         "/api/conflicts", params={"workspace_id": WORKSPACE_ID}
     )
     assert conflict_response.status_code == 200
-    assert conflict_response.json()[0]["conflict_id"] == CONFLICT_ID
+    assert conflict_response.json()["items"][0]["conflict_id"] == CONFLICT_ID
 
     patch_response = integration_client.patch(
         f"/api/conflicts/{CONFLICT_ID}",
+        params={"workspace_id": WORKSPACE_ID},
         json={
             "status": "resolved",
             "resolution_note": "accepted MemoryBase direction",
@@ -160,7 +249,7 @@ def test_conflict_timeline_and_audit_end_to_end(integration_client, integration_
 
     timeline_list = integration_client.get("/api/timeline", params={"workspace_id": WORKSPACE_ID})
     assert timeline_list.status_code == 200
-    assert any(item["title"] == "补齐 P0/P1 后端闭环" for item in timeline_list.json())
+    assert any(item["title"] == "补齐 P0/P1 后端闭环" for item in timeline_list.json()["items"])
 
     audit_response = integration_client.get(
         "/api/audit",
@@ -184,6 +273,8 @@ def test_wiki_export_writes_file_and_revision_end_to_end(
             "page_slug": "demo-report",
             "title": "Demo Report",
             "page_type": "report",
+            "memory_ids": [MEMORY_ID],
+            "write_files": True,
         },
     )
     assert first.status_code == 200
@@ -192,7 +283,10 @@ def test_wiki_export_writes_file_and_revision_end_to_end(
     assert output_path.exists()
     contents = output_path.read_text(encoding="utf-8")
     assert "workspace_id:" in contents
-    assert "source_ids:" in contents
+    assert f"data/markdown_wiki/{WORKSPACE_ID}/demo-report.md" in first.json()["output_path"]
+    assert "memory_ids:" in contents
+    assert "source_doc_ids:" in contents
+    assert first.json()["frontmatter_json"]["memory_ids"] == [MEMORY_ID]
 
     second = integration_client.post(
         "/api/wiki/export",
@@ -201,6 +295,7 @@ def test_wiki_export_writes_file_and_revision_end_to_end(
             "page_slug": "demo-report",
             "title": "Demo Report",
             "page_type": "report",
+            "memory_ids": [MEMORY_ID],
         },
     )
     assert second.status_code == 200

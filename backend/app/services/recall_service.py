@@ -1,11 +1,40 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 from uuid import UUID
 
 from ..core.database import Database
 from ..models.recall import RecallRequest, RecallResponse
+
+QUERY_EXPANSION_FILE = (
+    Path(__file__).resolve().parents[3] / "data" / "recall" / "demo_query_expansions.json"
+)
+
+
+def _load_query_expansions(path: Path) -> dict[str, tuple[str, ...]]:
+    raw_payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw_payload, dict):
+        raise ValueError(f"query expansion file must contain an object: {path}")
+
+    expansions: dict[str, tuple[str, ...]] = {}
+    for source, terms in raw_payload.items():
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError(f"query expansion source must be a non-empty string: {path}")
+        if not isinstance(terms, list) or not terms:
+            raise ValueError(f"query expansion terms must be a non-empty list: {source}")
+        normalized_terms: list[str] = []
+        for term in terms:
+            if not isinstance(term, str) or not term.strip():
+                raise ValueError(f"query expansion term must be a non-empty string: {source}")
+            normalized_terms.append(term.strip())
+        expansions[source.strip()] = tuple(normalized_terms)
+    return expansions
+
+
+DEMO_QUERY_EXPANSIONS = _load_query_expansions(QUERY_EXPANSION_FILE)
 
 
 class RecallRepository(Protocol):
@@ -26,11 +55,14 @@ class PostgresRecallRepository:
         self._database = database
 
     def execute_recall(self, payload: RecallRequest) -> RecallResponse:
+        search_text = _expand_query_text(payload.query_text)
+        keyword_patterns = [f"%{term}%" for term in _keyword_terms(payload.query_text)]
         filters: list[str] = ["mi.workspace_id = %(workspace_id)s"]
         params: dict[str, object] = {
             "workspace_id": payload.workspace_id,
             "query_text": payload.query_text,
-            "keyword": f"%{payload.query_text}%",
+            "search_text": search_text,
+            "keyword_patterns": keyword_patterns,
             "limit": payload.limit,
         }
         if payload.status is not None:
@@ -88,10 +120,11 @@ class PostgresRecallRepository:
                             GREATEST(
                                 ts_rank(
                                     sc.search_vector,
-                                    websearch_to_tsquery('simple', %(query_text)s)
+                                    websearch_to_tsquery('simple', %(search_text)s)
                                 ),
                                 CASE
-                                    WHEN sc.chunk_text ILIKE %(keyword)s THEN 0.25
+                                    WHEN sc.chunk_text ILIKE ANY(%(keyword_patterns)s::text[])
+                                    THEN 0.25
                                     ELSE 0
                                 END
                             ) AS chunk_rank
@@ -99,8 +132,8 @@ class PostgresRecallRepository:
                         JOIN source_document sd ON sd.doc_id = sc.doc_id
                         WHERE sd.workspace_id = %(workspace_id)s
                           AND (
-                            sc.search_vector @@ websearch_to_tsquery('simple', %(query_text)s)
-                            OR sc.chunk_text ILIKE %(keyword)s
+                            sc.search_vector @@ websearch_to_tsquery('simple', %(search_text)s)
+                            OR sc.chunk_text ILIKE ANY(%(keyword_patterns)s::text[])
                           )
                     ),
                     matched_memories AS (
@@ -146,8 +179,8 @@ class PostgresRecallRepository:
                     FROM memory_item mi
                     WHERE {where_clause}
                       AND (
-                        mi.canonical_text ILIKE %(keyword)s
-                        OR COALESCE(mi.summary, '') ILIKE %(keyword)s
+                        mi.canonical_text ILIKE ANY(%(keyword_patterns)s::text[])
+                        OR COALESCE(mi.summary, '') ILIKE ANY(%(keyword_patterns)s::text[])
                       )
                     ORDER BY score DESC, importance DESC, confidence DESC
                     LIMIT %(limit)s
@@ -243,6 +276,28 @@ class PostgresRecallRepository:
 
 
 def _json_dumps(payload: object) -> str:
-    import json
-
     return json.dumps(payload, default=str)
+
+
+def _keyword_terms(query_text: str) -> list[str]:
+    terms = [query_text]
+    for source, expansions in DEMO_QUERY_EXPANSIONS.items():
+        if source in query_text:
+            terms.extend(expansions)
+    return _dedupe_terms(terms)
+
+
+def _expand_query_text(query_text: str) -> str:
+    return " ".join(_keyword_terms(query_text))
+
+
+def _dedupe_terms(terms: list[str]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for term in terms:
+        normalized = term.strip()
+        if not normalized or normalized.lower() in seen:
+            continue
+        seen.add(normalized.lower())
+        deduped.append(normalized)
+    return deduped

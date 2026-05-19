@@ -1,0 +1,7 @@
+{
+  "食堂": ["cafeteria"],
+  "校园": ["campus"],
+  "放弃": ["abandon", "abandoned"],
+  "系统": ["system"],
+  "数据库": ["database"]
+}

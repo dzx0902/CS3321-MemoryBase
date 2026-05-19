@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from .common import PageResponse
+
 PrincipalType = Literal["user", "agent", "role"]
 ResourceType = Literal["memory_item", "source_document", "wiki_page", "workspace"]
 ResourceScope = Literal["public", "project", "team", "private", "all"]
@@ -34,6 +36,10 @@ class PolicyResponse(BaseModel):
     effect: PolicyEffect
     predicate_json: dict[str, Any]
     created_at: datetime
+
+
+class PolicyListResponse(PageResponse[PolicyResponse]):
+    pass
 
 
 class AuditQueryResponse(BaseModel):
@@ -77,6 +83,10 @@ class ConflictResponse(BaseModel):
     right_memory_summary: str | None = None
 
 
+class ConflictListResponse(PageResponse[ConflictResponse]):
+    pass
+
+
 class ConflictUpdateRequest(BaseModel):
     status: ConflictStatus
     resolution_note: str | None = None
@@ -108,3 +118,7 @@ class TimelineEntryResponse(BaseModel):
     memory_type: str | None = None
     memory_text: str | None = None
     source_title: str | None = None
+
+
+class TimelineListResponse(PageResponse[TimelineEntryResponse]):
+    pass

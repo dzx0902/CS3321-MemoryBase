@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from .common import PageResponse
+
 MemoryType = Literal[
     "episodic",
     "semantic",
@@ -33,7 +35,7 @@ class MemoryCreateRequest(BaseModel):
     created_from_doc_id: UUID | None = None
     owner_user_id: UUID | None = None
     owner_agent_id: UUID | None = None
-    evidence_chunk_ids: list[UUID] = Field(default_factory=list)
+    evidence: list["MemoryEvidenceInput"] = Field(default_factory=list)
 
 
 class MemoryUpdateRequest(BaseModel):
@@ -43,10 +45,20 @@ class MemoryUpdateRequest(BaseModel):
     importance: int | None = Field(default=None, ge=1, le=5)
     status: MemoryStatus | None = None
     access_level: AccessLevel | None = None
-    evidence_chunk_ids: list[UUID] | None = None
+    evidence: list["MemoryEvidenceInput"] | None = None
+
+
+class ActorContext(BaseModel):
+    actor_type: EditorType = "user"
+    actor_id: UUID | None = None
     revision_reason: str = "manual update"
-    editor_type: EditorType = "user"
-    editor_id: UUID | None = None
+
+
+class MemoryEvidenceInput(BaseModel):
+    chunk_id: UUID
+    evidence_role: EvidenceRole = "supports"
+    weight: float = Field(default=1.0, ge=0, le=1)
+    note: str | None = None
 
 
 class MemoryEvidenceResponse(BaseModel):
@@ -88,6 +100,10 @@ class MemorySummaryResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     evidence_count: int = 0
+
+
+class MemoryListResponse(PageResponse[MemorySummaryResponse]):
+    pass
 
 
 class MemoryDetailResponse(MemorySummaryResponse):
