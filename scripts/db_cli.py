@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import codecs
 import os
 import shutil
 import subprocess
@@ -176,10 +177,59 @@ def run_sql_command(psql_path: str, database_url: str, sql: str) -> None:
 
 def run_subprocess(command: list[str]) -> None:
     env = os.environ.copy()
-    env.setdefault("PGCLIENTENCODING", "UTF8")
-    completed = subprocess.run(command, cwd=REPO_ROOT, env=env, check=False)
-    if completed.returncode != 0:
-        raise RuntimeError(f"psql command failed with exit code {completed.returncode}.")
+    client_encoding = resolve_client_encoding(env)
+    env["PGCLIENTENCODING"] = client_encoding
+    process = subprocess.Popen(
+        command,
+        cwd=REPO_ROOT,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding=python_codec_for_postgres_encoding(client_encoding),
+        errors="replace",
+    )
+    if process.stdout is not None:
+        for line in process.stdout:
+            write_terminal_line(line)
+    returncode = process.wait()
+    if returncode != 0:
+        raise RuntimeError(f"psql command failed with exit code {returncode}.")
+
+
+def resolve_client_encoding(env: dict[str, str]) -> str:
+    configured = env.get("PGCLIENTENCODING")
+    if configured:
+        return configured
+
+    terminal_encoding = (sys.stdout.encoding or "").lower()
+    if terminal_encoding in {"gbk", "cp936", "ms936"}:
+        return "GBK"
+    return "UTF8"
+
+
+def python_codec_for_postgres_encoding(postgres_encoding: str) -> str:
+    normalized = postgres_encoding.replace("-", "").replace("_", "").lower()
+    aliases = {
+        "utf8": "utf-8",
+        "unicode": "utf-8",
+        "gbk": "gbk",
+        "win936": "gbk",
+    }
+    codec = aliases.get(normalized, postgres_encoding)
+    try:
+        codecs.lookup(codec)
+    except LookupError:
+        return "utf-8"
+    return codec
+
+
+def write_terminal_line(line: str) -> None:
+    encoding = sys.stdout.encoding or "utf-8"
+    try:
+        sys.stdout.write(line)
+    except UnicodeEncodeError:
+        sys.stdout.write(line.encode(encoding, errors="replace").decode(encoding))
 
 
 if __name__ == "__main__":
