@@ -9,6 +9,7 @@ AGENT_ID = "00000000-0000-0000-0000-000000000301"
 PRIVATE_MEMORY_ID = "00000000-0000-0000-0000-000000000713"
 MEMORY_ID = "00000000-0000-0000-0000-000000000711"
 CONFLICT_ID = "00000000-0000-0000-0000-000000001001"
+REVIEWER_USER_ID = "00000000-0000-0000-0000-000000000101"
 
 
 def test_memory_revision_and_audit_end_to_end(integration_client, integration_db: str) -> None:
@@ -300,3 +301,83 @@ def test_wiki_export_writes_file_and_revision_end_to_end(
     )
     assert second.status_code == 200
     assert second.json()["revision_no"] == 2
+
+
+def test_forget_request_approval_forgets_memory_and_excludes_recall(
+    integration_client, integration_db: str
+) -> None:
+    before_recall = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "Recall should return memory items",
+            "limit": 5,
+        },
+    )
+    assert before_recall.status_code == 200
+    assert any(item["memory_id"] == MEMORY_ID for item in before_recall.json()["memories"])
+
+    create_response = integration_client.post(
+        "/api/forget-requests",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "target_type": "memory_item",
+            "target_id": MEMORY_ID,
+            "requester_user_id": REVIEWER_USER_ID,
+            "reason": "Exercise the forget governance workflow.",
+        },
+    )
+    assert create_response.status_code == 201
+    assert create_response.json()["status"] == "pending"
+    request_id = create_response.json()["request_id"]
+
+    approve_response = integration_client.patch(
+        f"/api/forget-requests/{request_id}",
+        params={"workspace_id": WORKSPACE_ID},
+        json={
+            "status": "approved",
+            "reviewed_by_user_id": REVIEWER_USER_ID,
+        },
+    )
+    assert approve_response.status_code == 200
+    assert approve_response.json()["status"] == "approved"
+    assert approve_response.json()["resolved_at"] is not None
+
+    memory_detail = integration_client.get(
+        f"/api/memories/{MEMORY_ID}", params={"workspace_id": WORKSPACE_ID}
+    )
+    assert memory_detail.status_code == 200
+    assert memory_detail.json()["status"] == "forgotten"
+    assert memory_detail.json()["valid_to"] is not None
+
+    after_recall = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "Recall should return memory items",
+            "limit": 5,
+        },
+    )
+    assert after_recall.status_code == 200
+    assert all(item["memory_id"] != MEMORY_ID for item in after_recall.json()["memories"])
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM audit_log
+                WHERE workspace_id = %(workspace_id)s
+                  AND (
+                    (action_type = 'forget_request.update' AND target_id = %(request_id)s)
+                    OR (action_type = 'memory.forget' AND target_id = %(memory_id)s)
+                  )
+                """,
+                {
+                    "workspace_id": WORKSPACE_ID,
+                    "request_id": request_id,
+                    "memory_id": MEMORY_ID,
+                },
+            )
+            audit_count = cur.fetchone()[0]
+    assert audit_count >= 2

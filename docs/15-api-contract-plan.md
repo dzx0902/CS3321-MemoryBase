@@ -807,7 +807,8 @@ Rules:
 
 ### POST /api/forget-requests
 
-P1 deferred endpoint. The schema exists, but P0 does not require a full ForgetRequest workflow.
+P1 governance endpoint. The schema exists in the database foundation, and the backend implements
+the lightweight memory forgetting workflow.
 
 Request:
 
@@ -830,7 +831,7 @@ Rules:
 
 ### GET /api/forget-requests
 
-P1 deferred endpoint.
+P1 governance endpoint.
 
 Query:
 
@@ -844,7 +845,7 @@ page_size=20
 
 ### PATCH /api/forget-requests/{request_id}
 
-P1 deferred endpoint for approval / rejection / completion.
+P1 governance endpoint for approval / rejection / completion.
 
 Query:
 
@@ -865,7 +866,11 @@ Rules:
 
 - `status`: `pending`, `approved`, `rejected`, `done`.
 - When status becomes `approved`, `rejected`, or `done`, set `resolved_at = now()` and store `reviewed_by_user_id`.
-- Actual memory archival / forgetting can be implemented by API service logic in the same transaction; no forget trigger is required for P0.
+- When a `memory_item` request is approved or marked done, set the target memory to `forgotten`
+  with `valid_to = now()` in the same transaction.
+- Write `forget_request.create` / `forget_request.update` audit entries from the API layer.
+- The memory status change also writes the normal `memory.forget` audit entry through the
+  existing memory trigger.
 
 ### GET /api/timeline
 

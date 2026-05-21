@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .common import PageResponse
 
@@ -14,6 +14,8 @@ ResourceScope = Literal["public", "project", "team", "private", "all"]
 PolicyEffect = Literal["allow", "deny"]
 TimelineEventType = Literal["meeting", "proposal", "decision", "revision", "conflict", "resolution"]
 ConflictStatus = Literal["open", "resolved", "ignored"]
+ForgetTargetType = Literal["memory_item", "source_document", "wiki_page", "entity"]
+ForgetRequestStatus = Literal["pending", "approved", "rejected", "done"]
 
 
 class PolicyCreateRequest(BaseModel):
@@ -92,6 +94,44 @@ class ConflictUpdateRequest(BaseModel):
     resolution_note: str | None = None
     actor_type: Literal["user", "agent", "system"] = "user"
     actor_id: UUID | None = None
+
+
+class ForgetRequestCreateRequest(BaseModel):
+    workspace_id: UUID
+    target_type: ForgetTargetType
+    target_id: UUID
+    requester_user_id: UUID | None = None
+    reason: str = Field(min_length=1)
+
+
+class ForgetRequestUpdateRequest(BaseModel):
+    status: ForgetRequestStatus
+    reviewed_by_user_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_reviewer_for_status(self) -> "ForgetRequestUpdateRequest":
+        if self.status == "pending" and self.reviewed_by_user_id is not None:
+            raise ValueError("reviewed_by_user_id is not allowed while status is pending")
+        if self.status != "pending" and self.reviewed_by_user_id is None:
+            raise ValueError("reviewed_by_user_id is required for reviewed requests")
+        return self
+
+
+class ForgetRequestResponse(BaseModel):
+    request_id: UUID
+    workspace_id: UUID
+    target_type: ForgetTargetType
+    target_id: UUID
+    requester_user_id: UUID | None = None
+    reviewed_by_user_id: UUID | None = None
+    reason: str
+    status: ForgetRequestStatus
+    requested_at: datetime
+    resolved_at: datetime | None = None
+
+
+class ForgetRequestListResponse(PageResponse[ForgetRequestResponse]):
+    pass
 
 
 class TimelineCreateRequest(BaseModel):
