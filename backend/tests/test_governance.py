@@ -11,6 +11,10 @@ from app.models.governance import (
     ConflictListResponse,
     ConflictResponse,
     ConflictUpdateRequest,
+    ForgetRequestCreateRequest,
+    ForgetRequestListResponse,
+    ForgetRequestResponse,
+    ForgetRequestUpdateRequest,
     PolicyCreateRequest,
     PolicyListResponse,
     PolicyResponse,
@@ -31,6 +35,7 @@ class FakeGovernanceService:
         self.conflict_id = uuid4()
         self.doc_id = uuid4()
         self.timeline_id = uuid4()
+        self.forget_request_id = uuid4()
         self.policy = PolicyResponse(
             policy_id=self.policy_id,
             workspace_id=self.workspace_id,
@@ -88,6 +93,18 @@ class FakeGovernanceService:
             memory_type="decision",
             memory_text="最终选择 MemoryBase。",
             source_title="meeting_02",
+        )
+        self.forget_request = ForgetRequestResponse(
+            request_id=self.forget_request_id,
+            workspace_id=self.workspace_id,
+            target_type="memory_item",
+            target_id=self.memory_id,
+            requester_user_id=uuid4(),
+            reviewed_by_user_id=None,
+            reason="Remove sensitive memory from recall.",
+            status="pending",
+            requested_at=now,
+            resolved_at=None,
         )
 
     def create_policy(self, payload: PolicyCreateRequest) -> PolicyResponse:
@@ -176,6 +193,52 @@ class FakeGovernanceService:
             }
         )
         return self.timeline_entry
+
+    def create_forget_request(self, payload: ForgetRequestCreateRequest) -> ForgetRequestResponse:
+        self.forget_request = self.forget_request.model_copy(
+            update={
+                "workspace_id": payload.workspace_id,
+                "target_type": payload.target_type,
+                "target_id": payload.target_id,
+                "requester_user_id": payload.requester_user_id,
+                "reason": payload.reason,
+                "status": "pending",
+            }
+        )
+        return self.forget_request
+
+    def list_forget_requests(
+        self,
+        *,
+        workspace_id: UUID | None,
+        status: str | None,
+        target_type: str | None,
+        page: int,
+        page_size: int,
+    ) -> ForgetRequestListResponse:
+        if workspace_id is not None and workspace_id != self.workspace_id:
+            return ForgetRequestListResponse(items=[], page=page, page_size=page_size, total=0)
+        if status is not None and status != self.forget_request.status:
+            return ForgetRequestListResponse(items=[], page=page, page_size=page_size, total=0)
+        if target_type is not None and target_type != self.forget_request.target_type:
+            return ForgetRequestListResponse(items=[], page=page, page_size=page_size, total=0)
+        return ForgetRequestListResponse(
+            items=[self.forget_request], page=page, page_size=page_size, total=1
+        )
+
+    def update_forget_request(
+        self, request_id: UUID, workspace_id: UUID, payload: ForgetRequestUpdateRequest
+    ) -> ForgetRequestResponse:
+        self.forget_request = self.forget_request.model_copy(
+            update={
+                "request_id": request_id,
+                "workspace_id": workspace_id,
+                "status": payload.status,
+                "reviewed_by_user_id": payload.reviewed_by_user_id,
+                "resolved_at": datetime(2026, 5, 17, tzinfo=timezone.utc),
+            }
+        )
+        return self.forget_request
 
 
 def build_client() -> tuple[TestClient, FakeGovernanceService]:
@@ -274,3 +337,80 @@ def test_create_timeline_entry_returns_created_item() -> None:
 
     assert response.status_code == 201
     assert response.json()["title"] == "完成后端闭环"
+
+
+def test_create_forget_request_returns_pending_request() -> None:
+    client, fake_service = build_client()
+    requester_user_id = uuid4()
+
+    response = client.post(
+        "/api/forget-requests",
+        json={
+            "workspace_id": str(fake_service.workspace_id),
+            "target_type": "memory_item",
+            "target_id": str(fake_service.memory_id),
+            "requester_user_id": str(requester_user_id),
+            "reason": "Remove sensitive memory from recall.",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "pending"
+    assert response.json()["target_id"] == str(fake_service.memory_id)
+
+
+def test_list_forget_requests_returns_page() -> None:
+    client, fake_service = build_client()
+
+    response = client.get(
+        "/api/forget-requests",
+        params={
+            "workspace_id": str(fake_service.workspace_id),
+            "status": "pending",
+            "target_type": "memory_item",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["request_id"] == str(fake_service.forget_request_id)
+
+
+def test_update_forget_request_returns_reviewed_request() -> None:
+    client, fake_service = build_client()
+    reviewer_id = uuid4()
+
+    response = client.patch(
+        f"/api/forget-requests/{fake_service.forget_request_id}",
+        params={"workspace_id": str(fake_service.workspace_id)},
+        json={"status": "approved", "reviewed_by_user_id": str(reviewer_id)},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "approved"
+    assert response.json()["reviewed_by_user_id"] == str(reviewer_id)
+    assert response.json()["resolved_at"] is not None
+
+
+def test_update_forget_request_rejects_pending_with_reviewer() -> None:
+    client, fake_service = build_client()
+
+    response = client.patch(
+        f"/api/forget-requests/{fake_service.forget_request_id}",
+        params={"workspace_id": str(fake_service.workspace_id)},
+        json={"status": "pending", "reviewed_by_user_id": str(uuid4())},
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_forget_request_requires_reviewer_for_terminal_status() -> None:
+    client, fake_service = build_client()
+
+    response = client.patch(
+        f"/api/forget-requests/{fake_service.forget_request_id}",
+        params={"workspace_id": str(fake_service.workspace_id)},
+        json={"status": "approved"},
+    )
+
+    assert response.status_code == 422
