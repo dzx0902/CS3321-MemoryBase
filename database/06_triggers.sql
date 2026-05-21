@@ -1,6 +1,8 @@
 DROP TRIGGER IF EXISTS trg_user_touch ON user_account;
 DROP TRIGGER IF EXISTS trg_workspace_touch ON workspace;
 DROP TRIGGER IF EXISTS trg_memory_touch ON memory_item;
+DROP TRIGGER IF EXISTS trg_entity_touch ON entity;
+DROP TRIGGER IF EXISTS trg_memory_scene_touch ON memory_scene;
 DROP TRIGGER IF EXISTS trg_wiki_touch ON wiki_page;
 DROP TRIGGER IF EXISTS trg_memory_before_update ON memory_item;
 DROP TRIGGER IF EXISTS trg_memory_after_insert ON memory_item;
@@ -49,6 +51,14 @@ FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
 
 CREATE TRIGGER trg_memory_touch
 BEFORE UPDATE ON memory_item
+FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
+
+CREATE TRIGGER trg_entity_touch
+BEFORE UPDATE ON entity
+FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
+
+CREATE TRIGGER trg_memory_scene_touch
+BEFORE UPDATE ON memory_scene
 FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
 
 CREATE TRIGGER trg_wiki_touch

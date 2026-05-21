@@ -97,6 +97,10 @@ SELECT
   wp.generated_from_scene_id,
   wp.generated_from_memory_id,
   wp.needs_rebuild,
+  ms.scene_slug,
+  ms.title AS scene_title,
+  page_memory.cell_role AS scene_cell_role,
+  page_memory.sort_order AS scene_sort_order,
   mi.memory_id,
   mi.memory_type,
   mi.canonical_text,
@@ -116,7 +120,30 @@ SELECT
   sd.source_path,
   sd.doc_type
 FROM wiki_page wp
-LEFT JOIN memory_item mi ON mi.memory_id = wp.generated_from_memory_id
+LEFT JOIN memory_scene ms ON ms.scene_id = wp.generated_from_scene_id
+LEFT JOIN LATERAL (
+  SELECT
+    wp.generated_from_memory_id AS memory_id,
+    NULL::VARCHAR(40) AS cell_role,
+    NULL::INT AS sort_order
+  WHERE wp.generated_from_memory_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM memory_scene_cell direct_scene_cell
+      WHERE direct_scene_cell.scene_id = wp.generated_from_scene_id
+        AND direct_scene_cell.memory_id = wp.generated_from_memory_id
+    )
+
+  UNION
+
+  SELECT
+    msc.memory_id,
+    msc.cell_role,
+    msc.sort_order
+  FROM memory_scene_cell msc
+  WHERE msc.scene_id = wp.generated_from_scene_id
+) page_memory ON TRUE
+LEFT JOIN memory_item mi ON mi.memory_id = page_memory.memory_id
 LEFT JOIN memory_evidence me ON me.memory_id = mi.memory_id
 LEFT JOIN source_chunk sc ON sc.chunk_id = me.chunk_id
 LEFT JOIN source_document sd ON sd.doc_id = sc.doc_id;

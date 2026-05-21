@@ -86,7 +86,7 @@ page_size
 
 ### GET /api/memories/{id}
 
-查询 memory 详情、evidence、revision。
+查询 memory 详情、evidence、revision，以及可选的 entity / scene 关联。
 
 ### PATCH /api/memories/{id}
 

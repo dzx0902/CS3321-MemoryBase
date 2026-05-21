@@ -11,6 +11,10 @@ TRUNCATE TABLE
   timeline_entry,
   wiki_page_revision,
   wiki_page,
+  memory_scene_cell,
+  memory_scene,
+  memory_entity,
+  entity,
   memory_evidence,
   memory_revision,
   memory_item,
@@ -266,6 +270,82 @@ UPDATE memory_item
 SET access_level = 'team'
 WHERE memory_id = '00000000-0000-0000-0000-000000000717';
 
+INSERT INTO entity(entity_id, workspace_id, canonical_name, entity_type, description)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000801',
+    '00000000-0000-0000-0000-000000000201',
+    'Campus Cafeteria System',
+    'project',
+    'The original course project idea that the team rejected as too CRUD-heavy.'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000802',
+    '00000000-0000-0000-0000-000000000201',
+    'MemoryBase Project',
+    'project',
+    'The selected file-database dual-state long-term memory system.'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000803',
+    '00000000-0000-0000-0000-000000000201',
+    'Database Course Requirements',
+    'concept',
+    'The database modeling, constraints, views, indexes, triggers, and audit capabilities required by the course.'
+  );
+
+INSERT INTO memory_entity(memory_id, entity_id, workspace_id, relation_role)
+VALUES
+  ('00000000-0000-0000-0000-000000000701', '00000000-0000-0000-0000-000000000801', '00000000-0000-0000-0000-000000000201', 'about'),
+  ('00000000-0000-0000-0000-000000000719', '00000000-0000-0000-0000-000000000801', '00000000-0000-0000-0000-000000000201', 'about'),
+  ('00000000-0000-0000-0000-000000000702', '00000000-0000-0000-0000-000000000802', '00000000-0000-0000-0000-000000000201', 'about'),
+  ('00000000-0000-0000-0000-000000000705', '00000000-0000-0000-0000-000000000802', '00000000-0000-0000-0000-000000000201', 'related_to'),
+  ('00000000-0000-0000-0000-000000000707', '00000000-0000-0000-0000-000000000803', '00000000-0000-0000-0000-000000000201', 'about');
+
+INSERT INTO memory_scene(scene_id, workspace_id, scene_slug, title, summary)
+VALUES (
+  '00000000-0000-0000-0000-000000000901',
+  '00000000-0000-0000-0000-000000000201',
+  'topic-decision',
+  'Topic Decision',
+  'Key memories explaining why the team moved from the campus cafeteria system to MemoryBase.'
+);
+
+INSERT INTO memory_scene_cell(scene_id, memory_id, workspace_id, cell_role, sort_order, note)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000901',
+    '00000000-0000-0000-0000-000000000701',
+    '00000000-0000-0000-0000-000000000201',
+    'background',
+    10,
+    'Explains why the original cafeteria idea was rejected.'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000901',
+    '00000000-0000-0000-0000-000000000702',
+    '00000000-0000-0000-0000-000000000201',
+    'decision',
+    20,
+    'Records the positive decision to choose MemoryBase.'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000901',
+    '00000000-0000-0000-0000-000000000703',
+    '00000000-0000-0000-0000-000000000201',
+    'context',
+    30,
+    'Connects the topic decision to the required recall demo question.'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000901',
+    '00000000-0000-0000-0000-000000000719',
+    '00000000-0000-0000-0000-000000000201',
+    'outcome',
+    40,
+    'Captures the final answer expected in the demo.'
+  );
+
 INSERT INTO access_policy(workspace_id, principal_type, principal_id, resource_type, resource_scope, effect)
 VALUES
   ('00000000-0000-0000-0000-000000000201', 'agent', '00000000-0000-0000-0000-000000000301', 'memory_item', 'project', 'allow'),
@@ -312,11 +392,14 @@ VALUES
   ('00000000-0000-0000-0000-000000001204', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000711', '00000000-0000-0000-0000-000000000504', 'proposal', 'Defined recall shape', 'Recall should return memory with evidence and source chunks.', '2026-03-15 10:30:00+00', 4),
   ('00000000-0000-0000-0000-000000001205', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000716', '00000000-0000-0000-0000-000000000505', 'decision', 'Added wiki provenance', 'Wiki statements should trace back to evidence and source chunks.', '2026-03-20 10:30:00+00', 4);
 
-INSERT INTO wiki_page(page_id, workspace_id, page_slug, page_type, title, generated_from_memory_id, needs_rebuild)
+INSERT INTO wiki_page(
+  page_id, workspace_id, page_slug, page_type, title,
+  generated_from_scene_id, generated_from_memory_id, needs_rebuild
+)
 VALUES
-  ('00000000-0000-0000-0000-000000001301', '00000000-0000-0000-0000-000000000201', 'why-memorybase', 'synthesis', 'Why MemoryBase', '00000000-0000-0000-0000-000000000702', true),
-  ('00000000-0000-0000-0000-000000001302', '00000000-0000-0000-0000-000000000201', 'database-design', 'report', 'Database Design', '00000000-0000-0000-0000-000000000707', true),
-  ('00000000-0000-0000-0000-000000001303', '00000000-0000-0000-0000-000000000201', 'demo-playbook', 'handbook', 'Demo Playbook', '00000000-0000-0000-0000-000000000718', true);
+  ('00000000-0000-0000-0000-000000001301', '00000000-0000-0000-0000-000000000201', 'why-memorybase', 'synthesis', 'Why MemoryBase', '00000000-0000-0000-0000-000000000901', '00000000-0000-0000-0000-000000000702', true),
+  ('00000000-0000-0000-0000-000000001302', '00000000-0000-0000-0000-000000000201', 'database-design', 'report', 'Database Design', NULL, '00000000-0000-0000-0000-000000000707', true),
+  ('00000000-0000-0000-0000-000000001303', '00000000-0000-0000-0000-000000000201', 'demo-playbook', 'handbook', 'Demo Playbook', NULL, '00000000-0000-0000-0000-000000000718', true);
 
 INSERT INTO wiki_page_revision(page_id, revision_no, frontmatter_json, body_markdown, generated_by, created_at)
 VALUES

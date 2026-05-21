@@ -22,6 +22,24 @@ CREATE INDEX IF NOT EXISTS idx_memory_created_at
 CREATE INDEX IF NOT EXISTS idx_memory_evidence_chunk
   ON memory_evidence(chunk_id);
 
+CREATE INDEX IF NOT EXISTS idx_entity_workspace_type
+  ON entity(workspace_id, entity_type);
+
+CREATE INDEX IF NOT EXISTS idx_memory_entity_entity
+  ON memory_entity(entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_memory_entity_workspace
+  ON memory_entity(workspace_id);
+
+CREATE INDEX IF NOT EXISTS idx_memory_scene_workspace
+  ON memory_scene(workspace_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_memory_scene_cell_memory
+  ON memory_scene_cell(memory_id);
+
+CREATE INDEX IF NOT EXISTS idx_memory_scene_cell_order
+  ON memory_scene_cell(scene_id, sort_order);
+
 CREATE INDEX IF NOT EXISTS idx_timeline_workspace_time
   ON timeline_entry(workspace_id, event_time DESC);
 

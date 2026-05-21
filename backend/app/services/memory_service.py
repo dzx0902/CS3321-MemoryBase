@@ -281,12 +281,22 @@ class PostgresMemoryRepository:
         )
 
     def get_memory(self, memory_id: UUID, workspace_id: UUID) -> MemoryDetailResponse | None:
-        base = self._get_memory_detail(memory_id, workspace_id)
-        if base is None:
-            return None
-        evidence = self._get_memory_evidence(memory_id)
-        revisions = self._get_memory_revisions(memory_id)
-        return MemoryDetailResponse(**base, evidence=evidence, revisions=revisions)
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                base = self._fetch_memory_detail(cur, memory_id, workspace_id)
+                if base is None:
+                    return None
+                evidence = self._fetch_memory_evidence(cur, memory_id)
+                revisions = self._fetch_memory_revisions(cur, memory_id)
+                entities = self._fetch_memory_entities(cur, memory_id, workspace_id)
+                scenes = self._fetch_memory_scenes(cur, memory_id, workspace_id)
+        return MemoryDetailResponse(
+            **base,
+            evidence=evidence,
+            revisions=revisions,
+            entities=entities,
+            scenes=scenes,
+        )
 
     def update_memory(
         self,
@@ -490,88 +500,96 @@ class PostgresMemoryRepository:
     def _get_memory_detail(
         self, memory_id: UUID, workspace_id: UUID | None = None
     ) -> dict[str, object] | None:
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                return self._fetch_memory_detail(cur, memory_id, workspace_id)
+
+    def _fetch_memory_detail(
+        self, cur, memory_id: UUID, workspace_id: UUID | None = None
+    ) -> dict[str, object] | None:
         workspace_filter = "AND mi.workspace_id = %(workspace_id)s" if workspace_id else ""
         params: dict[str, object] = {"memory_id": memory_id}
         if workspace_id:
             params["workspace_id"] = workspace_id
-        with self._database.connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    f"""
-                    SELECT
-                        mi.memory_id,
-                        mi.workspace_id,
-                        mi.created_from_doc_id,
-                        mi.memory_type,
-                        mi.canonical_text,
-                        mi.summary,
-                        mi.confidence,
-                        mi.importance,
-                        mi.status,
-                        mi.access_level,
-                        mi.owner_user_id,
-                        mi.owner_agent_id,
-                        mi.valid_from,
-                        mi.valid_to,
-                        mi.superseded_by_memory_id,
-                        mi.current_revision_no,
-                        mi.created_at,
-                        mi.updated_at,
-                        COUNT(me.evidence_id) AS evidence_count
-                    FROM memory_item mi
-                    LEFT JOIN memory_evidence me ON me.memory_id = mi.memory_id
-                    WHERE mi.memory_id = %(memory_id)s
-                    {workspace_filter}
-                    GROUP BY
-                        mi.memory_id,
-                        mi.workspace_id,
-                        mi.created_from_doc_id,
-                        mi.memory_type,
-                        mi.canonical_text,
-                        mi.summary,
-                        mi.confidence,
-                        mi.importance,
-                        mi.status,
-                        mi.access_level,
-                        mi.owner_user_id,
-                        mi.owner_agent_id,
-                        mi.valid_from,
-                        mi.valid_to,
-                        mi.superseded_by_memory_id,
-                        mi.current_revision_no,
-                        mi.created_at,
-                        mi.updated_at
-                    """,
-                    params,
-                )
-                return cur.fetchone()
+        cur.execute(
+            f"""
+            SELECT
+                mi.memory_id,
+                mi.workspace_id,
+                mi.created_from_doc_id,
+                mi.memory_type,
+                mi.canonical_text,
+                mi.summary,
+                mi.confidence,
+                mi.importance,
+                mi.status,
+                mi.access_level,
+                mi.owner_user_id,
+                mi.owner_agent_id,
+                mi.valid_from,
+                mi.valid_to,
+                mi.superseded_by_memory_id,
+                mi.current_revision_no,
+                mi.created_at,
+                mi.updated_at,
+                COUNT(me.evidence_id) AS evidence_count
+            FROM memory_item mi
+            LEFT JOIN memory_evidence me ON me.memory_id = mi.memory_id
+            WHERE mi.memory_id = %(memory_id)s
+            {workspace_filter}
+            GROUP BY
+                mi.memory_id,
+                mi.workspace_id,
+                mi.created_from_doc_id,
+                mi.memory_type,
+                mi.canonical_text,
+                mi.summary,
+                mi.confidence,
+                mi.importance,
+                mi.status,
+                mi.access_level,
+                mi.owner_user_id,
+                mi.owner_agent_id,
+                mi.valid_from,
+                mi.valid_to,
+                mi.superseded_by_memory_id,
+                mi.current_revision_no,
+                mi.created_at,
+                mi.updated_at
+            """,
+            params,
+        )
+        return cur.fetchone()
 
     def _get_memory_evidence(self, memory_id: UUID) -> list[dict[str, object]]:
         with self._database.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        me.evidence_id,
-                        me.chunk_id,
-                        me.evidence_role,
-                        me.weight,
-                        me.note,
-                        sc.doc_id,
-                        sd.title AS source_title,
-                        sc.chunk_no,
-                        sc.chunk_text,
-                        sc.start_line,
-                        sc.end_line
-                    FROM memory_evidence me
-                    JOIN source_chunk sc ON sc.chunk_id = me.chunk_id
-                    JOIN source_document sd ON sd.doc_id = sc.doc_id
-                    WHERE me.memory_id = %(memory_id)s
-                    ORDER BY sc.chunk_no ASC
-                    """,
-                    {"memory_id": memory_id},
-                )
-                return cur.fetchall()
+                return self._fetch_memory_evidence(cur, memory_id)
+
+    def _fetch_memory_evidence(self, cur, memory_id: UUID) -> list[dict[str, object]]:
+        cur.execute(
+            """
+            SELECT
+                me.evidence_id,
+                me.chunk_id,
+                me.evidence_role,
+                me.weight,
+                me.note,
+                sc.doc_id,
+                sd.title AS source_title,
+                sc.chunk_no,
+                sc.chunk_text,
+                sc.start_line,
+                sc.end_line
+            FROM memory_evidence me
+            JOIN source_chunk sc ON sc.chunk_id = me.chunk_id
+            JOIN source_document sd ON sd.doc_id = sc.doc_id
+            WHERE me.memory_id = %(memory_id)s
+            ORDER BY sc.chunk_no ASC
+            """,
+            {"memory_id": memory_id},
+        )
+        return cur.fetchall()
 
     def _validate_evidence_chunks(
         self, cur, workspace_id: UUID, evidence_items: list[MemoryEvidenceInput]
@@ -596,23 +614,81 @@ class PostgresMemoryRepository:
     def _get_memory_revisions(self, memory_id: UUID) -> list[dict[str, object]]:
         with self._database.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        revision_no,
-                        revision_text,
-                        revision_summary,
-                        revision_reason,
-                        editor_type,
-                        editor_id,
-                        created_at
-                    FROM memory_revision
-                    WHERE memory_id = %(memory_id)s
-                    ORDER BY created_at ASC, revision_no ASC
-                    """,
-                    {"memory_id": memory_id},
-                )
-                return cur.fetchall()
+                return self._fetch_memory_revisions(cur, memory_id)
+
+    def _fetch_memory_revisions(self, cur, memory_id: UUID) -> list[dict[str, object]]:
+        cur.execute(
+            """
+            SELECT
+                revision_no,
+                revision_text,
+                revision_summary,
+                revision_reason,
+                editor_type,
+                editor_id,
+                created_at
+            FROM memory_revision
+            WHERE memory_id = %(memory_id)s
+            ORDER BY created_at ASC, revision_no ASC
+            """,
+            {"memory_id": memory_id},
+        )
+        return cur.fetchall()
+
+    def _get_memory_entities(
+        self, memory_id: UUID, workspace_id: UUID
+    ) -> list[dict[str, object]]:
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                return self._fetch_memory_entities(cur, memory_id, workspace_id)
+
+    def _fetch_memory_entities(
+        self, cur, memory_id: UUID, workspace_id: UUID
+    ) -> list[dict[str, object]]:
+        cur.execute(
+            """
+            SELECT
+                e.entity_id,
+                e.canonical_name,
+                e.entity_type,
+                me.relation_role
+            FROM memory_entity me
+            JOIN entity e ON e.entity_id = me.entity_id
+            WHERE me.memory_id = %(memory_id)s
+              AND me.workspace_id = %(workspace_id)s
+            ORDER BY e.canonical_name ASC, me.relation_role ASC
+            """,
+            {"memory_id": memory_id, "workspace_id": workspace_id},
+        )
+        return cur.fetchall()
+
+    def _get_memory_scenes(
+        self, memory_id: UUID, workspace_id: UUID
+    ) -> list[dict[str, object]]:
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                return self._fetch_memory_scenes(cur, memory_id, workspace_id)
+
+    def _fetch_memory_scenes(
+        self, cur, memory_id: UUID, workspace_id: UUID
+    ) -> list[dict[str, object]]:
+        cur.execute(
+            """
+            SELECT
+                ms.scene_id,
+                ms.scene_slug,
+                ms.title,
+                msc.cell_role,
+                msc.sort_order
+            FROM memory_scene_cell msc
+            JOIN memory_scene ms ON ms.scene_id = msc.scene_id
+            WHERE msc.memory_id = %(memory_id)s
+              AND msc.workspace_id = %(workspace_id)s
+            ORDER BY msc.sort_order ASC, ms.title ASC
+            """,
+            {"memory_id": memory_id, "workspace_id": workspace_id},
+        )
+        return cur.fetchall()
 
 
 def _json_dumps(payload: dict[str, object]) -> str:

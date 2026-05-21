@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS wiki_page (
     CHECK (page_type IN ('source', 'entity', 'concept', 'synthesis', 'report', 'timeline', 'handbook')),
   title VARCHAR(240) NOT NULL,
   current_revision_no INT NOT NULL DEFAULT 0,
-  generated_from_scene_id UUID,
+  generated_from_scene_id UUID REFERENCES memory_scene(scene_id) ON DELETE SET NULL,
   generated_from_memory_id UUID REFERENCES memory_item(memory_id) ON DELETE SET NULL,
   needs_rebuild BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS conflict_record (
   resolved_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (left_memory_id <> right_memory_id),
+  CHECK (left_memory_id < right_memory_id),
   UNIQUE(left_memory_id, right_memory_id)
 );
 

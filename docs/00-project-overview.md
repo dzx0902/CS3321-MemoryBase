@@ -32,7 +32,7 @@ SourceDocument
 |---|---|---|
 | 源文档层 | SourceDocument、SourceChunk、Session、Message | 保存原始输入 |
 | 记忆层 | MemoryItem、MemoryRevision、MemoryScene | 保存长期记忆与版本 |
-| 证据层 | MemoryEvidence、EntityMention | 绑定记忆与来源 |
+| 证据层 | MemoryEvidence、Entity / MemoryEntity | 绑定记忆与来源、补充轻量语义组织 |
 | 表达层 | WikiPage、WikiPageRevision、TimelineEntry | 生成可读 Wiki 与时间线 |
 | 治理层 | AccessPolicy、RecallLog、ConflictRecord、ForgetRequest、AuditLog | 权限、审计、冲突、遗忘 |
 
@@ -60,6 +60,8 @@ P0 不依赖 LLM，也不依赖向量数据库。保底功能包括：
 
 ## 8. P2 / Future
 
+- ForgetRequest 轻量治理流程（已实现：提交、审批、审计、memory forgotten）
+- Entity / MemoryScene 轻量语义组织（已实现：实体、场景与 M:N 关系）
 - pgvector 语义检索
 - LLM 自动抽取
 - 复杂 temporal knowledge graph
