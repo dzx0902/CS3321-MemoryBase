@@ -22,6 +22,8 @@
 | audit_id | 审计日志编号 | UUID | PK | audit001 |
 | access_level | 访问范围 | VARCHAR | public/project/team/private | project |
 | memory_type | 记忆类型 | VARCHAR | episodic/semantic/profile/procedural/decision/preference/task/risk | decision |
+| doc_type | SourceDocument 类型 | VARCHAR | markdown/txt/meeting/chat/note/report/inline_agent_note | inline_agent_note |
+| channel | AgentSession 来源通道 | VARCHAR | meeting/chat/import/manual/cli | cli |
 | status | 数据状态 | VARCHAR | active/archived/forgotten/superseded/conflicted | active |
 | forgotten_at | 非 memory 目标被遗忘时间 | TIMESTAMPTZ | NULL 表示未被遗忘 | 2026-05-16T12:00:00Z |
 | confidence | 置信度 | NUMERIC | 0.00–1.00 | 0.85 |
@@ -37,7 +39,9 @@
 |---|---|---|
 | UserAccount | user_id、username、display_name、role_hint、created_at | 人类用户 |
 | Agent | agent_id、workspace_id、name、agent_type、status | 可参与检索和写入的 Agent |
-| SourceDocument | doc_id、workspace_id、title、raw_text、checksum、status、forgotten_at | 原始文档；遗忘治理时软标记而不物理删除 |
+| AgentSession | session_id、workspace_id、agent_id、title、channel、started_at | Agent / CLI / 导入会话 |
+| Message | message_id、session_id、sender_type、role、content、created_at | 会话消息；observe API 的落库对象 |
+| SourceDocument | doc_id、workspace_id、title、raw_text、checksum、status、forgotten_at | 原始文档；`inline_agent_note` 用于 Agent 写回时自动补证据链 |
 | SourceChunk | chunk_id、doc_id、chunk_no、chunk_text、line range | 文档切块 |
 | MemoryItem | memory_id、workspace_id、memory_type、canonical_text、status | 长期记忆核心 |
 | MemoryEvidence | evidence_id、memory_id、chunk_id、evidence_role | 记忆来源证据 |
@@ -58,6 +62,8 @@
 | SourceImportFlow | Markdown 文件 | Source Ingestor | title、doc_type、raw_text、path |
 | ChunkFlow | Source Ingestor | SourceChunk | doc_id、chunk_no、text、line range |
 | MemoryExtractFlow | SourceChunk / 用户 | MemoryItem | type、text、summary、evidence |
+| AgentObserveFlow | Agent / CLI | AgentSession / Message | session、role、sender、content |
+| AgentRememberFlow | Agent / CLI | SourceDocument / SourceChunk / MemoryItem / MemoryEvidence | memory text、reason、inline evidence |
 | RecallFlow | 用户 / Agent | Retriever | question、workspace_id、agent_id |
 | ContextPackFlow | Retriever | Agent / UI | memory list、evidence、score |
 | WikiExportFlow | Wiki Exporter | 文件系统 | frontmatter、body、sources |

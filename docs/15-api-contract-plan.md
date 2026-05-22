@@ -210,6 +210,7 @@ Request:
 Rules:
 
 - `doc_type` 必须属于 `markdown`, `txt`, `meeting`, `chat`, `note`, `report`。
+  `inline_agent_note` 只由 Agent Runtime 写回路径自动创建，不作为普通导入入口。
 - `checksum` 使用 raw_text 的 SHA-256 hex。
 - 同一 workspace 内重复 checksum 返回 `409 duplicate_source`，不要重复写 source/chunk。
 - 跨 workspace 相同 checksum 允许。
@@ -350,6 +351,9 @@ Rules:
 - `importance` between 1 and 5.
 - Every evidence chunk must exist and belong to the same workspace.
 - P0 backend implements only the `evidence` object-array form. Do not implement `evidence_chunk_ids` shorthand unless a later issue explicitly adds backward compatibility.
+- Agent/CLI write-back may submit `evidence: []`; with `X-Actor-Type: agent`,
+  the backend creates an `inline_agent_note` source document and chunk before binding
+  a `source` evidence row.
 - Insert `memory_item`; trigger creates revision 1 and audit log.
 
 Response:
@@ -1028,6 +1032,7 @@ Request:
 3. Duplicate source checksum in same workspace returns 409.
 4. `GET /api/sources/{doc_id}` returns chunks.
 5. `POST /api/memories` creates memory and evidence in one transaction.
+6. Agent/CLI memory write-back creates inline source/evidence when no evidence is supplied.
 6. `GET /api/memories/{memory_id}` returns evidence and revisions.
 7. `PATCH /api/memories/{memory_id}` increments revision and writes audit.
 8. `DELETE /api/memories/{memory_id}` archives memory and writes audit.
@@ -1047,5 +1052,35 @@ Recommended order for the backend owner:
 5. I024 (#25): Recall API.
 6. I029 (#30): Wiki export API.
 7. I026-I028 and I030: policy, audit, conflict, timeline P1 APIs.
+
+## 12. Agent Runtime API Addendum
+
+### POST /api/sessions
+
+Create an agent session. `channel` supports `meeting`, `chat`, `import`, `manual`, and
+`cli`.
+
+Required body fields: `workspace_id`, `title`. Optional fields: `agent_id`,
+`started_by_user_id`, `channel`.
+
+### GET /api/sessions
+
+List sessions by `workspace_id`, with optional `agent_id`, `page`, and `page_size`.
+
+### GET /api/sessions/{session_id}
+
+Read a single session, with optional `workspace_id` query filtering.
+
+### POST /api/observe
+
+Create one message in an existing session.
+
+Required body fields: `session_id`, `role`, `content`. Optional fields:
+`sender_type`, `sender_id`, `reply_to_message_id`.
+
+### POST /api/observe/batch
+
+Create up to 100 messages in one transaction. If any message is invalid or references
+a missing session, the whole batch rolls back.
 
 The project owner should review each PR against this document, `database/*.sql`, and the relevant issue acceptance criteria. If this document conflicts with SQL or issue body, stop and ask before implementing.

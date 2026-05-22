@@ -55,6 +55,8 @@ source tree layout.
 - Add `mb sessions`, `mb observe`, and `mb remember`.
 - Allow CLI/agent memory writes without user-provided evidence by creating an
   `inline_agent_note` source document and source chunk.
+- Extend `agent_session.channel` with `cli`.
+- Extend `source_document.doc_type` with `inline_agent_note`.
 
 ### PR4: Hybrid Recall Design
 
@@ -107,15 +109,21 @@ PR2 adds `tiktoken` for `cl100k_base` token counting in context packs. This keep
 context budgets closer to what shell-capable coding agents actually consume than
 character-count approximations.
 
-Planned follow-up commands:
+PR3 commands:
 
 ```bash
 mb sessions create --title "feature work"
 mb observe --session <id> --role user --content "..."
-mb observe --session <id> --batch < messages.jsonl
+mb observe --session <id> --batch messages.jsonl
+mb observe --session <id> --batch - < messages.jsonl
 mb remember "fact" --type decision --reason "..." --dry-run
 mb remember "fact" --type decision --reason "..." --commit
 ```
+
+`mb remember` is dry-run by default. `--commit` is required to write a memory.
+If no explicit evidence chunk is supplied, committed agent writes rely on the
+backend `inline_agent_note` path so the memory still has source/evidence
+provenance.
 
 ### Output and Exit Codes
 

@@ -12,7 +12,7 @@
 
 ### POST /api/sources
 
-导入 Markdown / txt 文档。
+导入 Markdown / txt 文档。`inline_agent_note` 是 Agent Runtime 写回时由后端自动创建的虚拟 source 类型，不作为普通人工导入入口。
 
 请求：
 
@@ -67,6 +67,8 @@
   ]
 }
 ```
+
+Agent/CLI 写回可以提交空 `evidence`。当请求头 `X-Actor-Type: agent` 且没有提供 evidence 时，后端会自动创建一个 `inline_agent_note` source document 和 source chunk，再把该 chunk 作为 `source` evidence 绑定到新 memory，保证证据链不断裂。
 
 ### GET /api/memories
 
@@ -297,3 +299,43 @@ page_size
   "doc_id": "uuid"
 }
 ```
+
+## 11. Agent Runtime API
+
+### POST /api/sessions
+
+创建 Agent 会话。`channel` 支持 `meeting`、`chat`、`import`、`manual`、`cli`。
+
+```json
+{
+  "workspace_id": "uuid",
+  "agent_id": "uuid",
+  "title": "feature work",
+  "channel": "cli"
+}
+```
+
+### GET /api/sessions
+
+按 `workspace_id` 和可选 `agent_id` 查询会话列表。
+
+### GET /api/sessions/{session_id}
+
+查询单个会话。
+
+### POST /api/observe
+
+写入单条 message。
+
+```json
+{
+  "session_id": "uuid",
+  "sender_type": "user",
+  "role": "user",
+  "content": "..."
+}
+```
+
+### POST /api/observe/batch
+
+批量写入 messages。单次最多 100 条，后端在一个 transaction 中写入；任一 message 校验失败时整批回滚。
