@@ -21,7 +21,7 @@ AgentSession(session_id PK, workspace_id FK, agent_id FK, started_by_user_id FK,
 
 Message(message_id PK, session_id FK, sender_type, sender_id, role, content, created_at, reply_to_message_id FK)
 
-SourceDocument(doc_id PK, workspace_id FK, session_id FK, doc_type, title, source_path, raw_text, checksum, imported_by_user_id FK, imported_at)
+SourceDocument(doc_id PK, workspace_id FK, session_id FK, doc_type, title, source_path, raw_text, checksum, status, forgotten_at, imported_by_user_id FK, imported_at)
 
 SourceChunk(chunk_id PK, doc_id FK, chunk_no, chunk_text, start_line, end_line, token_count, search_vector, UNIQUE(doc_id, chunk_no))
 ```
@@ -35,7 +35,7 @@ MemoryRevision(memory_id FK, revision_no, revision_text, revision_summary, revis
 
 MemoryEvidence(evidence_id PK, memory_id FK, chunk_id FK, evidence_role, weight, note, created_at, UNIQUE(memory_id, chunk_id, evidence_role))
 
-Entity(entity_id PK, workspace_id FK, canonical_name, entity_type, description, created_at, updated_at, UNIQUE(workspace_id, canonical_name), UNIQUE(entity_id, workspace_id))
+Entity(entity_id PK, workspace_id FK, canonical_name, entity_type, description, status, forgotten_at, created_at, updated_at, UNIQUE(workspace_id, canonical_name), UNIQUE(entity_id, workspace_id))
 
 MemoryEntity(memory_id FK, entity_id FK, workspace_id FK, relation_role, created_at, PK(memory_id, entity_id, relation_role), FK(memory_id, workspace_id), FK(entity_id, workspace_id))
 
@@ -47,7 +47,7 @@ MemorySceneCell(scene_id FK, memory_id FK, workspace_id FK, cell_role, sort_orde
 ### 表达层与治理层
 
 ```text
-WikiPage(page_id PK, workspace_id FK, page_slug, page_type, title, current_revision_no, generated_from_scene_id FK, generated_from_memory_id FK, needs_rebuild, created_at, updated_at)
+WikiPage(page_id PK, workspace_id FK, page_slug, page_type, title, current_revision_no, generated_from_scene_id FK, generated_from_memory_id FK, needs_rebuild, status, forgotten_at, created_at, updated_at)
 
 WikiPageRevision(page_id FK, revision_no, frontmatter_json, body_markdown, generated_by, created_at, PK(page_id, revision_no))
 
@@ -88,6 +88,7 @@ AuditLog(audit_id PK, workspace_id FK, actor_type, actor_id, action_type, target
 - 权限策略独立为 AccessPolicy。
 - 审计记录独立为 AuditLog。
 - Entity、MemoryScene 与 MemoryItem 的 M:N 关系通过 MemoryEntity 和 MemorySceneCell 拆分，关系属性 relation_role、cell_role、sort_order 只依赖各自复合主键。
+- SourceDocument、WikiPage、Entity 的 `status` / `forgotten_at` 是治理状态，不承载业务内容依赖；默认视图和 API 过滤 `active`，遗忘审批只做软治理。
 
 例如 MemoryItem 不直接保存来源文本，而通过 MemoryEvidence 关联 SourceChunk，避免将证据来源冗余存储在主表中。
 
@@ -101,3 +102,4 @@ AuditLog(audit_id PK, workspace_id FK, actor_type, actor_id, action_type, target
 | token_count | source_chunk | 避免重复计算 |
 | top_memory_ids_json | recall_log | 保留召回快照 |
 | workspace_id | memory_entity / memory_scene_cell | 支撑 workspace 过滤，并通过复合 FK 保证 M:N 两端属于同一 workspace |
+| status / forgotten_at | source_document / wiki_page / entity | 支撑 ForgetRequest 软治理和审计回放 |

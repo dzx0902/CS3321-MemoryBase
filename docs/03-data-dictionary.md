@@ -22,6 +22,7 @@
 | access_level | 访问范围 | VARCHAR | public/project/team/private | project |
 | memory_type | 记忆类型 | VARCHAR | episodic/semantic/profile/procedural/decision/preference/task/risk | decision |
 | status | 数据状态 | VARCHAR | active/archived/forgotten/superseded/conflicted | active |
+| forgotten_at | 非 memory 目标被遗忘时间 | TIMESTAMPTZ | NULL 表示未被遗忘 | 2026-05-16T12:00:00Z |
 | confidence | 置信度 | NUMERIC | 0.00–1.00 | 0.85 |
 | importance | 重要性 | INT | 1–5 | 4 |
 | relation_role | memory 与 entity 的关系角色 | VARCHAR | about/mentions/authored_by/owned_by/related_to | about |
@@ -35,18 +36,19 @@
 |---|---|---|
 | UserAccount | user_id、username、display_name、role_hint、created_at | 人类用户 |
 | Agent | agent_id、workspace_id、name、agent_type、status | 可参与检索和写入的 Agent |
-| SourceDocument | doc_id、workspace_id、title、raw_text、checksum | 原始文档 |
+| SourceDocument | doc_id、workspace_id、title、raw_text、checksum、status、forgotten_at | 原始文档；遗忘治理时软标记而不物理删除 |
 | SourceChunk | chunk_id、doc_id、chunk_no、chunk_text、line range | 文档切块 |
 | MemoryItem | memory_id、workspace_id、memory_type、canonical_text、status | 长期记忆核心 |
 | MemoryEvidence | evidence_id、memory_id、chunk_id、evidence_role | 记忆来源证据 |
 | MemoryRevision | memory_id、revision_no、revision_text、editor | 记忆版本 |
-| Entity | entity_id、workspace_id、canonical_name、entity_type、description | 工作区内的项目对象、概念、文档或事件 |
+| Entity | entity_id、workspace_id、canonical_name、entity_type、description、status、forgotten_at | 工作区内的项目对象、概念、文档或事件；支持软遗忘 |
 | MemoryEntity | memory_id、entity_id、workspace_id、relation_role | MemoryItem 与 Entity 的 M:N 关系 |
 | MemoryScene | scene_id、workspace_id、scene_slug、title、summary | 面向演示和 Wiki 的主题/决策场景 |
 | MemorySceneCell | scene_id、memory_id、workspace_id、cell_role、sort_order、note | MemoryScene 与 MemoryItem 的 M:N 聚合关系 |
+| WikiPage | page_id、workspace_id、page_slug、title、status、forgotten_at | Wiki 页面索引；遗忘治理时保留版本历史并隐藏页面 |
 | WikiPageRevision | page_id、revision_no、frontmatter_json、body_markdown | Wiki 页面版本 |
-| ForgetRequest | request_id、target、requester、reviewer、reason、status、resolved_at | 遗忘/归档审批记录；审批 memory_item 时更新 memory status |
-| AuditLog | audit_id、actor、action、target、before/after | 操作审计 |
+| ForgetRequest | request_id、target、requester、reviewer、reason、status、resolved_at | 遗忘/归档审批记录；审批 memory_item、source_document、wiki_page、entity 时执行对应软治理 |
+| AuditLog | audit_id、actor、action、target、before/after、diff | 操作审计；支持按 target 生命周期、actor 时间线和聚合统计查询 |
 
 ## 3. 数据流字典
 
@@ -59,6 +61,8 @@
 | ContextPackFlow | Retriever | Agent / UI | memory list、evidence、score |
 | WikiExportFlow | Wiki Exporter | 文件系统 | frontmatter、body、sources |
 | AuditFlow | 各模块 | AuditLog | actor、action、target、before/after |
+| ConflictGovernanceFlow | 用户 / 系统 | ConflictRecord / MemoryItem / AuditLog | conflict pair、status、actor、resolution |
+| ForgetGovernanceFlow | 用户 / Reviewer | ForgetRequest / target table / AuditLog | target、reason、reviewer、status、forgotten_at |
 
 ## 4. 数据存储字典
 
