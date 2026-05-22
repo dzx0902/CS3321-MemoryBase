@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS agent_session (
   started_by_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
   title VARCHAR(200) NOT NULL,
   channel VARCHAR(30) NOT NULL DEFAULT 'meeting'
-    CHECK (channel IN ('meeting', 'chat', 'import', 'manual')),
+    CHECK (channel IN ('meeting', 'chat', 'import', 'manual', 'cli')),
   started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   ended_at TIMESTAMPTZ
 );
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS source_document (
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
   session_id UUID REFERENCES agent_session(session_id) ON DELETE SET NULL,
   doc_type VARCHAR(30) NOT NULL DEFAULT 'markdown'
-    CHECK (doc_type IN ('markdown', 'txt', 'meeting', 'chat', 'note', 'report')),
+    CHECK (doc_type IN ('markdown', 'txt', 'meeting', 'chat', 'note', 'report', 'inline_agent_note')),
   title VARCHAR(240) NOT NULL,
   source_path TEXT,
   raw_text TEXT NOT NULL,

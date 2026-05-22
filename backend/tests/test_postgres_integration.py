@@ -218,6 +218,139 @@ def test_memory_create_accepts_evidence_objects(integration_client, integration_
     assert evidence["note"] == "Custom evidence metadata."
 
 
+def test_agent_memory_create_without_evidence_creates_inline_source_and_audit(
+    integration_client,
+    integration_db: str,
+) -> None:
+    response = integration_client.post(
+        "/api/memories",
+        headers={
+            "X-Actor-Type": "agent",
+            "X-Actor-Id": AGENT_ID,
+            "X-Revision-Reason": "cli remember commit",
+        },
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "memory_type": "decision",
+            "canonical_text": "CLI remember can write an agent note without explicit evidence.",
+            "summary": "Inline evidence writeback",
+            "confidence": 0.86,
+            "importance": 4,
+            "access_level": "project",
+            "owner_agent_id": AGENT_ID,
+            "evidence": [],
+        },
+    )
+
+    assert response.status_code == 201
+    memory_id = response.json()["memory_id"]
+    assert response.json()["created_from_doc_id"] is not None
+    assert response.json()["evidence_count"] == 1
+
+    detail = integration_client.get(
+        f"/api/memories/{memory_id}", params={"workspace_id": WORKSPACE_ID}
+    )
+    assert detail.status_code == 200
+    evidence = detail.json()["evidence"][0]
+    assert evidence["source_title"].startswith("agent_note_")
+    assert evidence["evidence_role"] == "source"
+    assert detail.json()["revisions"][0]["editor_type"] == "agent"
+    assert detail.json()["revisions"][0]["editor_id"] == AGENT_ID
+    assert detail.json()["revisions"][0]["revision_reason"] == "cli remember commit"
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT sd.doc_type, al.action_type, al.actor_type, al.actor_id
+                FROM source_document sd
+                JOIN audit_log al ON al.target_id = sd.doc_id
+                WHERE sd.doc_id = %(doc_id)s
+                  AND al.target_type = 'source_document'
+                """,
+                {"doc_id": response.json()["created_from_doc_id"]},
+            )
+            row = cur.fetchone()
+    assert row is not None
+    assert row[0] == "inline_agent_note"
+    assert row[1] == "source_document.create"
+    assert row[2] == "agent"
+    assert str(row[3]) == AGENT_ID
+
+
+def test_sessions_and_observe_api_write_messages_and_batch_rolls_back(
+    integration_client,
+    integration_db: str,
+) -> None:
+    session_response = integration_client.post(
+        "/api/sessions",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "agent_id": AGENT_ID,
+            "title": "CLI review session",
+            "channel": "cli",
+        },
+    )
+
+    assert session_response.status_code == 201
+    session_id = session_response.json()["session_id"]
+    assert session_response.json()["channel"] == "cli"
+
+    message_response = integration_client.post(
+        "/api/observe",
+        json={
+            "session_id": session_id,
+            "sender_type": "user",
+            "role": "user",
+            "content": "请记录这个开发会话。",
+        },
+    )
+    assert message_response.status_code == 201
+    assert message_response.json()["content"] == "请记录这个开发会话。"
+
+    list_response = integration_client.get(
+        "/api/sessions",
+        params={"workspace_id": WORKSPACE_ID, "agent_id": AGENT_ID},
+    )
+    assert list_response.status_code == 200
+    assert any(item["session_id"] == session_id for item in list_response.json()["items"])
+
+    batch_response = integration_client.post(
+        "/api/observe/batch",
+        json={
+            "messages": [
+                {
+                    "session_id": session_id,
+                    "sender_type": "user",
+                    "role": "user",
+                    "content": "first message should roll back",
+                },
+                {
+                    "session_id": "00000000-0000-0000-0000-000000009999",
+                    "sender_type": "agent",
+                    "role": "assistant",
+                    "content": "missing session forces rollback",
+                },
+            ]
+        },
+    )
+    assert batch_response.status_code == 404
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT count(*)
+                FROM message
+                WHERE session_id = %(session_id)s
+                  AND content = 'first message should roll back'
+                """,
+                {"session_id": session_id},
+            )
+            count = cur.fetchone()[0]
+    assert count == 0
+
+
 def test_memory_detail_includes_entities_and_scenes(
     integration_client, integration_db: str
 ) -> None:

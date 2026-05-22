@@ -26,6 +26,10 @@ SourceDocument(doc_id PK, workspace_id FK, session_id FK, doc_type, title, sourc
 SourceChunk(chunk_id PK, doc_id FK, chunk_no, chunk_text, start_line, end_line, token_count, search_vector, UNIQUE(doc_id, chunk_no))
 ```
 
+`AgentSession.channel` includes `cli` for Agent Runtime sessions. `SourceDocument.doc_type`
+includes `inline_agent_note`, which is reserved for backend-created evidence when an
+agent commits a memory without explicit source chunks.
+
 ### 记忆、版本、证据
 
 ```text

@@ -92,7 +92,11 @@ class FakeMemoryService:
             ],
         )
 
-    def create_memory(self, payload: MemoryCreateRequest) -> MemorySummaryResponse:
+    def create_memory(
+        self,
+        payload: MemoryCreateRequest,
+        actor: ActorContext | None = None,
+    ) -> MemorySummaryResponse:
         self.memory = self.memory.model_copy(
             update={
                 "workspace_id": payload.workspace_id,

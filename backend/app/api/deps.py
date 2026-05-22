@@ -5,6 +5,7 @@ from functools import lru_cache
 from ..core.config import Settings, get_settings
 from ..core.database import Database
 from ..services.agent_service import AgentService, PostgresAgentRepository
+from ..services.conversation_service import ConversationService, PostgresConversationRepository
 from ..services.governance_service import GovernanceService, PostgresGovernanceRepository
 from ..services.memory_service import MemoryService, PostgresMemoryRepository
 from ..services.recall_service import PostgresRecallRepository, RecallService
@@ -46,6 +47,11 @@ def get_governance_service() -> GovernanceService:
 def get_agent_service() -> AgentService:
     repository = PostgresAgentRepository(get_database())
     return AgentService(repository=repository)
+
+
+def get_conversation_service() -> ConversationService:
+    repository = PostgresConversationRepository(get_database())
+    return ConversationService(repository=repository)
 
 
 def get_wiki_service() -> WikiService:
