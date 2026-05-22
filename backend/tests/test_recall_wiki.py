@@ -138,6 +138,27 @@ def test_recall_accepts_as_of_filter() -> None:
     assert fake_recall.last_payload.as_of is not None
 
 
+def test_recall_context_pack_returns_markdown_and_citation_map() -> None:
+    client, fake_recall, _ = build_client()
+
+    response = client.post(
+        "/api/recall/context-pack",
+        json={
+            "workspace_id": str(fake_recall.workspace_id),
+            "query_text": "为什么放弃校园食堂系统？",
+            "max_tokens": 500,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["recall_id"]
+    assert payload["result_count"] == 1
+    assert payload["token_count"] <= 500
+    assert "## Relevant Memories" in payload["markdown"]
+    assert payload["citation_map"]["memories"]["M1"]["memory_type"] == "decision"
+
+
 def test_wiki_export_returns_markdown_page() -> None:
     client, _, fake_wiki = build_client()
 
@@ -162,7 +183,11 @@ def test_wiki_export_returns_markdown_page() -> None:
 
 def test_demo_recall_expansions_cover_chinese_query_terms() -> None:
     terms = _keyword_terms("为什么放弃校园食堂系统？")
+    wiki_terms = _keyword_terms("Wiki 如何追溯来源？")
+    demo_terms = _keyword_terms("演示需要展示哪些内容？")
 
     assert QUERY_EXPANSION_FILE.exists()
-    assert set(DEMO_QUERY_EXPANSIONS) == {"食堂", "校园", "放弃", "系统", "数据库"}
+    assert {"食堂", "校园", "放弃", "系统", "数据库"}.issubset(DEMO_QUERY_EXPANSIONS)
     assert {"cafeteria", "campus", "abandon", "abandoned", "system"}.issubset(terms)
+    assert {"trace", "trace back", "provenance", "source", "evidence"}.issubset(wiki_terms)
+    assert {"demo", "show"}.issubset(demo_terms)

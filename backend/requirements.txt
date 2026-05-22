@@ -5,4 +5,5 @@ pydantic
 python-dotenv
 pytest
 httpx
+tiktoken
 typer>=0.12
