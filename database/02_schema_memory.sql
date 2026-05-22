@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS source_document (
   source_path TEXT,
   raw_text TEXT NOT NULL,
   checksum VARCHAR(128),
+  status VARCHAR(20) NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'forgotten')),
+  forgotten_at TIMESTAMPTZ,
   imported_by_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
   imported_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(workspace_id, checksum)
@@ -107,6 +110,9 @@ CREATE TABLE IF NOT EXISTS entity (
   entity_type VARCHAR(40) NOT NULL
     CHECK (entity_type IN ('person', 'project', 'concept', 'document', 'event', 'other')),
   description TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'forgotten')),
+  forgotten_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(entity_id, workspace_id),

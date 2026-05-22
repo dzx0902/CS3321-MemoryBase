@@ -9,6 +9,9 @@ DROP TRIGGER IF EXISTS trg_memory_after_insert ON memory_item;
 DROP TRIGGER IF EXISTS trg_memory_after_update ON memory_item;
 DROP TRIGGER IF EXISTS trg_memory_soft_delete ON memory_item;
 DROP TRIGGER IF EXISTS trg_wiki_revision_after_insert ON wiki_page_revision;
+DROP TRIGGER IF EXISTS trg_conflict_touch ON conflict_record;
+DROP TRIGGER IF EXISTS trg_conflict_after_insert ON conflict_record;
+DROP TRIGGER IF EXISTS trg_conflict_after_update ON conflict_record;
 
 DROP FUNCTION IF EXISTS fn_memory_revision_fields_changed();
 
@@ -63,6 +66,10 @@ FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
 
 CREATE TRIGGER trg_wiki_touch
 BEFORE UPDATE ON wiki_page
+FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
+
+CREATE TRIGGER trg_conflict_touch
+BEFORE UPDATE ON conflict_record
 FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
 
 CREATE OR REPLACE FUNCTION fn_memory_revision_fields_changed(
@@ -225,6 +232,78 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_memory_soft_delete
 BEFORE DELETE ON memory_item
 FOR EACH ROW EXECUTE FUNCTION fn_memory_soft_delete();
+
+CREATE OR REPLACE FUNCTION fn_memory_has_open_conflict(target_memory_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM conflict_record
+    WHERE status = 'open'
+      AND (
+        left_memory_id = target_memory_id
+        OR right_memory_id = target_memory_id
+      )
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION fn_conflict_mark_memory_conflicted(target_memory_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE memory_item
+  SET status = 'conflicted'
+  WHERE memory_id = target_memory_id
+    AND status = 'active';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION fn_conflict_restore_memory_if_clear(target_memory_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  IF NOT fn_memory_has_open_conflict(target_memory_id) THEN
+    UPDATE memory_item
+    SET status = 'active'
+    WHERE memory_id = target_memory_id
+      AND status = 'conflicted';
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION fn_conflict_after_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status = 'open' THEN
+    PERFORM fn_conflict_mark_memory_conflicted(NEW.left_memory_id);
+    PERFORM fn_conflict_mark_memory_conflicted(NEW.right_memory_id);
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_conflict_after_insert
+AFTER INSERT ON conflict_record
+FOR EACH ROW EXECUTE FUNCTION fn_conflict_after_insert();
+
+CREATE OR REPLACE FUNCTION fn_conflict_after_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status = 'open' THEN
+    PERFORM fn_conflict_mark_memory_conflicted(NEW.left_memory_id);
+    PERFORM fn_conflict_mark_memory_conflicted(NEW.right_memory_id);
+  ELSIF OLD.status = 'open' AND NEW.status IN ('resolved', 'ignored') THEN
+    PERFORM fn_conflict_restore_memory_if_clear(NEW.left_memory_id);
+    PERFORM fn_conflict_restore_memory_if_clear(NEW.right_memory_id);
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_conflict_after_update
+AFTER UPDATE OF status ON conflict_record
+FOR EACH ROW EXECUTE FUNCTION fn_conflict_after_update();
 
 CREATE OR REPLACE FUNCTION fn_wiki_revision_after_insert()
 RETURNS TRIGGER AS $$
