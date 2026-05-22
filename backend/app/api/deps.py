@@ -9,6 +9,7 @@ from ..services.conversation_service import ConversationService, PostgresConvers
 from ..services.governance_service import GovernanceService, PostgresGovernanceRepository
 from ..services.memory_service import MemoryService, PostgresMemoryRepository
 from ..services.recall_service import PostgresRecallRepository, RecallService
+from ..services.search_service import PostgresSearchRepository, SearchService
 from ..services.source_service import PostgresSourceRepository, SourceService
 from ..services.wiki_service import PostgresWikiRepository, WikiService
 
@@ -37,6 +38,11 @@ def get_memory_service() -> MemoryService:
 def get_recall_service() -> RecallService:
     repository = PostgresRecallRepository(get_database())
     return RecallService(repository=repository)
+
+
+def get_search_service() -> SearchService:
+    repository = PostgresSearchRepository(get_database())
+    return SearchService(repository=repository)
 
 
 def get_governance_service() -> GovernanceService:

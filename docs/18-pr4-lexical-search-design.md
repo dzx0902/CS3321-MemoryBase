@@ -280,7 +280,8 @@ query_input AS (
     %(agent_id)s::uuid AS agent_id,
     %(query_text)s::text AS query_text,
     %(tokenized_query)s::text AS tokenized_query,
-    plainto_tsquery('simple', %(tokenized_query)s) AS token_query
+    %(websearch_query)s::text AS websearch_query,
+    websearch_to_tsquery('simple', %(websearch_query)s) AS token_query
 ),
 chunk_fts AS (
   SELECT
@@ -429,6 +430,11 @@ Implementation notes:
 - Keep the first PR route set small enough to validate with `EXPLAIN`.
 - Prefer route CTEs that each use one index-friendly predicate.
 - If `OR` predicates cause poor plans, split them into separate route CTEs.
+- Keep `tokenized_query` as the response/debug shape, but build
+  `websearch_query` as an OR expression over tokens, for example
+  `校园 OR 食堂 OR cafeteria`. A plain AND tsquery is too strict for bilingual
+  expansion because it requires Chinese and English tokens to co-exist in the
+  same row.
 
 ## 8. CLI Output
 
@@ -609,10 +615,10 @@ Required commands:
 
 ```bash
 npm run db:setup
-python backend/scripts/backfill_search_terms.py --missing-only
+PYTHONPATH=backend .venv/bin/python backend/scripts/backfill_search_terms.py --missing-only
 .venv/bin/python -m pytest backend/tests -q
-.venv/bin/ruff check backend
-.venv/bin/python -m compileall backend
+uv run ruff check backend scripts
+.venv/bin/python -m compileall backend scripts
 git diff --check
 ```
 

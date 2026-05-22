@@ -119,7 +119,33 @@ page_size
 
 返回 memory + evidence + source chunk，并写入 `recall_log`。
 
-## 5. Wiki API
+## 5. Search API
+
+### POST /api/search
+
+执行 zero-config lexical search。该接口面向 Agent/CLI 的证据发现，返回
+chunk / memory / source 级结构化结果；`--show-lines` 这类展示选项只属于 CLI，
+不进入 API request。
+
+```json
+{
+  "workspace_id": "uuid",
+  "agent_id": "uuid",
+  "query_text": "为什么放弃校园食堂方向",
+  "scope": "all",
+  "limit": 10
+}
+```
+
+规则：
+
+- `scope` 支持 `all`、`chunks`、`memories`、`sources`。
+- query 先经过 jieba + demo expansion 生成 `tokenized_query`。
+- SQL 内部使用 `chunk_fts`、`memory_fts`、`trigram_fuzzy`、`title_boost` 多路召回，并用 RRF 融合排序。
+- memory 级结果沿用 recall 权限：无 `agent_id` 时只返回 `public/project` active memory；有 `agent_id` 时使用 `v_agent_visible_memory`。
+- chunk/source 级结果按 workspace 和 active source 过滤。
+
+## 6. Wiki API
 
 ### POST /api/wiki/export
 

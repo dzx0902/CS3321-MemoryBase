@@ -1,0 +1,162 @@
+[
+  {
+    "category": "synonym_rewrite",
+    "query": "project pivot away from cafeteria",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["cafeteria"],
+    "expected_source_titles": ["Discussion 01: Project Pivot"],
+    "expected_strategy": "chunk_fts",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "synonym_rewrite",
+    "query": "topic rejected because CRUD screens",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["CRUD"],
+    "expected_source_titles": ["Discussion 01: Project Pivot"],
+    "expected_strategy": "chunk_fts",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "synonym_rewrite",
+    "query": "wiki provenance trace source evidence",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["source provenance"],
+    "expected_source_titles": ["Discussion 05: Wiki and Timeline"],
+    "expected_strategy": "chunk_fts",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "synonym_rewrite",
+    "query": "permission filtering private memory policy",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["private memory"],
+    "expected_source_titles": ["Discussion 04: Policy and Recall"],
+    "expected_strategy": "chunk_fts",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "missing_keyword",
+    "query": "what proves database depth",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["database requirements"],
+    "expected_source_titles": ["Discussion 01: Project Pivot"],
+    "expected_strategy": "chunk_fts",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "missing_keyword",
+    "query": "which table records immutable versions",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["MemoryRevision"],
+    "expected_source_titles": ["Discussion 03: Schema"],
+    "expected_strategy": "chunk_fts",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "missing_keyword",
+    "query": "how does demo show agent privacy",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["Project level memory"],
+    "expected_source_titles": ["Discussion 04: Policy and Recall"],
+    "expected_strategy": "chunk_fts",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "missing_keyword",
+    "query": "final screenshots and report evidence",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["final report should include screenshots"],
+    "expected_source_titles": ["Discussion 06: Demo Plan"],
+    "expected_strategy": "chunk_fts",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "typo_fuzzy",
+    "query": "cafeteria systm",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["cafeteria system"],
+    "expected_source_titles": ["Discussion 01: Project Pivot"],
+    "expected_strategy": "trigram_fuzzy",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "typo_fuzzy",
+    "query": "crud-hevy datbase depth",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["database depth"],
+    "expected_source_titles": ["Discussion 01: Project Pivot"],
+    "expected_strategy": "trigram_fuzzy",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "typo_fuzzy",
+    "query": "souce chunck evidence",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["source chunks"],
+    "expected_source_titles": ["Discussion 01: Project Pivot"],
+    "expected_strategy": "trigram_fuzzy",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "typo_fuzzy",
+    "query": "audt log memry revision",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["AuditLog"],
+    "expected_source_titles": ["Discussion 03: Schema"],
+    "expected_strategy": "trigram_fuzzy",
+    "required_for_pr4_pass": true
+  },
+  {
+    "category": "cross_language",
+    "query": "为什么放弃校园食堂方向",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["cafeteria system"],
+    "expected_source_titles": ["Discussion 01: Project Pivot"],
+    "expected_strategy": "needs_embedding_or_dict",
+    "required_for_pr4_pass": false
+  },
+  {
+    "category": "cross_language",
+    "query": "如何追溯 wiki 来源",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["source provenance"],
+    "expected_source_titles": ["Discussion 05: Wiki and Timeline"],
+    "expected_strategy": "needs_embedding_or_dict",
+    "required_for_pr4_pass": false
+  },
+  {
+    "category": "cross_language",
+    "query": "权限如何保护私有记忆",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["private memory"],
+    "expected_source_titles": ["Discussion 04: Policy and Recall"],
+    "expected_strategy": "needs_embedding_or_dict",
+    "required_for_pr4_pass": false
+  },
+  {
+    "category": "cross_language",
+    "query": "演示要展示什么",
+    "workspace": "cs3321-demo",
+    "scope": "all",
+    "expected_text_substrings": ["demo must run"],
+    "expected_source_titles": ["Discussion 06: Demo Plan"],
+    "expected_strategy": "needs_embedding_or_dict",
+    "required_for_pr4_pass": false
+  }
+]

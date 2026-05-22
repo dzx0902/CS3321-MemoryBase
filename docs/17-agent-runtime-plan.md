@@ -63,9 +63,9 @@ source tree layout.
 PR4 starts with zero-configuration lexical search instead of pgvector. It adds
 `jieba`-backed Chinese tokenization, PostgreSQL `pg_trgm` fuzzy indexes, and a
 search-field backfill path so `mb recall` can benefit from segmented query text
-without requiring an embedding provider. User-facing `mb search` and RRF search
-are planned as the follow-up surface after the internal schema/tokenizer path is
-validated.
+without requiring an embedding provider. PR4b adds `POST /api/search`,
+SQL-side RRF over FTS/trigram/title routes, `mb search`, and an adversarial
+search gold set under `mb eval recall --gold search`.
 
 Hybrid recall and pgvector remain later work. They require a fair adversarial
 eval baseline and a real embedding provider. pgvector stores vectors, but an
@@ -131,6 +131,19 @@ mb remember "fact" --type decision --reason "..." --commit
 If no explicit evidence chunk is supplied, committed agent writes rely on the
 backend `inline_agent_note` path so the memory still has source/evidence
 provenance.
+
+PR4 commands:
+
+```bash
+mb search "为什么放弃校园食堂方向" --workspace cs3321-demo
+mb search "cafeteria systm" --workspace cs3321-demo --show-lines
+mb eval recall --gold search --format json
+mb eval recall --gold all --format json
+```
+
+`mb search` defaults to JSON and returns structured chunk/memory/source results.
+`--show-lines` is CLI-only and renders grep-like `source_path:start-end:
+snippet` rows without changing the `/api/search` request shape.
 
 ### Output and Exit Codes
 

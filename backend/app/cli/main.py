@@ -9,6 +9,7 @@ from .commands.health import health
 from .commands.observe import observe
 from .commands.recall import recall
 from .commands.remember import remember
+from .commands.search import search
 from .commands.sessions import app as sessions_app
 
 app = typer.Typer(
@@ -23,5 +24,6 @@ app.command("health")(health)
 app.command("observe")(observe)
 app.command("recall")(recall)
 app.command("remember")(remember)
+app.command("search")(search)
 app.add_typer(eval_app, name="eval")
 app.add_typer(sessions_app, name="sessions")
