@@ -8,6 +8,9 @@ from ..core.database import Database
 from ..models.search import SearchRequest, SearchResponse
 from .recall_service import _expand_query_text
 
+# Empirically tuned on PR4 adversarial gold; future eval-driven tuning starts here.
+TRIGRAM_SIMILARITY_THRESHOLD = 0.35
+
 
 class SearchRepository(Protocol):
     def execute_search(self, payload: SearchRequest) -> SearchResponse:
@@ -38,6 +41,7 @@ class PostgresSearchRepository:
             "include_chunks": payload.scope in ("all", "chunks"),
             "include_memories": payload.scope in ("all", "memories"),
             "include_sources": payload.scope in ("all", "sources"),
+            "trigram_threshold": TRIGRAM_SIMILARITY_THRESHOLD,
         }
         with self._database.connection() as conn:
             with conn.cursor() as cur:
@@ -91,7 +95,8 @@ query_input AS (
     websearch_to_tsquery('simple', %(websearch_query)s) AS token_query,
     %(include_chunks)s::boolean AS include_chunks,
     %(include_memories)s::boolean AS include_memories,
-    %(include_sources)s::boolean AS include_sources
+    %(include_sources)s::boolean AS include_sources,
+    %(trigram_threshold)s::double precision AS trigram_threshold
 ),
 chunk_fts AS (
   SELECT
@@ -180,7 +185,7 @@ trigram_chunk_fuzzy AS (
   JOIN source_chunk sc ON sc.doc_id = sd.doc_id
   WHERE qi.include_chunks
     AND sd.status = 'active'
-    AND word_similarity(qi.query_text, sc.chunk_text) > 0.35
+    AND word_similarity(qi.query_text, sc.chunk_text) > qi.trigram_threshold
 ),
 trigram_memory_public AS (
   SELECT
@@ -202,7 +207,7 @@ trigram_memory_public AS (
     AND mi.status = 'active'
     AND qi.agent_id IS NULL
     AND mi.access_level IN ('public', 'project')
-    AND word_similarity(qi.query_text, mi.canonical_text) > 0.35
+    AND word_similarity(qi.query_text, mi.canonical_text) > qi.trigram_threshold
 ),
 trigram_memory_agent_visible AS (
   SELECT
@@ -223,7 +228,7 @@ trigram_memory_agent_visible AS (
   WHERE qi.include_memories
     AND mi.status = 'active'
     AND qi.agent_id IS NOT NULL
-    AND word_similarity(qi.query_text, mi.canonical_text) > 0.35
+    AND word_similarity(qi.query_text, mi.canonical_text) > qi.trigram_threshold
     AND EXISTS (
       SELECT 1
       FROM v_agent_visible_memory vam
@@ -248,7 +253,7 @@ title_boost AS (
   JOIN source_document sd ON sd.workspace_id = qi.workspace_id
   WHERE qi.include_sources
     AND sd.status = 'active'
-    AND word_similarity(qi.query_text, sd.title) > 0.35
+    AND word_similarity(qi.query_text, sd.title) > qi.trigram_threshold
 ),
 route_union AS (
   SELECT * FROM chunk_fts

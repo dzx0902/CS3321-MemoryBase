@@ -28,6 +28,7 @@
 - Default workflow is local edit plus validation plus diff summary, then stop for owner review.
 - Do not run `git commit`, `git push`, `gh pr create`, `gh pr edit`, `gh pr merge`, `gh issue edit`, `gh issue comment`, or `gh issue close` unless the project owner explicitly requests that exact remote or git action in the current context.
 - Even when the owner authorizes continued implementation, stop before commit/push/PR/merge and wait for an explicit post-review confirmation for that landing step. Treat implementation approval and landing approval as separate gates.
+- When the owner approves landing for a PR, that approval does not extend to starting the next PR. Wait for fresh implementation-start authorization before opening any follow-up branch or PR.
 - Words such as "continue", "fix", "implement", "proceed", or "按照流程" do not authorize commit, push, PR mutation, issue mutation, merge, or close.
 - If the owner says "commit", only create the local commit after showing validation evidence or using already reviewed evidence.
 - If the owner says "push", only push already-reviewed local commits to the requested branch; do not bundle new edits into that push.

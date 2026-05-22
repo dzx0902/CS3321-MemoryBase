@@ -74,8 +74,35 @@ def test_configure_register_agent_writes_returned_agent_id(tmp_path: Path, monke
 
     assert result.exit_code == 0
     content = config_path.read_text(encoding="utf-8")
-    assert f'agent = "{agent_id}"' in content
+    assert 'agent = "codex"' in content
     assert "Registered agent codex" in result.stderr
+
+
+def test_configure_json_output_is_machine_parseable(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "configure",
+            "--config",
+            str(config_path),
+            "--api-base",
+            "http://localhost:8000",
+            "--workspace",
+            "cs3321-demo",
+            "--agent",
+            "codex",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert '"workspace": "cs3321-demo"' in result.stdout
+    assert '"agent": "codex"' in result.stdout
+    assert "Wrote MemoryBase config" in result.stderr
 
 
 def test_health_returns_zero_with_detail_ok(monkeypatch) -> None:
