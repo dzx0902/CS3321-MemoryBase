@@ -32,6 +32,9 @@ class MemoryBaseClient(Protocol):
     def context_pack(self, payload: dict[str, Any]) -> dict[str, Any]:
         ...
 
+    def search(self, payload: dict[str, Any]) -> dict[str, Any]:
+        ...
+
     def create_session(self, payload: dict[str, Any]) -> dict[str, Any]:
         ...
 
@@ -80,6 +83,9 @@ class HttpMemoryBaseClient:
 
     def context_pack(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/api/recall/context-pack", json=payload)
+
+    def search(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/api/search", json=payload)
 
     def create_session(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/api/sessions", json=payload)

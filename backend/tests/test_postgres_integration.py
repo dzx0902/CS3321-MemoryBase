@@ -184,6 +184,65 @@ def test_chinese_demo_recall_finds_cafeteria_memory(
     assert any(item["evidence"] for item in response.json()["memories"])
 
 
+def test_search_endpoint_returns_rrf_results_for_chinese_query(
+    integration_client, integration_db: str
+) -> None:
+    response = integration_client.post(
+        "/api/search",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "agent_id": AGENT_ID,
+            "query_text": "为什么放弃校园食堂方向",
+            "scope": "all",
+            "limit": 8,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["result_count"] >= 1
+    assert "cafeteria" in payload["tokenized_query"]
+    assert any(item["result_type"] == "chunk" for item in payload["items"])
+    assert any("chunk_fts" in item["strategies"] for item in payload["items"])
+    assert any(
+        "cafeteria system" in item["snippet"].lower() for item in payload["items"]
+    )
+
+
+def test_search_endpoint_hides_private_memories_without_agent(
+    integration_client, integration_db: str
+) -> None:
+    response = integration_client.post(
+        "/api/search",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "private budget",
+            "scope": "memories",
+            "limit": 5,
+        },
+    )
+
+    assert response.status_code == 200
+    assert all(item["result_id"] != PRIVATE_MEMORY_ID for item in response.json()["items"])
+
+
+def test_search_endpoint_uses_trigram_fuzzy_route(
+    integration_client, integration_db: str
+) -> None:
+    response = integration_client.post(
+        "/api/search",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "cafeteria systm",
+            "scope": "all",
+            "limit": 8,
+        },
+    )
+
+    assert response.status_code == 200
+    assert any("trigram_fuzzy" in item["strategies"] for item in response.json()["items"])
+
+
 def test_chinese_source_recall_uses_segmented_search_text(
     integration_client, integration_db: str
 ) -> None:

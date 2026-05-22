@@ -629,7 +629,65 @@ FROM recall_log
 WHERE recall_id = :recall_id;
 ```
 
-## 8. Wiki Export API
+## 8. Lexical Search API
+
+### POST /api/search
+
+Purpose: expose zero-config lexical search for agent source/evidence discovery.
+This is additive to recall: search is chunk/source-oriented, while recall is
+memory-oriented and writes `recall_log`.
+
+Request:
+
+```json
+{
+  "workspace_id": "uuid",
+  "agent_id": "uuid",
+  "query_text": "为什么放弃校园食堂方向",
+  "scope": "all",
+  "limit": 10
+}
+```
+
+Rules:
+
+- `scope` must be one of `all`, `chunks`, `memories`, `sources`.
+- Do not accept presentation-only fields such as `show_lines`; CLI renders
+  grep-like rows from structured API results.
+- Return `tokenized_query` for debugging and eval reproducibility.
+- Use SQL-side RRF over `chunk_fts`, `memory_fts`, `trigram_fuzzy`, and
+  `title_boost`.
+- Memory results must use the same permission behavior as recall:
+  - no `agent_id`: active `public/project` only;
+  - with `agent_id`: `v_agent_visible_memory`.
+- Chunk/source results are workspace-level and require active source documents.
+
+Response:
+
+```json
+{
+  "workspace_id": "uuid",
+  "query_text": "为什么放弃校园食堂方向",
+  "tokenized_query": "为什么 放弃 校园 食堂 方向 cafeteria campus",
+  "result_count": 1,
+  "items": [
+    {
+      "result_type": "chunk",
+      "result_id": "uuid",
+      "doc_id": "uuid",
+      "source_path": "data/raw_sources/demo_workspace/discussion_01_project_pivot.md",
+      "source_title": "Discussion 01: Project Pivot",
+      "start_line": 8,
+      "end_line": 12,
+      "snippet": "The cafeteria system was too CRUD-heavy...",
+      "score": 0.031,
+      "strategies": ["chunk_fts", "trigram_fuzzy"]
+    }
+  ]
+}
+```
+
+## 9. Wiki Export API
 
 ### POST /api/wiki/export
 
