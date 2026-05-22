@@ -26,6 +26,12 @@ class MemoryBaseClient(Protocol):
     ) -> dict[str, Any]:
         ...
 
+    def recall(self, payload: dict[str, Any]) -> dict[str, Any]:
+        ...
+
+    def context_pack(self, payload: dict[str, Any]) -> dict[str, Any]:
+        ...
+
 
 class HttpMemoryBaseClient:
     def __init__(self, api_base_url: str) -> None:
@@ -49,6 +55,12 @@ class HttpMemoryBaseClient:
             "/api/agents/register",
             json={"workspace": workspace, "name": name, "agent_type": agent_type},
         )
+
+    def recall(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/api/recall", json=payload)
+
+    def context_pack(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/api/recall/context-pack", json=payload)
 
     def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         url = f"{self._api_base_url}{path}"
