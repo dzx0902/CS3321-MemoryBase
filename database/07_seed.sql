@@ -35,9 +35,10 @@ VALUES
   ('00000000-0000-0000-0000-000000000103', 'carol', 'Carol Lin', 'carol@example.com', 'member'),
   ('00000000-0000-0000-0000-000000000104', 'guest', 'Demo Guest', 'guest@example.com', 'guest');
 
-INSERT INTO workspace(workspace_id, name, description, scope_type, owner_user_id)
+INSERT INTO workspace(workspace_id, slug, name, description, scope_type, owner_user_id)
 VALUES (
   '00000000-0000-0000-0000-000000000201',
+  'cs3321-demo',
   'MemoryBase Course Demo',
   'Closed demo workspace for the CS3321 MemoryBase project.',
   'project',

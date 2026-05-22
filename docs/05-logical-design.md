@@ -7,7 +7,7 @@
 ```text
 UserAccount(user_id PK, username UNIQUE, display_name, email UNIQUE, role_hint, created_at, updated_at)
 
-Workspace(workspace_id PK, name, description, scope_type, owner_user_id FK, created_at, updated_at)
+Workspace(workspace_id PK, slug UNIQUE, name, description, scope_type, owner_user_id FK, created_at, updated_at)
 
 Agent(agent_id PK, workspace_id FK, name, agent_type, status, owner_user_id FK, created_at)
 

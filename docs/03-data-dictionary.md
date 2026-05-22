@@ -7,6 +7,7 @@
 | user_id | 用户编号 | UUID | PK | 6f9e... |
 | agent_id | Agent 编号 | UUID | PK | a12c... |
 | workspace_id | 工作区编号 | UUID | PK | w001 |
+| workspace_slug | 工作区短标识 | VARCHAR(64) | UNIQUE, NOT NULL | cs3321-demo |
 | session_id | 会话编号 | UUID | PK | s001 |
 | message_id | 消息编号 | UUID | PK | m001 |
 | doc_id | 源文档编号 | UUID | PK | doc001 |
