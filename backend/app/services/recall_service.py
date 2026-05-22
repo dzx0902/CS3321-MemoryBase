@@ -8,6 +8,7 @@ from uuid import UUID
 
 from ..core.database import Database
 from ..models.recall import RecallRequest, RecallResponse
+from .tokenizer import build_search_text
 
 QUERY_EXPANSION_FILE = (
     Path(__file__).resolve().parents[3] / "data" / "recall" / "demo_query_expansions.json"
@@ -300,7 +301,7 @@ def _keyword_terms(query_text: str) -> list[str]:
 
 
 def _expand_query_text(query_text: str) -> str:
-    return " ".join(_keyword_terms(query_text))
+    return build_search_text(" ".join(_keyword_terms(query_text)))
 
 
 def _dedupe_terms(terms: list[str]) -> list[str]:

@@ -17,6 +17,7 @@ from ..models.memory import (
     MemoryUpdateRequest,
 )
 from .chunking import _estimate_token_count
+from .tokenizer import build_search_text
 
 
 class MemoryNotFoundError(Exception):
@@ -155,6 +156,7 @@ class PostgresMemoryRepository:
                         memory_type,
                         canonical_text,
                         summary,
+                        search_text_zh,
                         confidence,
                         importance,
                         access_level,
@@ -167,6 +169,7 @@ class PostgresMemoryRepository:
                         %(memory_type)s,
                         %(canonical_text)s,
                         %(summary)s,
+                        %(search_text_zh)s,
                         %(confidence)s,
                         %(importance)s,
                         %(access_level)s,
@@ -181,6 +184,10 @@ class PostgresMemoryRepository:
                         "memory_type": payload.memory_type,
                         "canonical_text": payload.canonical_text,
                         "summary": payload.summary,
+                        "search_text_zh": build_search_text(
+                            payload.canonical_text,
+                            payload.summary,
+                        ),
                         "confidence": payload.confidence,
                         "importance": payload.importance,
                         "access_level": payload.access_level,
@@ -291,7 +298,8 @@ class PostgresMemoryRepository:
                 chunk_text,
                 start_line,
                 end_line,
-                token_count
+                token_count,
+                search_text_zh
             )
             VALUES (
                 %(doc_id)s,
@@ -299,7 +307,8 @@ class PostgresMemoryRepository:
                 %(chunk_text)s,
                 1,
                 1,
-                %(token_count)s
+                %(token_count)s,
+                %(search_text_zh)s
             )
             RETURNING chunk_id
             """,
@@ -307,6 +316,7 @@ class PostgresMemoryRepository:
                 "doc_id": doc_id,
                 "chunk_text": chunk_text,
                 "token_count": _estimate_token_count(chunk_text),
+                "search_text_zh": build_search_text(chunk_text),
             },
         )
         chunk_row = cur.fetchone()
@@ -473,6 +483,9 @@ class PostgresMemoryRepository:
         if existing is None:
             return None
 
+        canonical_text = payload.canonical_text or existing["canonical_text"]
+        summary = payload.summary if payload.summary is not None else existing["summary"]
+
         with self._database.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -500,6 +513,7 @@ class PostgresMemoryRepository:
                     SET
                         canonical_text = %(canonical_text)s,
                         summary = %(summary)s,
+                        search_text_zh = %(search_text_zh)s,
                         confidence = %(confidence)s,
                         importance = %(importance)s,
                         status = %(status)s,
@@ -511,10 +525,9 @@ class PostgresMemoryRepository:
                     {
                         "memory_id": memory_id,
                         "workspace_id": workspace_id,
-                        "canonical_text": payload.canonical_text or existing["canonical_text"],
-                        "summary": payload.summary
-                        if payload.summary is not None
-                        else existing["summary"],
+                        "canonical_text": canonical_text,
+                        "summary": summary,
+                        "search_text_zh": build_search_text(canonical_text, summary),
                         "confidence": payload.confidence
                         if payload.confidence is not None
                         else existing["confidence"],

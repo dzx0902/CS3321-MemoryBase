@@ -4,6 +4,7 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from scripts.backfill_search_terms import backfill_search_terms
 
 WORKSPACE_ID = "00000000-0000-0000-0000-000000000201"
 AGENT_ID = "00000000-0000-0000-0000-000000000301"
@@ -181,6 +182,196 @@ def test_chinese_demo_recall_finds_cafeteria_memory(
     memory_texts = [item["canonical_text"] for item in response.json()["memories"]]
     assert any("cafeteria system" in text for text in memory_texts)
     assert any(item["evidence"] for item in response.json()["memories"])
+
+
+def test_chinese_source_recall_uses_segmented_search_text(
+    integration_client, integration_db: str
+) -> None:
+    source_response = integration_client.post(
+        "/api/sources",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "title": "中文检索验证",
+            "doc_type": "note",
+            "raw_text": "我们需要重审校园食堂方向，并记录新的数据库课设判断。",
+            "source_path": "inline://test/chinese-search",
+        },
+    )
+    assert source_response.status_code == 201
+
+    source_detail = integration_client.get(
+        f"/api/sources/{source_response.json()['doc_id']}",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert source_detail.status_code == 200
+    chunk_id = source_detail.json()["chunks"][0]["chunk_id"]
+
+    memory_response = integration_client.post(
+        "/api/memories",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "created_from_doc_id": source_response.json()["doc_id"],
+            "memory_type": "decision",
+            "canonical_text": "校园食堂方向需要重审。",
+            "summary": "中文分词召回验证",
+            "confidence": 0.9,
+            "importance": 4,
+            "access_level": "project",
+            "evidence": [{"chunk_id": chunk_id, "evidence_role": "supports"}],
+        },
+    )
+    assert memory_response.status_code == 201
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT sc.search_text_zh,
+                       sc.search_vector @@ plainto_tsquery('simple', '食堂 方向')
+                FROM source_chunk sc
+                WHERE sc.chunk_id = %(chunk_id)s
+                """,
+                {"chunk_id": chunk_id},
+            )
+            chunk_row = cur.fetchone()
+            cur.execute(
+                """
+                SELECT search_text_zh,
+                       search_vector @@ plainto_tsquery('simple', '食堂 方向')
+                FROM memory_item
+                WHERE memory_id = %(memory_id)s
+                """,
+                {"memory_id": memory_response.json()["memory_id"]},
+            )
+            memory_row = cur.fetchone()
+
+    assert chunk_row is not None
+    assert {"食堂", "方向"}.issubset(set(chunk_row[0].split()))
+    assert chunk_row[1] is True
+    assert memory_row is not None
+    assert {"食堂", "方向"}.issubset(set(memory_row[0].split()))
+    assert memory_row[1] is True
+
+    recall_response = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "食堂方向",
+            "limit": 5,
+        },
+    )
+    assert recall_response.status_code == 200
+    assert any(
+        item["memory_id"] == memory_response.json()["memory_id"]
+        for item in recall_response.json()["memories"]
+    )
+
+
+def test_seed_search_text_columns_are_populated(integration_db: str) -> None:
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT count(*)
+                FROM source_chunk
+                WHERE search_text_zh IS NULL
+                   OR search_vector IS NULL
+                """
+            )
+            chunk_missing = cur.fetchone()[0]
+            cur.execute(
+                """
+                SELECT count(*)
+                FROM memory_item
+                WHERE search_text_zh IS NULL
+                   OR search_vector IS NULL
+                """
+            )
+            memory_missing = cur.fetchone()[0]
+            cur.execute(
+                """
+                SELECT chunk_text, search_text_zh
+                FROM source_chunk
+                WHERE chunk_id = '00000000-0000-0000-0000-000000000619'
+                """
+            )
+            seeded_chunk = cur.fetchone()
+            cur.execute(
+                """
+                SELECT canonical_text, search_text_zh
+                FROM memory_item
+                WHERE memory_id = '00000000-0000-0000-0000-000000000701'
+                """
+            )
+            seeded_memory = cur.fetchone()
+
+    assert chunk_missing == 0
+    assert memory_missing == 0
+    assert seeded_chunk is not None
+    assert seeded_chunk[1] != seeded_chunk[0]
+    assert {"cafeteria", "system"}.issubset(set(seeded_chunk[1].split()))
+    assert seeded_memory is not None
+    assert seeded_memory[1] != seeded_memory[0]
+    assert {"cafeteria", "rejected"}.issubset(set(seeded_memory[1].split()))
+
+
+def test_backfill_search_terms_does_not_create_memory_audit(integration_db: str) -> None:
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT count(*)
+                FROM audit_log
+                WHERE target_type = 'memory_item'
+                  AND target_id = %(memory_id)s
+                """,
+                {"memory_id": MEMORY_ID},
+            )
+            audit_before = cur.fetchone()[0]
+            cur.execute("ALTER TABLE memory_item DISABLE TRIGGER USER")
+            cur.execute(
+                """
+                UPDATE memory_item
+                SET search_text_zh = NULL
+                WHERE memory_id = %(memory_id)s
+                """,
+                {"memory_id": MEMORY_ID},
+            )
+            cur.execute("ALTER TABLE memory_item ENABLE TRIGGER USER")
+        conn.commit()
+
+    counts = backfill_search_terms(
+        integration_db,
+        full=False,
+        missing_only=True,
+        workspace_slug="cs3321-demo",
+    )
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT search_text_zh
+                FROM memory_item
+                WHERE memory_id = %(memory_id)s
+                """,
+                {"memory_id": MEMORY_ID},
+            )
+            search_text = cur.fetchone()[0]
+            cur.execute(
+                """
+                SELECT count(*)
+                FROM audit_log
+                WHERE target_type = 'memory_item'
+                  AND target_id = %(memory_id)s
+                """,
+                {"memory_id": MEMORY_ID},
+            )
+            audit_after = cur.fetchone()[0]
+
+    assert counts.memories == 1
+    assert "recall" in search_text.split()
+    assert audit_after == audit_before
 
 
 def test_memory_create_accepts_evidence_objects(integration_client, integration_db: str) -> None:

@@ -32,6 +32,8 @@
 | scene_slug | 场景短标识 | VARCHAR | workspace 内唯一 | topic-decision |
 | cell_role | scene 中 memory 的叙事角色 | VARCHAR | background/context/support/decision/outcome | decision |
 | forget_status | 遗忘请求状态 | VARCHAR | pending/approved/rejected/done | approved |
+| search_text_zh | 中文/中英混排检索文本 | TEXT | 由 jieba 搜索模式分词后空格连接 | 校园 食堂 方向 |
+| search_vector | PostgreSQL 全文检索向量 | TSVECTOR | generated column, GIN index | '食堂':2 |
 
 ## 2. 数据结构字典
 
@@ -42,8 +44,8 @@
 | AgentSession | session_id、workspace_id、agent_id、title、channel、started_at | Agent / CLI / 导入会话 |
 | Message | message_id、session_id、sender_type、role、content、created_at | 会话消息；observe API 的落库对象 |
 | SourceDocument | doc_id、workspace_id、title、raw_text、checksum、status、forgotten_at | 原始文档；`inline_agent_note` 用于 Agent 写回时自动补证据链 |
-| SourceChunk | chunk_id、doc_id、chunk_no、chunk_text、line range | 文档切块 |
-| MemoryItem | memory_id、workspace_id、memory_type、canonical_text、status | 长期记忆核心 |
+| SourceChunk | chunk_id、doc_id、chunk_no、chunk_text、line range、search_text_zh、search_vector | 文档切块；search_vector 基于分词后的 search_text_zh 生成 |
+| MemoryItem | memory_id、workspace_id、memory_type、canonical_text、summary、search_text_zh、search_vector、status | 长期记忆核心；支持 memory 级全文检索 |
 | MemoryEvidence | evidence_id、memory_id、chunk_id、evidence_role | 记忆来源证据 |
 | MemoryRevision | memory_id、revision_no、revision_text、editor | 记忆版本 |
 | Entity | entity_id、workspace_id、canonical_name、entity_type、description、status、forgotten_at | 工作区内的项目对象、概念、文档或事件；支持软遗忘 |
@@ -60,8 +62,8 @@
 | 数据流 | 来源 | 去向 | 组成 |
 |---|---|---|---|
 | SourceImportFlow | Markdown 文件 | Source Ingestor | title、doc_type、raw_text、path |
-| ChunkFlow | Source Ingestor | SourceChunk | doc_id、chunk_no、text、line range |
-| MemoryExtractFlow | SourceChunk / 用户 | MemoryItem | type、text、summary、evidence |
+| ChunkFlow | Source Ingestor | SourceChunk | doc_id、chunk_no、text、line range、search_text_zh |
+| MemoryExtractFlow | SourceChunk / 用户 | MemoryItem | type、text、summary、search_text_zh、evidence |
 | AgentObserveFlow | Agent / CLI | AgentSession / Message | session、role、sender、content |
 | AgentRememberFlow | Agent / CLI | SourceDocument / SourceChunk / MemoryItem / MemoryEvidence | memory text、reason、inline evidence |
 | RecallFlow | 用户 / Agent | Retriever | question、workspace_id、agent_id |

@@ -16,6 +16,7 @@ from ..models.source import (
     SourceSummaryResponse,
 )
 from .chunking import build_chunks
+from .tokenizer import build_search_text
 
 
 class SourceConflictError(Exception):
@@ -166,7 +167,8 @@ class PostgresSourceRepository:
                                 chunk_text,
                                 start_line,
                                 end_line,
-                                token_count
+                                token_count,
+                                search_text_zh
                             )
                             VALUES (
                                 %(doc_id)s,
@@ -174,7 +176,8 @@ class PostgresSourceRepository:
                                 %(chunk_text)s,
                                 %(start_line)s,
                                 %(end_line)s,
-                                %(token_count)s
+                                %(token_count)s,
+                                %(search_text_zh)s
                             )
                             """,
                             {
@@ -184,6 +187,7 @@ class PostgresSourceRepository:
                                 "start_line": chunk.start_line,
                                 "end_line": chunk.end_line,
                                 "token_count": chunk.token_count,
+                                "search_text_zh": build_search_text(chunk.chunk_text),
                             },
                         )
 
