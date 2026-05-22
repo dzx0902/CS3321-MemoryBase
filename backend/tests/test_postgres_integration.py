@@ -239,9 +239,10 @@ def test_semantic_tables_and_conflicts_enforce_integrity(integration_db: str) ->
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO workspace(workspace_id, name, scope_type)
+                INSERT INTO workspace(workspace_id, slug, name, scope_type)
                 VALUES (
                   '00000000-0000-0000-0000-000000009201',
+                  'other-semantic',
                   'Other Workspace',
                   'project'
                 )
@@ -628,9 +629,10 @@ def test_conflict_creation_rejects_cross_workspace_memory(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO workspace(workspace_id, name, scope_type, owner_user_id)
+                INSERT INTO workspace(workspace_id, slug, name, scope_type, owner_user_id)
                 VALUES (
                   '00000000-0000-0000-0000-000000000202',
+                  'other-conflict',
                   'Other Workspace',
                   'project',
                   '00000000-0000-0000-0000-000000000101'

@@ -54,6 +54,7 @@ project-root/
 
 | 场景 | 索引 |
 |---|---|
+| CLI workspace 解析 | workspace(slug) UNIQUE |
 | workspace 下查询 source | source_document(workspace_id, imported_at DESC)、source_document(workspace_id, status, imported_at DESC) |
 | 会话列表 | agent_session(workspace_id, started_at DESC) |
 | 会话消息 | message(session_id, created_at) |
