@@ -210,14 +210,18 @@ PR4 should choose replacement semantics, not dual columns:
 - Replace recall query preprocessing with the shared tokenizer so
   `websearch_to_tsquery` receives spaced tokens such as `校园 食堂`.
 
-For a clean development rebuild, update `database/02_schema_memory.sql`
-directly. For a live migration, the safe sequence is:
+For this development-stage project, implementation should update
+`database/02_schema_memory.sql` directly and rebuild the demo database with
+`npm run db:setup`. The ALTER example above documents the equivalent live
+migration shape, not the preferred local implementation path.
+
+For a live migration, the safe sequence is:
 
 1. Add `search_text_zh`.
 2. Backfill `search_text_zh`.
-3. Drop the dependent GIN index.
-4. Drop and recreate the generated `search_vector` column using
-   `search_text_zh`.
+3. Drop the generated `search_vector` column; PostgreSQL drops the dependent
+   GIN index automatically.
+4. Recreate `search_vector` using `search_text_zh`.
 5. Recreate the GIN index.
 
 Do not leave both `search_vector` and `search_text_zh_tsv` on `source_chunk`;
@@ -459,12 +463,17 @@ stdout: empty
 
 Add `backend/scripts/backfill_search_terms.py`.
 
+`scripts/db_cli.py seed/reset` should run the full backfill automatically after
+`database/07_seed.sql` and before `database/08_demo_queries.sql`, so
+`npm run db:setup` leaves lexical search fields ready for both English and
+Chinese data.
+
 Modes:
 
 ```bash
-python backend/scripts/backfill_search_terms.py --full
-python backend/scripts/backfill_search_terms.py --missing-only
-python backend/scripts/backfill_search_terms.py --workspace-slug cs3321-demo --missing-only
+PYTHONPATH=backend .venv/bin/python backend/scripts/backfill_search_terms.py --full
+PYTHONPATH=backend .venv/bin/python backend/scripts/backfill_search_terms.py --missing-only
+PYTHONPATH=backend .venv/bin/python backend/scripts/backfill_search_terms.py --workspace-slug cs3321-demo --missing-only
 ```
 
 Behavior:
@@ -474,6 +483,9 @@ Behavior:
 - `--workspace-slug`: limit by `workspace.slug`.
 - Fail fast if `jieba` is unavailable.
 - Print counts by table.
+- For `memory_item`, disable user triggers during the derived-field backfill so
+  maintenance updates do not create misleading `memory.update` audit entries or
+  revisions.
 
 Write paths must use the same tokenizer helper as the backfill script, so import,
 inline agent notes, and memory writes all produce consistent `search_text_zh`.
@@ -560,27 +572,36 @@ not a broad synthetic corpus.
 
 ## 12. Implementation Split Recommendation
 
-PR4 can remain one PR, but the implementation should be staged internally:
+PR4 should be implemented in two reviewable PRs.
+
+PR4a is the internal infrastructure upgrade:
 
 1. Add `pg_trgm`, `jieba`, generated columns, indexes, tokenizer helper, and
    backfill script.
 2. Populate search fields from source import, inline agent note creation, and
    memory create/update.
-3. Add `POST /api/search` with `chunk_fts` and `memory_fts`.
-4. Add `trigram_fuzzy`, `title_boost`, and SQL RRF. These two extra routes are
+3. Update recall query preprocessing so existing `sc.search_vector` SQL receives
+   tokenized query text.
+4. Verify existing recall baseline and search-field population before any new
+   public API is added.
+
+PR4b is the user-facing search feature:
+
+1. Add `POST /api/search` with `chunk_fts` and `memory_fts`.
+2. Add `trigram_fuzzy`, `title_boost`, and SQL RRF. These two extra routes are
    PR4 must-do items. `source_path_boost`, `entity_boost`, and `scene_boost`
    are optional expansions and should be added only after explicit review if the
    required baseline cannot diagnose enough results without them.
-5. Add `mb search`.
-6. Add adversarial eval under the existing eval command surface as
+3. Add `mb search`.
+4. Add adversarial eval under the existing eval command surface as
    `mb eval recall --gold search` and `mb eval recall --gold all`. This avoids a
    second eval command family while still letting PR4 run the search-oriented
    adversarial set. A separate `mb eval search` command is not needed unless
    search later diverges into a broader benchmark suite.
 
-If step 4 cannot be made explainable and index-friendly, stop at step 3 and
-split RRF/trigram into a follow-up PR. Do not hide this behind Python-side
-ranking.
+If PR4b's RRF step cannot be made explainable and index-friendly, stop at
+`chunk_fts` + `memory_fts` and split RRF/trigram into a follow-up PR. Do not
+hide this behind Python-side ranking.
 
 ## 13. Verification
 
