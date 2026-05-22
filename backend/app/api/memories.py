@@ -23,10 +23,18 @@ router = APIRouter(prefix="/memories", tags=["memories"])
 @router.post("", response_model=MemorySummaryResponse, status_code=status.HTTP_201_CREATED)
 def create_memory(
     payload: MemoryCreateRequest,
+    x_actor_type: EditorType = Header(default="user", alias="X-Actor-Type"),
+    x_actor_id: UUID | None = Header(default=None, alias="X-Actor-Id"),
+    x_revision_reason: str = Header(default="memory create", alias="X-Revision-Reason"),
     service: MemoryService = Depends(get_memory_service),
 ) -> MemorySummaryResponse:
     try:
-        return service.create_memory(payload)
+        actor = ActorContext(
+            actor_type=x_actor_type,
+            actor_id=x_actor_id,
+            revision_reason=x_revision_reason,
+        )
+        return service.create_memory(payload, actor)
     except MemoryValidationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

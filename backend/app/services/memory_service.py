@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -15,6 +16,7 @@ from ..models.memory import (
     MemorySummaryResponse,
     MemoryUpdateRequest,
 )
+from .chunking import _estimate_token_count
 
 
 class MemoryNotFoundError(Exception):
@@ -26,7 +28,9 @@ class MemoryValidationError(Exception):
 
 
 class MemoryRepository(Protocol):
-    def create_memory(self, payload: MemoryCreateRequest) -> MemorySummaryResponse:
+    def create_memory(
+        self, payload: MemoryCreateRequest, actor: ActorContext | None = None
+    ) -> MemorySummaryResponse:
         ...
 
     def list_memories(
@@ -64,8 +68,10 @@ class MemoryRepository(Protocol):
 class MemoryService:
     repository: MemoryRepository
 
-    def create_memory(self, payload: MemoryCreateRequest) -> MemorySummaryResponse:
-        return self.repository.create_memory(payload)
+    def create_memory(
+        self, payload: MemoryCreateRequest, actor: ActorContext | None = None
+    ) -> MemorySummaryResponse:
+        return self.repository.create_memory(payload, actor)
 
     def list_memories(
         self,
@@ -119,9 +125,28 @@ class PostgresMemoryRepository:
     def __init__(self, database: Database) -> None:
         self._database = database
 
-    def create_memory(self, payload: MemoryCreateRequest) -> MemorySummaryResponse:
+    def create_memory(
+        self, payload: MemoryCreateRequest, actor: ActorContext | None = None
+    ) -> MemorySummaryResponse:
+        actor = actor or ActorContext(actor_type="system", revision_reason="initial create")
         with self._database.connection() as conn:
             with conn.cursor() as cur:
+                self._set_actor_context(cur, actor)
+                evidence_items = list(payload.evidence)
+                created_from_doc_id = payload.created_from_doc_id
+                if not evidence_items and actor.actor_type == "agent":
+                    inline_evidence = self._create_inline_evidence_chunk(cur, payload, actor)
+                    evidence_items = [
+                        MemoryEvidenceInput(
+                            chunk_id=inline_evidence["chunk_id"],
+                            evidence_role="source",
+                            weight=1.0,
+                            note="Inline agent note created by MemoryBase CLI.",
+                        )
+                    ]
+                    if created_from_doc_id is None:
+                        created_from_doc_id = inline_evidence["doc_id"]
+
                 cur.execute(
                     """
                     INSERT INTO memory_item (
@@ -150,15 +175,26 @@ class PostgresMemoryRepository:
                     )
                     RETURNING memory_id
                     """,
-                    payload.model_dump(),
+                    {
+                        "workspace_id": payload.workspace_id,
+                        "created_from_doc_id": created_from_doc_id,
+                        "memory_type": payload.memory_type,
+                        "canonical_text": payload.canonical_text,
+                        "summary": payload.summary,
+                        "confidence": payload.confidence,
+                        "importance": payload.importance,
+                        "access_level": payload.access_level,
+                        "owner_user_id": payload.owner_user_id,
+                        "owner_agent_id": payload.owner_agent_id,
+                    },
                 )
                 row = cur.fetchone()
                 if row is None:
                     raise RuntimeError("failed to create memory")
                 memory_id = row["memory_id"]
 
-                self._validate_evidence_chunks(cur, payload.workspace_id, payload.evidence)
-                for evidence in payload.evidence:
+                self._validate_evidence_chunks(cur, payload.workspace_id, evidence_items)
+                for evidence in evidence_items:
                     cur.execute(
                         """
                         INSERT INTO memory_evidence (
@@ -190,6 +226,132 @@ class PostgresMemoryRepository:
         if summary is None:
             raise RuntimeError("created memory cannot be loaded")
         return summary
+
+    def _set_actor_context(self, cur, actor: ActorContext) -> None:
+        cur.execute(
+            "SELECT set_config('app.actor_type', %(actor_type)s, true)",
+            {"actor_type": actor.actor_type},
+        )
+        cur.execute(
+            "SELECT set_config('app.actor_id', %(actor_id)s, true)",
+            {"actor_id": str(actor.actor_id) if actor.actor_id else ""},
+        )
+        cur.execute(
+            "SELECT set_config('app.revision_reason', %(revision_reason)s, true)",
+            {"revision_reason": actor.revision_reason},
+        )
+
+    def _create_inline_evidence_chunk(
+        self,
+        cur,
+        payload: MemoryCreateRequest,
+        actor: ActorContext,
+    ) -> dict[str, UUID]:
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+        actor_label = str(actor.actor_id) if actor.actor_id else "unknown-agent"
+        title = f"agent_note_{actor_label}_{timestamp}"[:240]
+        chunk_text = payload.canonical_text[:2000]
+        cur.execute(
+            """
+            INSERT INTO source_document (
+                workspace_id,
+                doc_type,
+                title,
+                source_path,
+                raw_text,
+                checksum
+            )
+            VALUES (
+                %(workspace_id)s,
+                'inline_agent_note',
+                %(title)s,
+                %(source_path)s,
+                %(raw_text)s,
+                NULL
+            )
+            RETURNING doc_id
+            """,
+            {
+                "workspace_id": payload.workspace_id,
+                "title": title,
+                "source_path": f"inline://agent/{actor_label}/{timestamp}",
+                "raw_text": payload.canonical_text,
+            },
+        )
+        doc_row = cur.fetchone()
+        if doc_row is None:
+            raise RuntimeError("failed to create inline source document")
+        doc_id = doc_row["doc_id"]
+
+        cur.execute(
+            """
+            INSERT INTO source_chunk (
+                doc_id,
+                chunk_no,
+                chunk_text,
+                start_line,
+                end_line,
+                token_count
+            )
+            VALUES (
+                %(doc_id)s,
+                1,
+                %(chunk_text)s,
+                1,
+                1,
+                %(token_count)s
+            )
+            RETURNING chunk_id
+            """,
+            {
+                "doc_id": doc_id,
+                "chunk_text": chunk_text,
+                "token_count": _estimate_token_count(chunk_text),
+            },
+        )
+        chunk_row = cur.fetchone()
+        if chunk_row is None:
+            raise RuntimeError("failed to create inline source chunk")
+
+        cur.execute(
+            """
+            INSERT INTO audit_log (
+                workspace_id,
+                actor_type,
+                actor_id,
+                action_type,
+                target_type,
+                target_id,
+                after_json
+            )
+            VALUES (
+                %(workspace_id)s,
+                %(actor_type)s,
+                %(actor_id)s,
+                'source_document.create',
+                'source_document',
+                %(doc_id)s,
+                %(after_json)s::jsonb
+            )
+            """,
+            {
+                "workspace_id": payload.workspace_id,
+                "actor_type": actor.actor_type,
+                "actor_id": actor.actor_id,
+                "doc_id": doc_id,
+                "title": title,
+                "source_path": f"inline://agent/{actor_label}/{timestamp}",
+                "after_json": _json_dumps(
+                    {
+                        "doc_id": doc_id,
+                        "doc_type": "inline_agent_note",
+                        "title": title,
+                        "source_path": f"inline://agent/{actor_label}/{timestamp}",
+                    }
+                ),
+            },
+        )
+        return {"doc_id": doc_id, "chunk_id": chunk_row["chunk_id"]}
 
     def list_memories(
         self,
