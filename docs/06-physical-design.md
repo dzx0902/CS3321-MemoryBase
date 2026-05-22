@@ -62,7 +62,8 @@ project-root/
 | 按类型筛选 | memory_item(workspace_id, memory_type, status) |
 | temporal recall | memory_item(workspace_id, status, valid_from, valid_to) |
 | 时间线 | timeline_entry(workspace_id, event_time DESC) |
-| 全文检索 | source_chunk USING GIN(search_vector) |
+| 全文检索 | source_chunk USING GIN(search_vector)、memory_item USING GIN(search_vector) |
+| 模糊检索 | source_chunk(chunk_text gin_trgm_ops)、memory_item(canonical_text gin_trgm_ops)、source_document(title gin_trgm_ops) |
 | 实体召回 | entity(workspace_id, entity_type)、entity(workspace_id, status, canonical_name)、memory_entity(entity_id)、memory_entity(workspace_id) |
 | 场景聚合 | memory_scene(workspace_id, created_at DESC)、memory_scene_cell(scene_id, sort_order)、memory_scene_cell(memory_id) |
 | 审计回放 | audit_log(workspace_id, created_at DESC)、audit_log(workspace_id, actor_type, actor_id, created_at DESC)、audit_log(workspace_id, target_type, target_id, created_at DESC) |

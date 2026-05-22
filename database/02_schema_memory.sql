@@ -47,8 +47,9 @@ CREATE TABLE IF NOT EXISTS source_chunk (
   start_line INT,
   end_line INT,
   token_count INT,
+  search_text_zh TEXT,
   search_vector TSVECTOR GENERATED ALWAYS AS (
-    to_tsvector('simple', coalesce(chunk_text, ''))
+    to_tsvector('simple', coalesce(search_text_zh, ''))
   ) STORED,
   UNIQUE(doc_id, chunk_no)
 );
@@ -61,6 +62,10 @@ CREATE TABLE IF NOT EXISTS memory_item (
     CHECK (memory_type IN ('episodic', 'semantic', 'profile', 'procedural', 'decision', 'preference', 'task', 'risk')),
   canonical_text TEXT NOT NULL,
   summary TEXT,
+  search_text_zh TEXT,
+  search_vector TSVECTOR GENERATED ALWAYS AS (
+    to_tsvector('simple', coalesce(search_text_zh, ''))
+  ) STORED,
   confidence NUMERIC(4,3) NOT NULL DEFAULT 0.700 CHECK (confidence >= 0 AND confidence <= 1),
   importance INT NOT NULL DEFAULT 3 CHECK (importance BETWEEN 1 AND 5),
   status VARCHAR(20) NOT NULL DEFAULT 'active'

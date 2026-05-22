@@ -58,11 +58,18 @@ source tree layout.
 - Extend `agent_session.channel` with `cli`.
 - Extend `source_document.doc_type` with `inline_agent_note`.
 
-### PR4: Hybrid Recall Design
+### PR4: Lexical-First Agent Search
 
-Hybrid recall and pgvector are v2 work. They require a recall eval baseline and a
-real embedding provider. pgvector stores vectors, but an embedding model is still
-required to generate them.
+PR4 starts with zero-configuration lexical search instead of pgvector. It adds
+`jieba`-backed Chinese tokenization, PostgreSQL `pg_trgm` fuzzy indexes, and a
+search-field backfill path so `mb recall` can benefit from segmented query text
+without requiring an embedding provider. User-facing `mb search` and RRF search
+are planned as the follow-up surface after the internal schema/tokenizer path is
+validated.
+
+Hybrid recall and pgvector remain later work. They require a fair adversarial
+eval baseline and a real embedding provider. pgvector stores vectors, but an
+embedding model is still required to generate them.
 
 ## CLI Contract
 

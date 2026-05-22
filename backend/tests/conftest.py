@@ -7,6 +7,7 @@ import psycopg
 import pytest
 from app.main import create_app
 from fastapi.testclient import TestClient
+from scripts.backfill_search_terms import backfill_search_terms
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SQL_FILES = [
@@ -40,6 +41,12 @@ def integration_db(postgres_dsn: str) -> str:
                 for sql_file in SQL_FILES:
                     cur.execute(sql_file.read_text(encoding="utf-8"))
             conn.commit()
+        backfill_search_terms(
+            postgres_dsn,
+            full=True,
+            missing_only=False,
+            workspace_slug=None,
+        )
     except psycopg.OperationalError as exc:
         pytest.skip(f"PostgreSQL is not available: {exc}")
     return postgres_dsn

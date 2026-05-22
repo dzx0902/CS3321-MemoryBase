@@ -7,6 +7,9 @@ CREATE INDEX IF NOT EXISTS idx_source_document_workspace_status
 CREATE INDEX IF NOT EXISTS idx_source_chunk_fts
   ON source_chunk USING GIN(search_vector);
 
+CREATE INDEX IF NOT EXISTS idx_source_chunk_text_trgm
+  ON source_chunk USING GIN(chunk_text gin_trgm_ops);
+
 CREATE INDEX IF NOT EXISTS idx_agent_session_workspace
   ON agent_session(workspace_id, started_at DESC);
 
@@ -25,8 +28,17 @@ CREATE INDEX IF NOT EXISTS idx_memory_workspace_status_validity
 CREATE INDEX IF NOT EXISTS idx_memory_created_at
   ON memory_item(workspace_id, created_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_memory_fts
+  ON memory_item USING GIN(search_vector);
+
+CREATE INDEX IF NOT EXISTS idx_memory_canonical_text_trgm
+  ON memory_item USING GIN(canonical_text gin_trgm_ops);
+
 CREATE INDEX IF NOT EXISTS idx_memory_evidence_chunk
   ON memory_evidence(chunk_id);
+
+CREATE INDEX IF NOT EXISTS idx_source_document_title_trgm
+  ON source_document USING GIN(title gin_trgm_ops);
 
 CREATE INDEX IF NOT EXISTS idx_entity_workspace_type
   ON entity(workspace_id, entity_type);

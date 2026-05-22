@@ -23,7 +23,7 @@ Message(message_id PK, session_id FK, sender_type, sender_id, role, content, cre
 
 SourceDocument(doc_id PK, workspace_id FK, session_id FK, doc_type, title, source_path, raw_text, checksum, status, forgotten_at, imported_by_user_id FK, imported_at)
 
-SourceChunk(chunk_id PK, doc_id FK, chunk_no, chunk_text, start_line, end_line, token_count, search_vector, UNIQUE(doc_id, chunk_no))
+SourceChunk(chunk_id PK, doc_id FK, chunk_no, chunk_text, start_line, end_line, token_count, search_text_zh, search_vector, UNIQUE(doc_id, chunk_no))
 ```
 
 `AgentSession.channel` includes `cli` for Agent Runtime sessions. `SourceDocument.doc_type`
@@ -33,7 +33,7 @@ agent commits a memory without explicit source chunks.
 ### 记忆、版本、证据
 
 ```text
-MemoryItem(memory_id PK, workspace_id FK, created_from_doc_id FK, memory_type, canonical_text, summary, confidence, importance, status, access_level, owner_user_id FK, owner_agent_id FK, valid_from, valid_to, superseded_by_memory_id FK, current_revision_no, created_at, updated_at)
+MemoryItem(memory_id PK, workspace_id FK, created_from_doc_id FK, memory_type, canonical_text, summary, search_text_zh, search_vector, confidence, importance, status, access_level, owner_user_id FK, owner_agent_id FK, valid_from, valid_to, superseded_by_memory_id FK, current_revision_no, created_at, updated_at)
 
 MemoryRevision(memory_id FK, revision_no, revision_text, revision_summary, revision_reason, editor_type, editor_id, created_at, PK(memory_id, revision_no))
 
@@ -104,6 +104,7 @@ AuditLog(audit_id PK, workspace_id FK, actor_type, actor_id, action_type, target
 | current_revision_no | memory_item | 快速定位当前版本 |
 | current_revision_no | wiki_page | 快速读取当前 Wiki |
 | token_count | source_chunk | 避免重复计算 |
+| search_text_zh / search_vector | source_chunk / memory_item | 预计算 jieba 搜索文本和 PostgreSQL FTS 向量，避免查询时重复分词和建向量 |
 | top_memory_ids_json | recall_log | 保留召回快照 |
 | workspace_id | memory_entity / memory_scene_cell | 支撑 workspace 过滤，并通过复合 FK 保证 M:N 两端属于同一 workspace |
 | status / forgotten_at | source_document / wiki_page / entity | 支撑 ForgetRequest 软治理和审计回放 |
