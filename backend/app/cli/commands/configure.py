@@ -10,7 +10,15 @@ from ..client import (
     build_client,
 )
 from ..config import default_write_config_path, load_config, write_config
-from ..output import EXIT_CLIENT_ERROR, EXIT_OK, EXIT_SERVER_ERROR, error, info
+from ..output import (
+    EXIT_CLIENT_ERROR,
+    EXIT_OK,
+    EXIT_SERVER_ERROR,
+    error,
+    info,
+    validate_format,
+    write_result,
+)
 
 
 def configure(
@@ -25,7 +33,13 @@ def configure(
         help="Register or reuse an agent name in the configured workspace.",
     ),
     agent_type: str = typer.Option("editor", "--type", help="Agent type when registering."),
+    output_format: str = typer.Option(
+        "table",
+        "--format",
+        help="Output format: json, markdown, or table.",
+    ),
 ) -> None:
+    validate_format(output_format)
     current = load_config(config_path)
     updated = current.with_overrides(
         api_base_url=api_base_url,
@@ -33,6 +47,7 @@ def configure(
         agent=agent,
         actor_type=actor_type,
     )
+    registered: dict[str, object] | None = None
 
     if register_agent:
         if not updated.workspace:
@@ -51,10 +66,22 @@ def configure(
         except MemoryBaseServerError as exc:
             error(str(exc))
             raise typer.Exit(EXIT_SERVER_ERROR) from exc
-        updated = updated.with_overrides(agent=str(registered["agent_id"]))
+        updated = updated.with_overrides(agent=register_agent)
         info(f"Registered agent {register_agent}: {registered['agent_id']}")
 
     target = default_write_config_path(config_path)
     write_config(updated, target)
     info(f"Wrote MemoryBase config: {target}")
+    if output_format != "table":
+        write_result(
+            {
+                "config_path": str(target),
+                "api_base_url": updated.api_base_url,
+                "workspace": updated.workspace,
+                "agent": updated.agent,
+                "actor_type": updated.actor_type,
+                "registered_agent": registered,
+            },
+            output_format=output_format,
+        )
     raise typer.Exit(EXIT_OK)
