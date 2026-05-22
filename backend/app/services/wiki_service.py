@@ -42,6 +42,11 @@ class PostgresWikiRepository:
                 existing = cur.fetchone()
 
                 if existing is None:
+                    generated_from_memory_id = (
+                        payload.memory_ids[0]
+                        if payload.memory_ids and len(payload.memory_ids) == 1
+                        else None
+                    )
                     cur.execute(
                         """
                         INSERT INTO wiki_page (
@@ -49,6 +54,7 @@ class PostgresWikiRepository:
                             page_slug,
                             page_type,
                             title,
+                            generated_from_memory_id,
                             current_revision_no,
                             needs_rebuild
                         )
@@ -57,12 +63,16 @@ class PostgresWikiRepository:
                             %(page_slug)s,
                             %(page_type)s,
                             %(title)s,
+                            %(generated_from_memory_id)s,
                             1,
                             FALSE
                         )
                         RETURNING page_id, current_revision_no, created_at
                         """,
-                        payload.model_dump(),
+                        {
+                            **payload.model_dump(),
+                            "generated_from_memory_id": generated_from_memory_id,
+                        },
                     )
                     page_row = cur.fetchone()
                 else:
@@ -119,6 +129,8 @@ class PostgresWikiRepository:
         output_path = self._write_markdown_file(
             payload.page_slug,
             page_data["markdown_file_contents"],
+            payload.workspace_id,
+            payload.write_files,
         )
 
         return WikiExportResponse(
@@ -137,10 +149,19 @@ class PostgresWikiRepository:
         )
 
     def _build_markdown(self, payload: WikiExportRequest) -> dict[str, object]:
+        filters = ["mi.workspace_id = %(workspace_id)s", "mi.status = 'active'"]
+        params: dict[str, object] = {
+            "workspace_id": payload.workspace_id,
+            "limit": payload.max_memories,
+        }
+        if payload.memory_ids is not None:
+            filters.append("mi.memory_id = ANY(%(memory_ids)s::uuid[])")
+            params["memory_ids"] = [str(memory_id) for memory_id in payload.memory_ids]
+        where_clause = " AND ".join(filters)
         with self._database.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         mi.memory_id,
                         mi.memory_type,
@@ -154,7 +175,7 @@ class PostgresWikiRepository:
                     LEFT JOIN memory_evidence me ON me.memory_id = mi.memory_id
                     LEFT JOIN source_chunk sc ON sc.chunk_id = me.chunk_id
                     LEFT JOIN source_document sd ON sd.doc_id = sc.doc_id
-                    WHERE mi.workspace_id = %(workspace_id)s AND mi.status = 'active'
+                    WHERE {where_clause}
                     GROUP BY
                         mi.memory_id,
                         mi.memory_type,
@@ -166,11 +187,12 @@ class PostgresWikiRepository:
                     ORDER BY importance DESC, confidence DESC, updated_at DESC
                     LIMIT %(limit)s
                     """,
-                    {"workspace_id": payload.workspace_id, "limit": payload.max_memories},
+                    params,
                 )
                 memory_rows = cur.fetchall()
 
         generated_at = datetime.now(timezone.utc).isoformat()
+        memory_ids = [row["memory_id"] for row in memory_rows]
         source_doc_ids = sorted(
             {doc_id for row in memory_rows for doc_id in (row["source_doc_ids"] or [])}
         )
@@ -180,7 +202,8 @@ class PostgresWikiRepository:
             "title": payload.title,
             "page_type": payload.page_type,
             "generated_at": generated_at,
-            "source_ids": [str(doc_id) for doc_id in source_doc_ids],
+            "memory_ids": [str(memory_id) for memory_id in memory_ids],
+            "source_doc_ids": [str(doc_id) for doc_id in source_doc_ids],
         }
 
         lines = [f"# {payload.title}", "", f"- Page Type: {payload.page_type}", ""]
@@ -212,10 +235,14 @@ class PostgresWikiRepository:
             f"title: {payload.title}",
             f"page_type: {payload.page_type}",
             f"generated_at: {generated_at}",
-            "source_ids:",
+            "memory_ids:",
         ]
         frontmatter_lines.extend(
-            [f"  - {doc_id}" for doc_id in frontmatter_json["source_ids"]] or ["  -"]
+            [f"  - {memory_id}" for memory_id in frontmatter_json["memory_ids"]] or ["  -"]
+        )
+        frontmatter_lines.append("source_doc_ids:")
+        frontmatter_lines.extend(
+            [f"  - {doc_id}" for doc_id in frontmatter_json["source_doc_ids"]] or ["  -"]
         )
         frontmatter_lines.append("---")
         markdown_file_contents = "\n".join(frontmatter_lines) + "\n\n" + body_markdown
@@ -226,10 +253,14 @@ class PostgresWikiRepository:
             "markdown_file_contents": markdown_file_contents,
         }
 
-    def _write_markdown_file(self, page_slug: str, contents: str) -> Path:
-        self._output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = self._output_dir / f"{page_slug}.md"
-        output_path.write_text(contents, encoding="utf-8")
+    def _write_markdown_file(
+        self, page_slug: str, contents: str, workspace_id: object, write_files: bool
+    ) -> Path:
+        workspace_dir = self._output_dir / str(workspace_id)
+        output_path = workspace_dir / f"{page_slug}.md"
+        if write_files:
+            workspace_dir.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(contents, encoding="utf-8")
         return output_path
 
 

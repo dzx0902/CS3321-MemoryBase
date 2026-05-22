@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from .common import PageResponse
+
 DocType = Literal["markdown", "txt", "meeting", "chat", "note", "report"]
 
 
@@ -52,6 +54,10 @@ class SourceSummaryResponse(BaseModel):
     source_path: str | None = None
     imported_at: datetime
     chunk_count: int
+
+
+class SourceListResponse(PageResponse[SourceSummaryResponse]):
+    pass
 
 
 class SourceDetailResponse(SourceSummaryResponse):

@@ -33,8 +33,8 @@ MemoryBase 通过数据库管理长期记忆，使项目知识可以被结构化
 | Timeline | 展示项目决策演进 | P1 |
 | AccessPolicy | Agent 权限过滤 | P1 |
 | ConflictRecord | 冲突记忆治理 | P1 |
-| Entity / Relation | 实体和关系管理 | P2 |
-| ForgetRequest | 遗忘与归档申请 | P2 |
+| Entity / MemoryScene | 实体、场景和记忆聚合（轻量模型已实现） | P2 |
+| ForgetRequest | 遗忘与归档申请（轻量审批流程已实现） | P2 |
 | SkillMemory | 过程性经验归纳 | Future |
 
 ## 4. 非功能需求
@@ -49,6 +49,7 @@ MemoryBase 通过数据库管理长期记忆，使项目知识可以被结构化
 | 可演示性 | 5–8 分钟讲清楚 | 封闭 demo 数据 |
 | 性能需求 | 课程规模下秒级查询 | 索引、FTS、limit |
 | 安全性 | 删除不物理丢失 | soft delete、status |
+| 语义组织 | 选题、概念和项目对象可被聚合展示 | Entity、MemoryScene、M:N 关系表 |
 
 ## 5. 项目边界
 

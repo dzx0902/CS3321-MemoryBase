@@ -34,6 +34,14 @@ MemoryItem(memory_id PK, workspace_id FK, created_from_doc_id FK, memory_type, c
 MemoryRevision(memory_id FK, revision_no, revision_text, revision_summary, revision_reason, editor_type, editor_id, created_at, PK(memory_id, revision_no))
 
 MemoryEvidence(evidence_id PK, memory_id FK, chunk_id FK, evidence_role, weight, note, created_at, UNIQUE(memory_id, chunk_id, evidence_role))
+
+Entity(entity_id PK, workspace_id FK, canonical_name, entity_type, description, created_at, updated_at, UNIQUE(workspace_id, canonical_name), UNIQUE(entity_id, workspace_id))
+
+MemoryEntity(memory_id FK, entity_id FK, workspace_id FK, relation_role, created_at, PK(memory_id, entity_id, relation_role), FK(memory_id, workspace_id), FK(entity_id, workspace_id))
+
+MemoryScene(scene_id PK, workspace_id FK, scene_slug, title, summary, created_at, updated_at, UNIQUE(workspace_id, scene_slug), UNIQUE(scene_id, workspace_id))
+
+MemorySceneCell(scene_id FK, memory_id FK, workspace_id FK, cell_role, sort_order, note, created_at, PK(scene_id, memory_id), FK(scene_id, workspace_id), FK(memory_id, workspace_id))
 ```
 
 ### 表达层与治理层
@@ -49,7 +57,7 @@ RecallLog(recall_id PK, workspace_id FK, agent_id FK, user_id FK, query_text, fi
 
 AccessPolicy(policy_id PK, workspace_id FK, principal_type, principal_id, resource_type, resource_scope, effect, predicate_json, created_at)
 
-ConflictRecord(conflict_id PK, workspace_id FK, left_memory_id FK, right_memory_id FK, conflict_type, status, resolution_note, created_at, resolved_at, UNIQUE(left_memory_id, right_memory_id, conflict_type))
+ConflictRecord(conflict_id PK, workspace_id FK, left_memory_id FK, right_memory_id FK, conflict_type, status, resolution_note, created_at, resolved_at, CHECK(left_memory_id < right_memory_id), UNIQUE(left_memory_id, right_memory_id))
 
 ForgetRequest(request_id PK, workspace_id FK, target_type, target_id, requester_user_id FK, reviewed_by_user_id FK, reason, status, requested_at, resolved_at)
 
@@ -66,7 +74,6 @@ AuditLog(audit_id PK, workspace_id FK, actor_type, actor_id, action_type, target
 | MemoryItem M:N SourceChunk | memory_evidence |
 | MemoryScene M:N MemoryItem | memory_scene_cell |
 | MemoryItem M:N Entity | memory_entity |
-| Entity M:N Entity | entity_relation |
 | Workspace M:N User/Agent | workspace_member |
 
 ## 3. 3NF 分析
@@ -80,6 +87,7 @@ AuditLog(audit_id PK, workspace_id FK, actor_type, actor_id, action_type, target
 - 版本内容拆到 MemoryRevision。
 - 权限策略独立为 AccessPolicy。
 - 审计记录独立为 AuditLog。
+- Entity、MemoryScene 与 MemoryItem 的 M:N 关系通过 MemoryEntity 和 MemorySceneCell 拆分，关系属性 relation_role、cell_role、sort_order 只依赖各自复合主键。
 
 例如 MemoryItem 不直接保存来源文本，而通过 MemoryEvidence 关联 SourceChunk，避免将证据来源冗余存储在主表中。
 
@@ -92,4 +100,4 @@ AuditLog(audit_id PK, workspace_id FK, actor_type, actor_id, action_type, target
 | current_revision_no | wiki_page | 快速读取当前 Wiki |
 | token_count | source_chunk | 避免重复计算 |
 | top_memory_ids_json | recall_log | 保留召回快照 |
-| alias_json | entity | 别名数量不固定 |
+| workspace_id | memory_entity / memory_scene_cell | 支撑 workspace 过滤，并通过复合 FK 保证 M:N 两端属于同一 workspace |

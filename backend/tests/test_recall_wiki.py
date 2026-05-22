@@ -7,6 +7,7 @@ from app.api.deps import get_recall_service, get_wiki_service
 from app.main import create_app
 from app.models.recall import RecallRequest, RecallResponse
 from app.models.wiki import WikiExportRequest, WikiExportResponse
+from app.services.recall_service import DEMO_QUERY_EXPANSIONS, QUERY_EXPANSION_FILE, _keyword_terms
 from fastapi.testclient import TestClient
 
 
@@ -84,7 +85,8 @@ class FakeWikiService:
                 "workspace_id": str(payload.workspace_id),
                 "page_slug": payload.page_slug,
                 "generated_at": "2026-05-16T00:00:00Z",
-                "source_ids": [str(uuid4())],
+                "memory_ids": [str(payload.memory_ids[0])] if payload.memory_ids else [],
+                "source_doc_ids": [str(uuid4())],
             },
             source_doc_ids=[uuid4()],
             created_at=datetime(2026, 5, 16, tzinfo=timezone.utc),
@@ -127,6 +129,8 @@ def test_wiki_export_returns_markdown_page() -> None:
             "page_slug": "demo-report",
             "title": "Demo Report",
             "page_type": "report",
+            "memory_ids": [str(uuid4())],
+            "write_files": True,
         },
     )
 
@@ -134,3 +138,12 @@ def test_wiki_export_returns_markdown_page() -> None:
     assert response.json()["page_slug"] == "demo-report"
     assert response.json()["body_markdown"].startswith("# Demo Report")
     assert response.json()["output_path"].endswith("demo-report.md")
+    assert "memory_ids" in response.json()["frontmatter_json"]
+
+
+def test_demo_recall_expansions_cover_chinese_query_terms() -> None:
+    terms = _keyword_terms("为什么放弃校园食堂系统？")
+
+    assert QUERY_EXPANSION_FILE.exists()
+    assert set(DEMO_QUERY_EXPANSIONS) == {"食堂", "校园", "放弃", "系统", "数据库"}
+    assert {"cafeteria", "campus", "abandon", "abandoned", "system"}.issubset(terms)

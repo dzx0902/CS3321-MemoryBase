@@ -2,16 +2,19 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from ..models.memory import (
+    ActorContext,
+    EditorType,
     MemoryCreateRequest,
     MemoryDeleteResponse,
     MemoryDetailResponse,
+    MemoryListResponse,
     MemorySummaryResponse,
     MemoryUpdateRequest,
 )
-from ..services.memory_service import MemoryNotFoundError, MemoryService
+from ..services.memory_service import MemoryNotFoundError, MemoryService, MemoryValidationError
 from .deps import get_memory_service
 
 router = APIRouter(prefix="/memories", tags=["memories"])
@@ -22,10 +25,13 @@ def create_memory(
     payload: MemoryCreateRequest,
     service: MemoryService = Depends(get_memory_service),
 ) -> MemorySummaryResponse:
-    return service.create_memory(payload)
+    try:
+        return service.create_memory(payload)
+    except MemoryValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.get("", response_model=list[MemorySummaryResponse])
+@router.get("", response_model=MemoryListResponse)
 def list_memories(
     workspace_id: UUID | None = Query(default=None),
     memory_type: str | None = Query(default=None),
@@ -35,7 +41,7 @@ def list_memories(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     service: MemoryService = Depends(get_memory_service),
-) -> list[MemorySummaryResponse]:
+) -> MemoryListResponse:
     return service.list_memories(
         workspace_id=workspace_id,
         memory_type=memory_type,
@@ -50,10 +56,11 @@ def list_memories(
 @router.get("/{memory_id}", response_model=MemoryDetailResponse)
 def get_memory(
     memory_id: UUID,
+    workspace_id: UUID = Query(...),
     service: MemoryService = Depends(get_memory_service),
 ) -> MemoryDetailResponse:
     try:
-        return service.get_memory(memory_id)
+        return service.get_memory(memory_id, workspace_id)
     except MemoryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -62,20 +69,40 @@ def get_memory(
 def update_memory(
     memory_id: UUID,
     payload: MemoryUpdateRequest,
+    workspace_id: UUID = Query(...),
+    x_actor_type: EditorType = Header(default="user", alias="X-Actor-Type"),
+    x_actor_id: UUID | None = Header(default=None, alias="X-Actor-Id"),
+    x_revision_reason: str = Header(default="manual update", alias="X-Revision-Reason"),
     service: MemoryService = Depends(get_memory_service),
 ) -> MemoryDetailResponse:
     try:
-        return service.update_memory(memory_id, payload)
+        actor = ActorContext(
+            actor_type=x_actor_type,
+            actor_id=x_actor_id,
+            revision_reason=x_revision_reason,
+        )
+        return service.update_memory(memory_id, workspace_id, payload, actor)
     except MemoryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except MemoryValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.delete("/{memory_id}", response_model=MemoryDeleteResponse)
 def delete_memory(
     memory_id: UUID,
+    workspace_id: UUID = Query(...),
+    x_actor_type: EditorType = Header(default="system", alias="X-Actor-Type"),
+    x_actor_id: UUID | None = Header(default=None, alias="X-Actor-Id"),
+    x_revision_reason: str = Header(default="memory soft delete", alias="X-Revision-Reason"),
     service: MemoryService = Depends(get_memory_service),
 ) -> MemoryDeleteResponse:
     try:
-        return service.delete_memory(memory_id)
+        actor = ActorContext(
+            actor_type=x_actor_type,
+            actor_id=x_actor_id,
+            revision_reason=x_revision_reason,
+        )
+        return service.delete_memory(memory_id, workspace_id, actor)
     except MemoryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

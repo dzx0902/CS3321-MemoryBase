@@ -396,38 +396,38 @@ Response:
 
 ```json
 {
-  "memory": {
-    "memory_id": "uuid",
-    "workspace_id": "uuid",
-    "memory_type": "decision",
-    "canonical_text": "...",
-    "summary": "...",
-    "confidence": 0.95,
-    "importance": 5,
-    "status": "active",
-    "access_level": "project",
-    "current_revision_no": 2,
-    "created_at": "...",
-    "updated_at": "..."
-  },
+  "memory_id": "uuid",
+  "workspace_id": "uuid",
+  "created_from_doc_id": "uuid",
+  "memory_type": "decision",
+  "canonical_text": "...",
+  "summary": "...",
+  "confidence": 0.95,
+  "importance": 5,
+  "status": "active",
+  "access_level": "project",
+  "owner_user_id": "uuid",
+  "owner_agent_id": null,
+  "valid_from": "...",
+  "valid_to": null,
+  "superseded_by_memory_id": null,
+  "current_revision_no": 2,
+  "created_at": "...",
+  "updated_at": "...",
+  "evidence_count": 1,
   "evidence": [
     {
       "evidence_id": "uuid",
+      "chunk_id": "uuid",
       "evidence_role": "supports",
       "weight": 1.0,
       "note": "...",
-      "chunk": {
-        "chunk_id": "uuid",
-        "chunk_no": 2,
-        "chunk_text": "...",
-        "start_line": 10,
-        "end_line": 10
-      },
-      "source": {
-        "doc_id": "uuid",
-        "title": "Discussion 01: Project Pivot",
-        "source_path": "..."
-      }
+      "doc_id": "uuid",
+      "source_title": "Discussion 01: Project Pivot",
+      "chunk_no": 2,
+      "chunk_text": "...",
+      "start_line": 10,
+      "end_line": 10
     }
   ],
   "revisions": [
@@ -439,6 +439,23 @@ Response:
       "editor_type": "system",
       "editor_id": null,
       "created_at": "..."
+    }
+  ],
+  "entities": [
+    {
+      "entity_id": "uuid",
+      "canonical_name": "MemoryBase Project",
+      "entity_type": "project",
+      "relation_role": "about"
+    }
+  ],
+  "scenes": [
+    {
+      "scene_id": "uuid",
+      "scene_slug": "topic-decision",
+      "title": "Topic Decision",
+      "cell_role": "decision",
+      "sort_order": 20
     }
   ]
 }
@@ -807,7 +824,8 @@ Rules:
 
 ### POST /api/forget-requests
 
-P1 deferred endpoint. The schema exists, but P0 does not require a full ForgetRequest workflow.
+P1 governance endpoint. The schema exists in the database foundation, and the backend implements
+the lightweight memory forgetting workflow.
 
 Request:
 
@@ -830,7 +848,7 @@ Rules:
 
 ### GET /api/forget-requests
 
-P1 deferred endpoint.
+P1 governance endpoint.
 
 Query:
 
@@ -844,7 +862,7 @@ page_size=20
 
 ### PATCH /api/forget-requests/{request_id}
 
-P1 deferred endpoint for approval / rejection / completion.
+P1 governance endpoint for approval / rejection / completion.
 
 Query:
 
@@ -865,7 +883,11 @@ Rules:
 
 - `status`: `pending`, `approved`, `rejected`, `done`.
 - When status becomes `approved`, `rejected`, or `done`, set `resolved_at = now()` and store `reviewed_by_user_id`.
-- Actual memory archival / forgetting can be implemented by API service logic in the same transaction; no forget trigger is required for P0.
+- When a `memory_item` request is approved or marked done, set the target memory to `forgotten`
+  with `valid_to = now()` in the same transaction.
+- Write `forget_request.create` / `forget_request.update` audit entries from the API layer.
+- The memory status change also writes the normal `memory.forget` audit entry through the
+  existing memory trigger.
 
 ### GET /api/timeline
 

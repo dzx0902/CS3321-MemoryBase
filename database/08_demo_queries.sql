@@ -29,7 +29,7 @@ ORDER BY importance DESC, updated_at DESC
 LIMIT 20;
 
 -- 6. Query conflict memory pairs
-SELECT conflict_id, conflict_type, conflict_status, left_memory_text, right_memory_text
+SELECT conflict_id, conflict_type, status AS conflict_status, left_memory_text, right_memory_text
 FROM v_conflict_memory
 ORDER BY created_at DESC
 LIMIT 20;
@@ -44,3 +44,17 @@ LIMIT 20;
 SELECT doc_id, chunk_no, chunk_text
 FROM source_chunk
 WHERE search_vector @@ plainto_tsquery('simple', 'MemoryBase');
+
+-- 9. Query memories grouped by the topic decision scene
+SELECT
+  ms.title AS scene_title,
+  msc.cell_role,
+  msc.sort_order,
+  mi.memory_type,
+  mi.canonical_text,
+  msc.note
+FROM memory_scene ms
+JOIN memory_scene_cell msc ON msc.scene_id = ms.scene_id
+JOIN memory_item mi ON mi.memory_id = msc.memory_id
+WHERE ms.scene_slug = 'topic-decision'
+ORDER BY msc.sort_order ASC;

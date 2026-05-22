@@ -15,6 +15,8 @@ class WikiExportRequest(BaseModel):
     title: str = Field(min_length=1, max_length=240)
     page_type: WikiPageType = "report"
     max_memories: int = Field(default=20, ge=1, le=100)
+    memory_ids: list[UUID] | None = None
+    write_files: bool = True
 
 
 class WikiExportResponse(BaseModel):

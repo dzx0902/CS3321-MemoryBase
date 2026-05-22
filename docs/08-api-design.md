@@ -57,7 +57,14 @@
   "confidence": 0.9,
   "importance": 5,
   "access_level": "project",
-  "evidence_chunk_ids": ["uuid"]
+  "evidence": [
+    {
+      "chunk_id": "uuid",
+      "evidence_role": "supports",
+      "weight": 1.0,
+      "note": "Meeting decision source."
+    }
+  ]
 }
 ```
 
@@ -79,7 +86,7 @@ page_size
 
 ### GET /api/memories/{id}
 
-查询 memory 详情、evidence、revision。
+查询 memory 详情、evidence、revision，以及可选的 entity / scene 关联。
 
 ### PATCH /api/memories/{id}
 
@@ -198,7 +205,39 @@ page_size
 }
 ```
 
-## 9. Timeline API
+## 9. ForgetRequest API
+
+### POST /api/forget-requests
+
+提交遗忘请求，不物理删除数据。
+
+```json
+{
+  "workspace_id": "uuid",
+  "target_type": "memory_item",
+  "target_id": "uuid",
+  "requester_user_id": "uuid",
+  "reason": "Private memory should be forgotten for the demo."
+}
+```
+
+### GET /api/forget-requests
+
+查询遗忘请求，支持 `workspace_id`、`status`、`target_type`、`page`、`page_size`。
+
+### PATCH /api/forget-requests/{id}
+
+审批遗忘请求。对 `memory_item` 请求，`approved` 或 `done` 会将目标 memory 标记为
+`forgotten` 并写入审计日志。
+
+```json
+{
+  "status": "approved",
+  "reviewed_by_user_id": "uuid"
+}
+```
+
+## 10. Timeline API
 
 ### GET /api/timeline
 
