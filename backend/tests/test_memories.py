@@ -25,6 +25,8 @@ class FakeMemoryService:
         self.workspace_id = uuid4()
         self.memory_id = uuid4()
         self.chunk_id = uuid4()
+        self.entity_id = uuid4()
+        self.scene_id = uuid4()
         self.memory = MemoryDetailResponse(
             memory_id=self.memory_id,
             workspace_id=self.workspace_id,
@@ -69,6 +71,23 @@ class FakeMemoryService:
                     "editor_type": "system",
                     "editor_id": None,
                     "created_at": now,
+                }
+            ],
+            entities=[
+                {
+                    "entity_id": self.entity_id,
+                    "canonical_name": "MemoryBase Project",
+                    "entity_type": "project",
+                    "relation_role": "about",
+                }
+            ],
+            scenes=[
+                {
+                    "scene_id": self.scene_id,
+                    "scene_slug": "topic-decision",
+                    "title": "Topic Decision",
+                    "cell_role": "decision",
+                    "sort_order": 20,
                 }
             ],
         )
@@ -197,6 +216,23 @@ def test_get_memory_returns_detail() -> None:
     assert response.status_code == 200
     assert response.json()["current_revision_no"] == 1
     assert len(response.json()["revisions"]) == 1
+    assert response.json()["entities"] == [
+        {
+            "entity_id": str(fake_service.entity_id),
+            "canonical_name": "MemoryBase Project",
+            "entity_type": "project",
+            "relation_role": "about",
+        }
+    ]
+    assert response.json()["scenes"] == [
+        {
+            "scene_id": str(fake_service.scene_id),
+            "scene_slug": "topic-decision",
+            "title": "Topic Decision",
+            "cell_role": "decision",
+            "sort_order": 20,
+        }
+    ]
 
 
 def test_update_memory_returns_new_revision_state() -> None:

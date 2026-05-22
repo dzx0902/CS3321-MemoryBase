@@ -61,7 +61,8 @@ project-root/
 | 按类型筛选 | memory_item(workspace_id, memory_type, status) |
 | 时间线 | timeline_entry(workspace_id, event_time DESC) |
 | 全文检索 | source_chunk USING GIN(search_vector) |
-| 实体召回 | memory_entity(entity_id, memory_id) |
+| 实体召回 | entity(workspace_id, entity_type)、memory_entity(entity_id)、memory_entity(workspace_id) |
+| 场景聚合 | memory_scene(workspace_id, created_at DESC)、memory_scene_cell(scene_id, sort_order)、memory_scene_cell(memory_id) |
 | 审计回放 | audit_log(workspace_id, created_at DESC) |
 | 权限过滤 | access_policy(workspace_id, principal_type, principal_id) |
 | role/global 权限去重 | access_policy 表级 UNIQUE 防止非 NULL principal 重复；partial UNIQUE index 防止 NULL principal 重复 |
@@ -77,10 +78,31 @@ project-root/
 | v_agent_visible_memory | 基于 `app.agent_id` 和 AccessPolicy 过滤 Agent 可见 memory，未设置 agent 时默认不返回数据 |
 | v_project_timeline | 串联 timeline、memory 和 source，支持项目决策演进展示 |
 | v_conflict_memory | 展开 conflict_record 两端 memory，支持冲突页面和 SQL 演示 |
-| v_wiki_page_sources | 追溯 WikiPage 由 memory 到 evidence/source chunk 的来源链路 |
+| v_wiki_page_sources | 追溯 WikiPage 由 memory 或 scene 到 evidence/source chunk 的来源链路 |
 | v_memory_statistics | 按 workspace、类型、状态、访问级别统计 memory |
 
-## 7. 备份与恢复
+## 7. 触发器策略
+
+| 触发器 | 用途 |
+|---|---|
+| trg_user_touch / trg_workspace_touch | 自动维护核心对象 updated_at |
+| trg_memory_touch | 自动维护 memory_item.updated_at |
+| trg_entity_touch / trg_memory_scene_touch | 自动维护语义扩展对象 updated_at |
+| trg_memory_before_update / trg_memory_after_update | 自动生成 MemoryRevision、AuditLog 并标记相关 Wiki 重建 |
+| trg_memory_soft_delete | 将直接删除 memory 转换为 archived；workspace 级联删除时允许硬删除 |
+| trg_wiki_revision_after_insert | 插入 WikiPageRevision 后同步 WikiPage.current_revision_no |
+
+## 8. 外键与删除策略
+
+| 场景 | 策略 |
+|---|---|
+| workspace 删除 | 子表使用 ON DELETE CASCADE，清理该工作区数据 |
+| owner / reviewer 删除 | 使用 ON DELETE SET NULL，保留业务记录 |
+| memory 与 evidence / revision | evidence、revision 随 memory 删除级联 |
+| Entity / MemoryScene M:N | 复合 FK 保证 memory、entity、scene 属于同一 workspace |
+| WikiPage generated_from_scene_id | ON DELETE SET NULL，场景删除后保留 Wiki 历史 |
+
+## 9. 备份与恢复
 
 | 对象 | 备份方式 | 恢复方式 |
 |---|---|---|

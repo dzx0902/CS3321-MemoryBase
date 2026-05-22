@@ -6,7 +6,7 @@
 |---|---|
 | 源文档层 | SourceDocument、SourceChunk、Session、Message |
 | 记忆层 | MemoryItem、MemoryRevision、MemoryScene |
-| 证据层 | MemoryEvidence、EntityMention |
+| 证据层 | MemoryEvidence、Entity、MemoryEntity |
 | 表达层 | WikiPage、WikiPageRevision、TimelineEntry |
 | 治理层 | AccessPolicy、RecallLog、ConflictRecord、ForgetRequest、AuditLog |
 
@@ -22,12 +22,16 @@
 | MemoryItem | memory_type、canonical_text、summary、status、confidence | memory_id |
 | MemoryRevision | revision_no、revision_text、reason、editor | memory_id + revision_no |
 | MemoryEvidence | evidence_role、weight、note | evidence_id |
+| Entity | canonical_name、entity_type、description | entity_id |
+| MemoryScene | scene_slug、title、summary | scene_id |
+| MemorySceneCell | cell_role、sort_order、note | scene_id + memory_id |
 | WikiPage | page_slug、page_type、title、needs_rebuild | page_id |
 | WikiPageRevision | revision_no、frontmatter_json、body_markdown | page_id + revision_no |
 | TimelineEntry | event_type、title、event_time、importance | timeline_id |
 | RecallLog | query_text、result_count、context_pack_json | recall_id |
 | AccessPolicy | principal、resource、effect、scope | policy_id |
 | ConflictRecord | conflict_type、status、resolution_note | conflict_id |
+| ForgetRequest | target_type、target_id、reason、status、reviewer | request_id |
 | AuditLog | actor、action、target、before/after | audit_id |
 
 ## 3. 联系与基数
@@ -43,8 +47,8 @@
 | MemoryItem — MemoryRevision | 1:N | memory_revision.memory_id |
 | MemoryScene — MemoryItem | M:N | memory_scene_cell |
 | MemoryItem — Entity | M:N | memory_entity |
-| Entity — Entity | M:N | entity_relation |
 | WikiPage — WikiPageRevision | 1:N | wiki_page_revision |
+| WikiPage — MemoryScene | N:1 | wiki_page.generated_from_scene_id |
 | MemoryItem — ConflictRecord | 1:N | conflict_record.left/right |
 
 ## 4. Mermaid E-R 图
@@ -58,12 +62,18 @@ erDiagram
     SOURCE_CHUNK ||--o{ MEMORY_EVIDENCE : supports
     MEMORY_ITEM ||--o{ MEMORY_EVIDENCE : has
     MEMORY_ITEM ||--o{ MEMORY_REVISION : has_versions
-    MEMORY_ITEM }o--o{ MEMORY_SCENE : grouped_by
-    MEMORY_ITEM }o--o{ ENTITY : mentions
+    WORKSPACE ||--o{ ENTITY : defines
+    MEMORY_ITEM ||--o{ MEMORY_ENTITY : tags
+    ENTITY ||--o{ MEMORY_ENTITY : appears_in
+    WORKSPACE ||--o{ MEMORY_SCENE : defines
+    MEMORY_SCENE ||--o{ MEMORY_SCENE_CELL : contains
+    MEMORY_ITEM ||--o{ MEMORY_SCENE_CELL : grouped_by
     WIKI_PAGE ||--o{ WIKI_PAGE_REVISION : has_versions
+    MEMORY_SCENE ||--o{ WIKI_PAGE : projects_to
     WORKSPACE ||--o{ TIMELINE_ENTRY : has
     WORKSPACE ||--o{ RECALL_LOG : records
     WORKSPACE ||--o{ ACCESS_POLICY : controls
+    WORKSPACE ||--o{ FORGET_REQUEST : reviews
     MEMORY_ITEM ||--o{ CONFLICT_RECORD : conflicts
     WORKSPACE ||--o{ AUDIT_LOG : audits
 ```

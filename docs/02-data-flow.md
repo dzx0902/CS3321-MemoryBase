@@ -30,6 +30,8 @@ Markdown / txt 文件
   → D1 SourceDocument / SourceChunk
   → P2 Memory Extract
   → D2 MemoryItem / MemoryEvidence
+  → P2a Semantic Organization
+  → D2 Entity / MemoryScene
   → P3 Recall Search
   → Context Pack
   → P4 Wiki Export
@@ -77,4 +79,14 @@ Markdown / txt 文件
   → 写入 WikiPage
   → 写入 WikiPageRevision
   → 导出 data/markdown_wiki/
+```
+
+## 6. 语义组织 2 层 DFD
+
+```text
+MemoryItem / MemoryEvidence
+  → 识别项目对象、概念和决策主题
+  → 绑定 Entity
+  → 聚合 MemoryScene
+  → 支撑 Memory 详情、Wiki 来源追溯和演示查询
 ```

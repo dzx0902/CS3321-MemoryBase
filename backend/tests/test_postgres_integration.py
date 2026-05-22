@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import psycopg
+import pytest
 
 WORKSPACE_ID = "00000000-0000-0000-0000-000000000201"
 AGENT_ID = "00000000-0000-0000-0000-000000000301"
@@ -10,6 +11,7 @@ PRIVATE_MEMORY_ID = "00000000-0000-0000-0000-000000000713"
 MEMORY_ID = "00000000-0000-0000-0000-000000000711"
 CONFLICT_ID = "00000000-0000-0000-0000-000000001001"
 REVIEWER_USER_ID = "00000000-0000-0000-0000-000000000101"
+SEMANTIC_MEMORY_ID = "00000000-0000-0000-0000-000000000701"
 
 
 def test_memory_revision_and_audit_end_to_end(integration_client, integration_db: str) -> None:
@@ -198,6 +200,82 @@ def test_memory_create_accepts_evidence_objects(integration_client, integration_
     assert evidence["evidence_role"] == "context"
     assert evidence["weight"] == 0.7
     assert evidence["note"] == "Custom evidence metadata."
+
+
+def test_memory_detail_includes_entities_and_scenes(
+    integration_client, integration_db: str
+) -> None:
+    response = integration_client.get(
+        f"/api/memories/{SEMANTIC_MEMORY_ID}", params={"workspace_id": WORKSPACE_ID}
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert any(
+        entity["canonical_name"] == "Campus Cafeteria System"
+        for entity in payload["entities"]
+    )
+    assert any(scene["scene_slug"] == "topic-decision" for scene in payload["scenes"])
+
+
+def test_semantic_tables_and_conflicts_enforce_integrity(integration_db: str) -> None:
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO workspace(workspace_id, name, scope_type)
+                VALUES (
+                  '00000000-0000-0000-0000-000000009201',
+                  'Other Workspace',
+                  'project'
+                )
+                """
+            )
+            cur.execute(
+                """
+                INSERT INTO entity(entity_id, workspace_id, canonical_name, entity_type)
+                VALUES (
+                  '00000000-0000-0000-0000-000000009801',
+                  '00000000-0000-0000-0000-000000009201',
+                  'Other Workspace Entity',
+                  'concept'
+                )
+                """
+            )
+        conn.commit()
+
+    with pytest.raises(psycopg.errors.ForeignKeyViolation):
+        with psycopg.connect(integration_db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO memory_entity(memory_id, entity_id, workspace_id, relation_role)
+                    VALUES (
+                      '00000000-0000-0000-0000-000000000701',
+                      '00000000-0000-0000-0000-000000009801',
+                      '00000000-0000-0000-0000-000000000201',
+                      'about'
+                    )
+                    """
+                )
+
+    with pytest.raises(psycopg.errors.CheckViolation):
+        with psycopg.connect(integration_db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO conflict_record(
+                      workspace_id, left_memory_id, right_memory_id, conflict_type, status
+                    )
+                    VALUES (
+                      '00000000-0000-0000-0000-000000000201',
+                      '00000000-0000-0000-0000-000000000720',
+                      '00000000-0000-0000-0000-000000000712',
+                      'uncertain',
+                      'open'
+                    )
+                    """
+                )
 
 
 def test_memory_delete_sets_valid_to(integration_client, integration_db: str) -> None:

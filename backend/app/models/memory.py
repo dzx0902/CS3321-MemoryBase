@@ -85,6 +85,21 @@ class MemoryRevisionResponse(BaseModel):
     created_at: datetime
 
 
+class MemoryEntityResponse(BaseModel):
+    entity_id: UUID
+    canonical_name: str
+    entity_type: str
+    relation_role: str
+
+
+class MemorySceneResponse(BaseModel):
+    scene_id: UUID
+    scene_slug: str
+    title: str
+    cell_role: str
+    sort_order: int
+
+
 class MemorySummaryResponse(BaseModel):
     memory_id: UUID
     workspace_id: UUID
@@ -114,6 +129,8 @@ class MemoryDetailResponse(MemorySummaryResponse):
     superseded_by_memory_id: UUID | None = None
     evidence: list[MemoryEvidenceResponse]
     revisions: list[MemoryRevisionResponse]
+    entities: list[MemoryEntityResponse] = Field(default_factory=list)
+    scenes: list[MemorySceneResponse] = Field(default_factory=list)
 
 
 class MemoryDeleteResponse(BaseModel):
