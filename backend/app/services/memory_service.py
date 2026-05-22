@@ -214,7 +214,9 @@ class PostgresMemoryRepository:
         if memory_type is not None:
             filters.append("mi.memory_type = %(memory_type)s")
             params["memory_type"] = memory_type
-        if status is not None:
+        if status is None:
+            filters.append("mi.status = 'active'")
+        elif status != "all":
             filters.append("mi.status = %(status)s")
             params["status"] = status
         if access_level is not None:
@@ -585,6 +587,7 @@ class PostgresMemoryRepository:
             JOIN source_chunk sc ON sc.chunk_id = me.chunk_id
             JOIN source_document sd ON sd.doc_id = sc.doc_id
             WHERE me.memory_id = %(memory_id)s
+              AND sd.status = 'active'
             ORDER BY sc.chunk_no ASC
             """,
             {"memory_id": memory_id},
@@ -656,6 +659,7 @@ class PostgresMemoryRepository:
             JOIN entity e ON e.entity_id = me.entity_id
             WHERE me.memory_id = %(memory_id)s
               AND me.workspace_id = %(workspace_id)s
+              AND e.status = 'active'
             ORDER BY e.canonical_name ASC, me.relation_role ASC
             """,
             {"memory_id": memory_id, "workspace_id": workspace_id},

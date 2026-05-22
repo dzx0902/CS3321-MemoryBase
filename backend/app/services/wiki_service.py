@@ -176,6 +176,7 @@ class PostgresWikiRepository:
                     LEFT JOIN source_chunk sc ON sc.chunk_id = me.chunk_id
                     LEFT JOIN source_document sd ON sd.doc_id = sc.doc_id
                     WHERE {where_clause}
+                      AND (sd.doc_id IS NULL OR sd.status = 'active')
                     GROUP BY
                         mi.memory_id,
                         mi.memory_type,

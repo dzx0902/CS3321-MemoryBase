@@ -14,6 +14,7 @@ class RecallRequest(BaseModel):
     memory_type: str | None = None
     access_level: str | None = None
     status: str | None = "active"
+    as_of: datetime | None = None
     limit: int = Field(default=10, ge=1, le=50)
 
 

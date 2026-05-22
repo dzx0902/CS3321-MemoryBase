@@ -41,12 +41,15 @@ class SourceRepository(Protocol):
         *,
         workspace_id: UUID | None,
         keyword: str | None,
+        status: str | None,
         page: int,
         page_size: int,
     ) -> SourceListResponse:
         ...
 
-    def get_source(self, doc_id: UUID, workspace_id: UUID) -> SourceDetailResponse | None:
+    def get_source(
+        self, doc_id: UUID, workspace_id: UUID, *, include_forgotten: bool = False
+    ) -> SourceDetailResponse | None:
         ...
 
 
@@ -68,18 +71,26 @@ class SourceService:
         *,
         workspace_id: UUID | None,
         keyword: str | None,
+        status: str | None,
         page: int,
         page_size: int,
     ) -> SourceListResponse:
         return self.repository.list_sources(
             workspace_id=workspace_id,
             keyword=keyword,
+            status=status,
             page=page,
             page_size=page_size,
         )
 
-    def get_source(self, doc_id: UUID, workspace_id: UUID) -> SourceDetailResponse:
-        source = self.repository.get_source(doc_id, workspace_id)
+    def get_source(
+        self, doc_id: UUID, workspace_id: UUID, *, include_forgotten: bool = False
+    ) -> SourceDetailResponse:
+        source = self.repository.get_source(
+            doc_id,
+            workspace_id,
+            include_forgotten=include_forgotten,
+        )
         if source is None:
             raise SourceNotFoundError(f"source {doc_id} not found")
         return source
@@ -188,6 +199,7 @@ class PostgresSourceRepository:
         *,
         workspace_id: UUID | None,
         keyword: str | None,
+        status: str | None,
         page: int,
         page_size: int,
     ) -> SourceListResponse:
@@ -198,6 +210,7 @@ class PostgresSourceRepository:
                 sd.title,
                 sd.doc_type,
                 sd.source_path,
+                sd.status,
                 sd.imported_at,
                 COUNT(sc.chunk_id) AS chunk_count
             FROM source_document sd
@@ -209,6 +222,11 @@ class PostgresSourceRepository:
             "limit": page_size,
             "offset": (page - 1) * page_size,
         }
+        if status is None:
+            filters.append("sd.status = 'active'")
+        elif status != "all":
+            filters.append("sd.status = %(status)s")
+            params["status"] = status
         if workspace_id is not None:
             filters.append("sd.workspace_id = %(workspace_id)s")
             params["workspace_id"] = workspace_id
@@ -223,7 +241,13 @@ class PostgresSourceRepository:
             count_query += where_clause
         query += """
             GROUP BY
-                sd.doc_id, sd.workspace_id, sd.title, sd.doc_type, sd.source_path, sd.imported_at
+                sd.doc_id,
+                sd.workspace_id,
+                sd.title,
+                sd.doc_type,
+                sd.source_path,
+                sd.status,
+                sd.imported_at
             ORDER BY sd.imported_at DESC
             LIMIT %(limit)s OFFSET %(offset)s
         """
@@ -241,11 +265,14 @@ class PostgresSourceRepository:
             total=total,
         )
 
-    def get_source(self, doc_id: UUID, workspace_id: UUID) -> SourceDetailResponse | None:
+    def get_source(
+        self, doc_id: UUID, workspace_id: UUID, *, include_forgotten: bool = False
+    ) -> SourceDetailResponse | None:
+        status_filter = "" if include_forgotten else "AND sd.status = 'active'"
         with self._database.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         sd.doc_id,
                         sd.workspace_id,
@@ -253,6 +280,7 @@ class PostgresSourceRepository:
                         sd.title,
                         sd.doc_type,
                         sd.source_path,
+                        sd.status,
                         sd.checksum,
                         sd.raw_text,
                         sd.imported_at,
@@ -261,6 +289,7 @@ class PostgresSourceRepository:
                     LEFT JOIN source_chunk sc ON sc.doc_id = sd.doc_id
                     WHERE sd.doc_id = %(doc_id)s
                       AND sd.workspace_id = %(workspace_id)s
+                      {status_filter}
                     GROUP BY
                         sd.doc_id,
                         sd.workspace_id,
@@ -268,6 +297,7 @@ class PostgresSourceRepository:
                         sd.title,
                         sd.doc_type,
                         sd.source_path,
+                        sd.status,
                         sd.checksum,
                         sd.raw_text,
                         sd.imported_at
