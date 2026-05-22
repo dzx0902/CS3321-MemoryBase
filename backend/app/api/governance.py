@@ -6,7 +6,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..models.governance import (
-    AgentVisibleMemoryListResponse,
     AuditLifecycleResponse,
     AuditQueryResponse,
     AuditStatisticsResponse,
@@ -149,22 +148,6 @@ def get_audit_statistics(
     service: GovernanceService = Depends(get_governance_service),
 ) -> AuditStatisticsResponse:
     return service.get_audit_statistics(workspace_id=workspace_id, group_by=group_by)
-
-
-@router.get("/agents/{agent_id}/visible-memories", response_model=AgentVisibleMemoryListResponse)
-def list_agent_visible_memories(
-    agent_id: UUID,
-    workspace_id: UUID = Query(...),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
-    service: GovernanceService = Depends(get_governance_service),
-) -> AgentVisibleMemoryListResponse:
-    return service.list_agent_visible_memories(
-        agent_id=agent_id,
-        workspace_id=workspace_id,
-        page=page,
-        page_size=page_size,
-    )
 
 
 @router.get("/conflicts", response_model=ConflictListResponse)

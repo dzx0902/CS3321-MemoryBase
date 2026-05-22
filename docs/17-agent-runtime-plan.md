@@ -28,6 +28,26 @@ The service layer is not reorganized in v1.
 - Add `POST /api/recall/context-pack`.
 - Render recall output as token-limited Markdown with stable citations.
 - Add a small recall gold set and `mb eval recall`.
+- Keep agent-visible memory lookup under the `agents` router:
+  `GET /api/agents/{agent_id}/visible-memories`.
+
+PR2 eval scope is intentionally a smoke baseline, not a fair retrieval benchmark.
+The initial gold set and `data/recall/demo_query_expansions.json` are hand-tuned
+for the course demo dataset, so a high P@5 proves the recall/context/eval chain
+works but must not be used as the PR4 hybrid-search comparison baseline. Before
+hybrid recall or pgvector work starts, rebuild the eval set with adversarial
+Chinese queries: semantic rewrites, fuzzy questions, missing keywords, and
+negative cases.
+
+`demo_query_expansions.json` is a PR2 stop-gap for deterministic bilingual demo
+queries. It is not the production retrieval strategy; PR4 should deprecate this
+manual dictionary in favor of embedding-backed or otherwise systematic semantic
+recall.
+
+`mb eval recall` reads `data/eval/recall_gold.json` from the repository root in
+editable installs. If MemoryBase is later published as a wheel, package this gold
+set with `importlib.resources` or explicit package data instead of relying on the
+source tree layout.
 
 ### PR3: Observe and Safe Write-back
 
@@ -74,12 +94,22 @@ mb configure --workspace cs3321-demo --register-agent codex --type editor
 mb health --format json
 ```
 
+PR2 commands:
+
+```bash
+mb recall "query"
+mb recall "query" --format json
+mb context "query" --max-tokens 3000
+mb eval recall --format json
+```
+
+PR2 adds `tiktoken` for `cl100k_base` token counting in context packs. This keeps
+context budgets closer to what shell-capable coding agents actually consume than
+character-count approximations.
+
 Planned follow-up commands:
 
 ```bash
-mb recall "query" --format json
-mb context "query" --max-tokens 3000
-mb eval recall
 mb sessions create --title "feature work"
 mb observe --session <id> --role user --content "..."
 mb observe --session <id> --batch < messages.jsonl
@@ -91,7 +121,9 @@ mb remember "fact" --type decision --reason "..." --commit
 
 - stdout contains the command result only.
 - stderr contains logs, metadata, and errors.
-- `--format json` is mandatory for machine-parsed output.
+- Use `--format json` for machine-parsed output.
+- Agent-facing commands default to machine-friendly output: `mb recall` defaults
+  to JSON, and `mb context` defaults to Markdown context.
 
 Exit codes:
 

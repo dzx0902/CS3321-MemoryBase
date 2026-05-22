@@ -18,6 +18,10 @@ class RecallRequest(BaseModel):
     limit: int = Field(default=10, ge=1, le=50)
 
 
+class RecallContextPackRequest(RecallRequest):
+    max_tokens: int = Field(default=3000, ge=100, le=16000)
+
+
 class RecallEvidenceResponse(BaseModel):
     chunk_id: UUID
     doc_id: UUID
@@ -51,3 +55,11 @@ class RecallResponse(BaseModel):
     memories: list[RecallMemoryResponse]
     context_pack: dict[str, Any]
     created_at: datetime | None = None
+
+
+class RecallContextPackResponse(BaseModel):
+    markdown: str
+    recall_id: UUID | None = None
+    result_count: int
+    citation_map: dict[str, Any]
+    token_count: int
