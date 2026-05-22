@@ -32,6 +32,25 @@ class MemoryBaseClient(Protocol):
     def context_pack(self, payload: dict[str, Any]) -> dict[str, Any]:
         ...
 
+    def create_session(self, payload: dict[str, Any]) -> dict[str, Any]:
+        ...
+
+    def observe_message(self, payload: dict[str, Any]) -> dict[str, Any]:
+        ...
+
+    def observe_batch(self, payload: dict[str, Any]) -> dict[str, Any]:
+        ...
+
+    def create_memory(
+        self,
+        payload: dict[str, Any],
+        *,
+        actor_type: str,
+        actor_id: str | None,
+        reason: str,
+    ) -> dict[str, Any]:
+        ...
+
 
 class HttpMemoryBaseClient:
     def __init__(self, api_base_url: str) -> None:
@@ -61,6 +80,31 @@ class HttpMemoryBaseClient:
 
     def context_pack(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/api/recall/context-pack", json=payload)
+
+    def create_session(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/api/sessions", json=payload)
+
+    def observe_message(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/api/observe", json=payload)
+
+    def observe_batch(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/api/observe/batch", json=payload)
+
+    def create_memory(
+        self,
+        payload: dict[str, Any],
+        *,
+        actor_type: str,
+        actor_id: str | None,
+        reason: str,
+    ) -> dict[str, Any]:
+        headers = {
+            "X-Actor-Type": actor_type,
+            "X-Revision-Reason": reason,
+        }
+        if actor_id:
+            headers["X-Actor-Id"] = actor_id
+        return self._request("POST", "/api/memories", json=payload, headers=headers)
 
     def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         url = f"{self._api_base_url}{path}"
