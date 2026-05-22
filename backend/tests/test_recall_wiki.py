@@ -17,8 +17,10 @@ class FakeRecallService:
         self.memory_id = uuid4()
         self.chunk_id = uuid4()
         self.doc_id = uuid4()
+        self.last_payload: RecallRequest | None = None
 
     def execute(self, payload: RecallRequest) -> RecallResponse:
+        self.last_payload = payload
         return RecallResponse(
             recall_id=uuid4(),
             workspace_id=payload.workspace_id,
@@ -117,6 +119,23 @@ def test_recall_returns_memory_and_evidence() -> None:
     assert response.json()["result_count"] == 1
     assert response.json()["memories"][0]["evidence"][0]["source_title"] == "meeting_01"
     assert response.json()["memories"][0]["evidence"][0]["start_line"] == 10
+
+
+def test_recall_accepts_as_of_filter() -> None:
+    client, fake_recall, _ = build_client()
+
+    response = client.post(
+        "/api/recall",
+        json={
+            "workspace_id": str(fake_recall.workspace_id),
+            "query_text": "why MemoryBase",
+            "as_of": "2026-03-20T00:00:00Z",
+        },
+    )
+
+    assert response.status_code == 200
+    assert fake_recall.last_payload is not None
+    assert fake_recall.last_payload.as_of is not None
 
 
 def test_wiki_export_returns_markdown_page() -> None:

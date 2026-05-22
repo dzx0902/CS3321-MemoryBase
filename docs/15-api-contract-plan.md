@@ -248,9 +248,15 @@ Query:
 ```text
 workspace_id=uuid
 keyword=optional text
+status=active|forgotten|all
 page=1
 page_size=20
 ```
+
+Rules:
+
+- If `status` is omitted, return only `active` source documents.
+- `status=all` is an explicit governance/admin view and disables source status filtering.
 
 Response item:
 
@@ -261,6 +267,7 @@ Response item:
   "title": "Discussion 01: Project Pivot",
   "doc_type": "meeting",
   "source_path": "data/raw_sources/demo_workspace/discussion_01_project_pivot.md",
+  "status": "active",
   "checksum": "demo-discussion-01",
   "imported_at": "2026-03-02T10:00:00Z",
   "chunk_count": 4
@@ -273,7 +280,13 @@ Query:
 
 ```text
 workspace_id=uuid
+include_forgotten=false
 ```
+
+Rules:
+
+- Default behavior hides forgotten sources.
+- `include_forgotten=true` is a governance/admin read path for an already-known `doc_id`.
 
 Response:
 
@@ -364,6 +377,12 @@ keyword=optional
 page=1
 page_size=20
 ```
+
+Rules:
+
+- If `status` is omitted, return only `active` memory.
+- `status=all` is an explicit governance/admin view and disables memory status filtering.
+- Archived, forgotten, superseded, and conflicted records must not leak into the default list response.
 
 Response item:
 
@@ -532,12 +551,11 @@ Request:
 {
   "workspace_id": "uuid",
   "agent_id": "uuid",
-  "user_id": "uuid",
   "query_text": "为什么放弃校园食堂系统？",
-  "filters": {
-    "memory_type": ["decision", "semantic"],
-    "access_level": ["project"]
-  },
+  "memory_type": "decision",
+  "access_level": "project",
+  "status": "active",
+  "as_of": "2026-05-16T12:00:00Z",
   "limit": 5
 }
 ```
@@ -545,8 +563,9 @@ Request:
 Rules:
 
 - If `agent_id` is present, apply `v_agent_visible_memory` in the same DB transaction after setting `app.agent_id`.
-- If `agent_id` is absent, use active memory scoped by `workspace_id`.
-- Search joins `memory_item`, `memory_evidence`, `source_chunk`, and `source_document`.
+- If `agent_id` is absent, search only active memory with `access_level IN ('public', 'project')`; private/team memory must not be returned without an agent identity.
+- If `as_of` is present, filter by `valid_from <= as_of` and `(valid_to IS NULL OR valid_to > as_of)`.
+- Search joins `memory_item`, `memory_evidence`, `source_chunk`, and active `source_document`.
 - Use PostgreSQL FTS on `source_chunk.search_vector`.
 - Also use deterministic fallback keyword matching on `memory_item.canonical_text`, `memory_item.summary`, and `source_chunk.chunk_text`.
 - For the required demo question, support deterministic bilingual keyword expansion without LLM:
@@ -565,7 +584,7 @@ Response:
   "recall_id": "uuid",
   "query_text": "为什么放弃校园食堂系统？",
   "result_count": 3,
-  "results": [
+  "memories": [
     {
       "memory_id": "uuid",
       "memory_type": "decision",
@@ -664,11 +683,14 @@ Query:
 ```text
 workspace_id=uuid
 actor_type=optional
+actor_id=optional
 action_type=optional
 target_type=optional
 target_id=optional
-created_from=optional ISO timestamp
-created_to=optional ISO timestamp
+start_time=optional ISO timestamp
+end_time=optional ISO timestamp
+sort=desc|asc
+include_diff=false
 page=1
 page_size=20
 ```
@@ -686,9 +708,62 @@ Response item:
   "target_id": "uuid",
   "before_json": {},
   "after_json": {},
+  "diff_json": {
+    "summary": {
+      "before": "old",
+      "after": "new"
+    }
+  },
   "created_at": "..."
 }
 ```
+
+Rules:
+
+- `include_diff=true` returns a shallow top-level JSON diff between `before_json` and `after_json`.
+- `sort` controls event order by `created_at`.
+
+### GET /api/audit/lifecycle
+
+Query:
+
+```text
+workspace_id=uuid
+target_type=memory_item
+target_id=uuid
+```
+
+Rules:
+
+- Return a chronological lifecycle view by UNION-ing `audit_log`, `memory_revision`, related `conflict_record`, and related `forget_request`.
+- Each item contains `ts`, `kind`, and `payload`; `kind` distinguishes `audit`, `revision`, `conflict`, and `forget_request`.
+
+### GET /api/audit/actors/{actor_type}/{actor_id}/timeline
+
+Query:
+
+```text
+workspace_id=optional uuid
+page=1
+page_size=20
+```
+
+Rules:
+
+- Return the actor's audit timeline using the same response envelope as `GET /api/audit`.
+
+### GET /api/audit/statistics
+
+Query:
+
+```text
+workspace_id=optional uuid
+group_by=action_type|actor_type|target_type
+```
+
+Rules:
+
+- Return `group_key`, `event_count`, and `last_event_at` for each group.
 
 ### POST /api/policies
 
@@ -722,7 +797,25 @@ principal_type=optional
 principal_id=optional
 resource_type=optional
 effect=optional
+page=1
+page_size=20
 ```
+
+### GET /api/agents/{agent_id}/visible-memories
+
+Query:
+
+```text
+workspace_id=uuid
+page=1
+page_size=20
+```
+
+Rules:
+
+- Query `v_agent_visible_memory` after setting `app.agent_id`.
+- Unknown agent UUIDs are allowed and return an empty page.
+- Deny policies override allow policies; project-only agents must not see private memory.
 
 ### DELETE /api/policies/{policy_id}
 
@@ -751,7 +844,7 @@ Rules:
 
 ### POST /api/conflicts
 
-P1 deferred endpoint. Seed data already provides one conflict for demo, but manual conflict creation should use this contract when implemented.
+Manual conflict creation endpoint.
 
 Request:
 
@@ -761,7 +854,9 @@ Request:
   "left_memory_id": "uuid",
   "right_memory_id": "uuid",
   "conflict_type": "uncertain",
-  "resolution_note": "Clarify whether LLM extraction belongs to MVP."
+  "resolution_note": "Clarify whether LLM extraction belongs to MVP.",
+  "actor_type": "user",
+  "actor_id": "uuid"
 }
 ```
 
@@ -770,8 +865,10 @@ Rules:
 - Validate both memories exist in the same workspace.
 - Normalize the pair before insert so `left_memory_id < right_memory_id`; callers should not need to know UUID ordering.
 - Duplicate conflict returns `409 duplicate_conflict`.
-- `conflict_type`: `contradiction`, `supersession`, `duplicate`, `uncertain`.
+- `conflict_type`: `semantic`, `temporal`, `policy`, `duplicate`, `contradiction`, `supersession`, `uncertain`.
 - Initial status is `open`.
+- The service sets actor session variables before insert.
+- Database triggers mark related active memories as `conflicted`; the existing memory update trigger then writes revision/audit rows.
 
 Response:
 
@@ -820,7 +917,8 @@ Rules:
 
 - `status`: `open`, `resolved`, `ignored`.
 - If status becomes `resolved` or `ignored`, set `resolved_at = now()`.
-- Write audit log from API layer because no conflict trigger exists in P0.
+- The service writes `conflict.update` audit and sets actor session variables.
+- Database triggers restore related memories to `active` when no other open conflict remains.
 
 ### POST /api/forget-requests
 
@@ -844,7 +942,7 @@ Rules:
 - `target_type`: `memory_item`, `source_document`, `wiki_page`, `entity`.
 - Initial status is `pending`.
 - Validate the requester exists when provided.
-- Validate target existence for supported P0 tables; `entity` may remain schema-only until entity tables are added.
+- Validate target existence for all supported target tables.
 
 ### GET /api/forget-requests
 
@@ -882,9 +980,11 @@ Request:
 Rules:
 
 - `status`: `pending`, `approved`, `rejected`, `done`.
+- `reviewed_by_user_id` is ignored and stored as `null` while status remains `pending`; terminal statuses require a reviewer.
 - When status becomes `approved`, `rejected`, or `done`, set `resolved_at = now()` and store `reviewed_by_user_id`.
 - When a `memory_item` request is approved or marked done, set the target memory to `forgotten`
   with `valid_to = now()` in the same transaction.
+- When a `source_document`, `wiki_page`, or `entity` request is approved or marked done, set the target row to `status = 'forgotten'` with `forgotten_at = now()`.
 - Write `forget_request.create` / `forget_request.update` audit entries from the API layer.
 - The memory status change also writes the normal `memory.forget` audit entry through the
   existing memory trigger.

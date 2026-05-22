@@ -52,6 +52,7 @@ class SourceSummaryResponse(BaseModel):
     title: str
     doc_type: DocType
     source_path: str | None = None
+    status: str = "active"
     imported_at: datetime
     chunk_count: int
 

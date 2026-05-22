@@ -3,6 +3,7 @@ DROP VIEW IF EXISTS v_conflict_memory;
 DROP VIEW IF EXISTS v_project_timeline;
 DROP VIEW IF EXISTS v_agent_visible_memory;
 DROP VIEW IF EXISTS v_memory_with_source;
+DROP VIEW IF EXISTS v_memory_recall_statistics;
 DROP VIEW IF EXISTS v_memory_statistics;
 DROP VIEW IF EXISTS v_active_memory;
 
@@ -63,7 +64,8 @@ SELECT
 FROM memory_item mi
 JOIN memory_evidence me ON me.memory_id = mi.memory_id
 JOIN source_chunk sc ON sc.chunk_id = me.chunk_id
-JOIN source_document sd ON sd.doc_id = sc.doc_id;
+JOIN source_document sd ON sd.doc_id = sc.doc_id
+WHERE sd.status = 'active';
 
 CREATE OR REPLACE VIEW v_project_timeline AS
 SELECT
@@ -146,7 +148,9 @@ LEFT JOIN LATERAL (
 LEFT JOIN memory_item mi ON mi.memory_id = page_memory.memory_id
 LEFT JOIN memory_evidence me ON me.memory_id = mi.memory_id
 LEFT JOIN source_chunk sc ON sc.chunk_id = me.chunk_id
-LEFT JOIN source_document sd ON sd.doc_id = sc.doc_id;
+LEFT JOIN source_document sd ON sd.doc_id = sc.doc_id
+WHERE wp.status = 'active'
+  AND (sd.doc_id IS NULL OR sd.status = 'active');
 
 CREATE OR REPLACE VIEW v_memory_statistics AS
 SELECT
@@ -159,6 +163,18 @@ SELECT
   avg(importance) AS avg_importance
 FROM memory_item
 GROUP BY workspace_id, memory_type, status, access_level;
+
+CREATE OR REPLACE VIEW v_memory_recall_statistics AS
+SELECT
+  rl.workspace_id,
+  memory_ids.memory_id_text::uuid AS memory_id,
+  count(*) AS recall_count,
+  max(rl.created_at) AS last_recalled_at
+FROM recall_log rl
+CROSS JOIN LATERAL jsonb_array_elements_text(rl.top_memory_ids_json) AS memory_ids(memory_id_text)
+JOIN memory_item mi ON mi.memory_id = memory_ids.memory_id_text::uuid
+WHERE mi.workspace_id = rl.workspace_id
+GROUP BY rl.workspace_id, memory_ids.memory_id_text;
 
 CREATE OR REPLACE VIEW v_agent_visible_memory AS
 SELECT

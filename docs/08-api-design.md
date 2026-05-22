@@ -36,11 +36,11 @@
 
 ### GET /api/sources
 
-查询 source 列表。
+查询 source 列表。默认只返回 `active` source；治理/管理视角可传 `status=all` 查看 forgotten source。
 
 ### GET /api/sources/{id}
 
-查询 source 详情和 chunks。
+查询 source 详情和 chunks。默认隐藏 forgotten source；治理/管理视角可传 `include_forgotten=true` 按 `doc_id` 读取已遗忘 source 的详情。
 
 ## 3. Memory API
 
@@ -70,7 +70,7 @@
 
 ### GET /api/memories
 
-查询 memory 列表。
+查询 memory 列表。默认只返回 `status = active` 的 memory；如需审计或管理视角读取归档/遗忘记录，需要显式传入 `status`，其中 `status=all` 表示不做状态过滤。
 
 支持参数：
 
@@ -100,7 +100,7 @@ page_size
 
 ### POST /api/recall
 
-执行关键词 / 全文检索。
+执行关键词 / 全文检索。`agent_id` 可选；如果传入，则使用 `v_agent_visible_memory` 做 Agent 权限过滤；如果不传，则只允许召回 `public` 和 `project` 范围的 active memory，避免绕过 private/team 权限。`as_of` 可选，用于基于 `valid_from / valid_to` 的时态召回。
 
 ```json
 {
@@ -110,6 +110,7 @@ page_size
   "memory_type": "decision",
   "access_level": "project",
   "status": "active",
+  "as_of": "2026-05-16T12:00:00Z",
   "limit": 10
 }
 ```
@@ -156,11 +157,14 @@ page_size
 ```text
 workspace_id
 actor_type
+actor_id
 action_type
 target_type
 target_id
 start_time
 end_time
+sort
+include_diff
 page
 page_size
 ```
@@ -176,6 +180,20 @@ page_size
 }
 ```
 
+### GET /api/audit/lifecycle
+
+查询某个目标对象的全生命周期事件，聚合 `audit_log`、`memory_revision`、`conflict_record` 和 `forget_request`。
+
+支持参数：`workspace_id`、`target_type`、`target_id`。
+
+### GET /api/audit/actors/{actor_type}/{actor_id}/timeline
+
+按 actor 查询操作时间线，支持 `workspace_id`、`page`、`page_size`。
+
+### GET /api/audit/statistics
+
+按 `action_type`、`actor_type` 或 `target_type` 聚合审计事件。
+
 ## 7. Policy API
 
 ### POST /api/policies
@@ -184,17 +202,37 @@ page_size
 
 ### GET /api/policies
 
-查询权限策略。
+查询权限策略，支持 `workspace_id`、`principal_type`、`principal_id`、`resource_type`、`effect`、`page`、`page_size`。
+
+### GET /api/agents/{agent_id}/visible-memories
+
+基于 `v_agent_visible_memory` 查询指定 Agent 在工作区中可见的 memory，支持 `workspace_id`、`page`、`page_size`。未知 Agent UUID 返回空列表。
 
 ## 8. Conflict API
 
+### POST /api/conflicts
+
+手动创建冲突记录。后端会规范化 memory 左右顺序，避免反向重复；数据库触发器会把 open conflict 两端的 active memory 自动标记为 `conflicted`。
+
+```json
+{
+  "workspace_id": "uuid",
+  "left_memory_id": "uuid",
+  "right_memory_id": "uuid",
+  "conflict_type": "contradiction",
+  "resolution_note": "Two decisions conflict.",
+  "actor_type": "user",
+  "actor_id": "uuid"
+}
+```
+
 ### GET /api/conflicts
 
-查询冲突记录及左右两侧 memory。
+查询冲突记录及左右两侧 memory，支持 `workspace_id`、`status`、`page`、`page_size`。
 
 ### PATCH /api/conflicts/{id}
 
-更新 conflict 状态。
+更新 conflict 状态。状态变为 `resolved` 或 `ignored` 后，数据库触发器会在两端 memory 没有其他 open conflict 时自动恢复为 `active`。
 
 ```json
 {
@@ -227,8 +265,8 @@ page_size
 
 ### PATCH /api/forget-requests/{id}
 
-审批遗忘请求。对 `memory_item` 请求，`approved` 或 `done` 会将目标 memory 标记为
-`forgotten` 并写入审计日志。
+审批遗忘请求。`approved` 或 `done` 会对支持的目标执行软治理：`memory_item` 标记为 `forgotten` 并设置 `valid_to`；`source_document`、`wiki_page`、`entity` 标记为 `forgotten` 并设置 `forgotten_at`。所有路径都保留原始记录并写入审计日志。
+`pending` 状态下传入的 `reviewed_by_user_id` 会被忽略并保持为空；终态审批需要 reviewer。
 
 ```json
 {

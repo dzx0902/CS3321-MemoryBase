@@ -63,6 +63,7 @@ class FakeSourceService:
         *,
         workspace_id: UUID | None,
         keyword: str | None,
+        status: str | None,
         page: int,
         page_size: int,
     ) -> SourceListResponse:
@@ -83,7 +84,9 @@ class FakeSourceService:
         )
         return SourceListResponse(items=[item], page=page, page_size=page_size, total=1)
 
-    def get_source(self, doc_id: UUID, workspace_id: UUID) -> SourceDetailResponse:
+    def get_source(
+        self, doc_id: UUID, workspace_id: UUID, *, include_forgotten: bool = False
+    ) -> SourceDetailResponse:
         if doc_id != self.doc_id or workspace_id != self.workspace_id:
             raise SourceNotFoundError(f"source {doc_id} not found")
         return deepcopy(self.source)
@@ -142,6 +145,18 @@ def test_list_sources_supports_keyword_filter() -> None:
     assert matched.json()["total"] == 1
     assert unmatched.status_code == 200
     assert unmatched.json()["total"] == 0
+
+
+def test_list_sources_accepts_status_all_for_governance_view() -> None:
+    client, fake_service = build_client()
+
+    response = client.get(
+        "/api/sources",
+        params={"workspace_id": str(fake_service.workspace_id), "status": "all"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
 
 
 def test_get_source_returns_chunks() -> None:
