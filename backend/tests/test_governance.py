@@ -22,13 +22,15 @@ from app.models.governance import (
     ForgetRequestResponse,
     ForgetRequestUpdateRequest,
     PolicyCreateRequest,
+    PolicyDeleteResponse,
     PolicyListResponse,
     PolicyResponse,
+    PolicyUpdateRequest,
     TimelineCreateRequest,
     TimelineEntryResponse,
     TimelineListResponse,
 )
-from app.services.governance_service import ConflictNotFoundError
+from app.services.governance_service import ConflictNotFoundError, PolicyNotFoundError
 from fastapi.testclient import TestClient
 
 
@@ -139,6 +141,23 @@ class FakeGovernanceService:
         if effect is not None and effect != self.policy.effect:
             return PolicyListResponse(items=[], page=page, page_size=page_size, total=0)
         return PolicyListResponse(items=[self.policy], page=page, page_size=page_size, total=1)
+
+    def update_policy(
+        self, *, policy_id: UUID, workspace_id: UUID, payload: PolicyUpdateRequest
+    ) -> PolicyResponse:
+        if policy_id != self.policy_id or workspace_id != self.workspace_id:
+            raise PolicyNotFoundError("policy not found")
+        self.policy = self.policy.model_copy(update=payload.model_dump(exclude_unset=True))
+        return self.policy
+
+    def delete_policy(self, *, policy_id: UUID, workspace_id: UUID) -> PolicyDeleteResponse:
+        if policy_id != self.policy_id or workspace_id != self.workspace_id:
+            raise PolicyNotFoundError("policy not found")
+        return PolicyDeleteResponse(
+            policy_id=policy_id,
+            workspace_id=workspace_id,
+            deleted=True,
+        )
 
     def list_audit_logs(
         self,
@@ -395,6 +414,26 @@ def test_list_policies_applies_governance_filters() -> None:
 
     assert response.status_code == 200
     assert response.json()["total"] == 0
+
+
+def test_update_and_delete_policy_routes() -> None:
+    client, fake_service = build_client()
+
+    update_response = client.patch(
+        f"/api/policies/{fake_service.policy_id}",
+        params={"workspace_id": str(fake_service.workspace_id)},
+        json={"effect": "deny", "predicate_json": {"reason": "test"}},
+    )
+    delete_response = client.delete(
+        f"/api/policies/{fake_service.policy_id}",
+        params={"workspace_id": str(fake_service.workspace_id)},
+    )
+
+    assert update_response.status_code == 200
+    assert update_response.json()["effect"] == "deny"
+    assert update_response.json()["predicate_json"] == {"reason": "test"}
+    assert delete_response.status_code == 200
+    assert delete_response.json()["deleted"] is True
 
 
 def test_list_audit_returns_logs() -> None:

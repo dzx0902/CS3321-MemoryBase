@@ -23,8 +23,10 @@ from ..models.governance import (
     ForgetRequestResponse,
     ForgetRequestUpdateRequest,
     PolicyCreateRequest,
+    PolicyDeleteResponse,
     PolicyListResponse,
     PolicyResponse,
+    PolicyUpdateRequest,
     TimelineCreateRequest,
     TimelineEntryResponse,
     TimelineListResponse,
@@ -67,6 +69,10 @@ class UserNotFoundError(Exception):
     pass
 
 
+class PolicyNotFoundError(Exception):
+    pass
+
+
 class GovernanceRepository(Protocol):
     def create_policy(self, payload: PolicyCreateRequest) -> PolicyResponse:
         ...
@@ -82,6 +88,14 @@ class GovernanceRepository(Protocol):
         page: int,
         page_size: int,
     ) -> PolicyListResponse:
+        ...
+
+    def update_policy(
+        self, *, policy_id: UUID, workspace_id: UUID, payload: PolicyUpdateRequest
+    ) -> PolicyResponse:
+        ...
+
+    def delete_policy(self, *, policy_id: UUID, workspace_id: UUID) -> PolicyDeleteResponse:
         ...
 
     def list_audit_logs(
@@ -196,6 +210,16 @@ class GovernanceService:
             page=page,
             page_size=page_size,
         )
+
+    def update_policy(
+        self, *, policy_id: UUID, workspace_id: UUID, payload: PolicyUpdateRequest
+    ) -> PolicyResponse:
+        return self.repository.update_policy(
+            policy_id=policy_id, workspace_id=workspace_id, payload=payload
+        )
+
+    def delete_policy(self, *, policy_id: UUID, workspace_id: UUID) -> PolicyDeleteResponse:
+        return self.repository.delete_policy(policy_id=policy_id, workspace_id=workspace_id)
 
     def list_audit_logs(
         self,
@@ -439,6 +463,152 @@ class PostgresGovernanceRepository:
             page=page,
             page_size=page_size,
             total=total,
+        )
+
+    def update_policy(
+        self, *, policy_id: UUID, workspace_id: UUID, payload: PolicyUpdateRequest
+    ) -> PolicyResponse:
+        updates = payload.model_dump(exclude_unset=True)
+        if not updates:
+            with self._database.connection() as conn:
+                with conn.cursor() as cur:
+                    row = self._fetch_policy(cur, policy_id=policy_id, workspace_id=workspace_id)
+            if row is None:
+                raise PolicyNotFoundError("policy not found")
+            return PolicyResponse(**row)
+
+        assignments: list[str] = []
+        params: dict[str, object] = {"policy_id": policy_id, "workspace_id": workspace_id}
+        for field, value in updates.items():
+            if field == "predicate_json":
+                assignments.append("predicate_json = %(predicate_json)s::jsonb")
+                params["predicate_json"] = _json_dumps(value)
+            else:
+                assignments.append(f"{field} = %({field})s")
+                params[field] = value
+
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                before = self._fetch_policy(cur, policy_id=policy_id, workspace_id=workspace_id)
+                if before is None:
+                    raise PolicyNotFoundError("policy not found")
+                cur.execute(
+                    f"""
+                    UPDATE access_policy
+                    SET {", ".join(assignments)}
+                    WHERE policy_id = %(policy_id)s
+                      AND workspace_id = %(workspace_id)s
+                    RETURNING
+                        policy_id,
+                        workspace_id,
+                        principal_type,
+                        principal_id,
+                        resource_type,
+                        resource_scope,
+                        effect,
+                        predicate_json,
+                        created_at
+                    """,
+                    params,
+                )
+                after = cur.fetchone()
+                if after is None:
+                    raise PolicyNotFoundError("policy not found")
+                self._insert_audit(
+                    cur,
+                    workspace_id=workspace_id,
+                    action_type="policy.update",
+                    target_id=policy_id,
+                    before_json=_policy_audit_payload(before),
+                    after_json=_policy_audit_payload(after),
+                )
+            conn.commit()
+        return PolicyResponse(**after)
+
+    def delete_policy(self, *, policy_id: UUID, workspace_id: UUID) -> PolicyDeleteResponse:
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                before = self._fetch_policy(cur, policy_id=policy_id, workspace_id=workspace_id)
+                if before is None:
+                    raise PolicyNotFoundError("policy not found")
+                cur.execute(
+                    """
+                    DELETE FROM access_policy
+                    WHERE policy_id = %(policy_id)s
+                      AND workspace_id = %(workspace_id)s
+                    """,
+                    {"policy_id": policy_id, "workspace_id": workspace_id},
+                )
+                self._insert_audit(
+                    cur,
+                    workspace_id=workspace_id,
+                    action_type="policy.delete",
+                    target_id=policy_id,
+                    before_json=_policy_audit_payload(before),
+                    after_json=None,
+                )
+            conn.commit()
+        return PolicyDeleteResponse(policy_id=policy_id, workspace_id=workspace_id, deleted=True)
+
+    def _fetch_policy(self, cur: object, *, policy_id: UUID, workspace_id: UUID) -> dict | None:
+        cur.execute(
+            """
+            SELECT
+                policy_id,
+                workspace_id,
+                principal_type,
+                principal_id,
+                resource_type,
+                resource_scope,
+                effect,
+                predicate_json,
+                created_at
+            FROM access_policy
+            WHERE policy_id = %(policy_id)s
+              AND workspace_id = %(workspace_id)s
+            """,
+            {"policy_id": policy_id, "workspace_id": workspace_id},
+        )
+        return cur.fetchone()
+
+    def _insert_audit(
+        self,
+        cur: object,
+        *,
+        workspace_id: UUID,
+        action_type: str,
+        target_id: UUID,
+        before_json: dict | None,
+        after_json: dict | None,
+    ) -> None:
+        cur.execute(
+            """
+            INSERT INTO audit_log (
+                workspace_id,
+                actor_type,
+                action_type,
+                target_type,
+                target_id,
+                before_json,
+                after_json
+            )
+            VALUES (
+                %(workspace_id)s,
+                'system',
+                %(action_type)s,
+                'access_policy',
+                %(target_id)s,
+                %(before_json)s::jsonb,
+                %(after_json)s::jsonb
+            )
+            """,
+            {
+                "workspace_id": workspace_id,
+                "action_type": action_type,
+                "target_id": target_id,
+                "before_json": _json_dumps(before_json) if before_json is not None else None,
+                "after_json": _json_dumps(after_json) if after_json is not None else None,
+            },
         )
 
     def list_audit_logs(
@@ -1592,6 +1762,20 @@ def _json_dumps(payload: object) -> str:
     import json
 
     return json.dumps(payload, default=str)
+
+
+def _policy_audit_payload(row: dict[str, object]) -> dict[str, object]:
+    return {
+        "policy_id": row["policy_id"],
+        "workspace_id": row["workspace_id"],
+        "principal_type": row["principal_type"],
+        "principal_id": row["principal_id"],
+        "resource_type": row["resource_type"],
+        "resource_scope": row["resource_scope"],
+        "effect": row["effect"],
+        "predicate_json": row["predicate_json"],
+        "created_at": row["created_at"],
+    }
 
 
 def _normalize_memory_pair(left_memory_id: UUID, right_memory_id: UUID) -> tuple[UUID, UUID]:

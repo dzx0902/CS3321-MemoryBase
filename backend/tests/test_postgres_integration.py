@@ -4,7 +4,6 @@ from pathlib import Path
 
 import psycopg
 import pytest
-
 from scripts.backfill_search_terms import backfill_search_terms
 
 WORKSPACE_ID = "00000000-0000-0000-0000-000000000201"
@@ -131,6 +130,49 @@ def test_recall_policy_visibility_and_log_end_to_end(
     assert visible_response.json()["result_count"] == 1
     assert visible_response.json()["memories"][0]["memory_id"] == PRIVATE_MEMORY_ID
     assert visible_response.json()["context_pack"]["top_memory_ids"] == [PRIVATE_MEMORY_ID]
+
+    lifecycle_policy = integration_client.post(
+        "/api/policies",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "principal_type": "role",
+            "resource_type": "wiki_page",
+            "resource_scope": "team",
+            "effect": "allow",
+            "predicate_json": {"purpose": "policy lifecycle test"},
+        },
+    )
+    assert lifecycle_policy.status_code == 201
+    policy_id = lifecycle_policy.json()["policy_id"]
+
+    update_policy = integration_client.patch(
+        f"/api/policies/{policy_id}",
+        params={"workspace_id": WORKSPACE_ID},
+        json={"effect": "deny", "predicate_json": {"purpose": "updated"}},
+    )
+    assert update_policy.status_code == 200
+    assert update_policy.json()["effect"] == "deny"
+
+    delete_policy = integration_client.delete(
+        f"/api/policies/{policy_id}",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert delete_policy.status_code == 200
+    assert delete_policy.json()["deleted"] is True
+
+    policy_audit = integration_client.get(
+        "/api/audit",
+        params={
+            "workspace_id": WORKSPACE_ID,
+            "target_type": "access_policy",
+            "target_id": policy_id,
+            "include_diff": "true",
+        },
+    )
+    assert policy_audit.status_code == 200
+    actions = [item["action_type"] for item in policy_audit.json()["items"]]
+    assert "policy.update" in actions
+    assert "policy.delete" in actions
 
     with psycopg.connect(integration_db) as conn:
         with conn.cursor() as cur:
