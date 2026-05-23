@@ -326,6 +326,65 @@ def test_chinese_source_recall_uses_segmented_search_text(
     )
 
 
+def test_recall_uses_or_semantics_for_multi_term_agent_queries(
+    integration_client, integration_db: str
+) -> None:
+    source_response = integration_client.post(
+        "/api/sources",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "title": "Recall CLI Bug Notes",
+            "doc_type": "note",
+            "raw_text": (
+                "The CLI recall command must emit parseable JSON pipelines "
+                "when no result exists and use exit code 4."
+            ),
+            "source_path": "inline://test/recall-or-query",
+        },
+    )
+    assert source_response.status_code == 201
+
+    source_detail = integration_client.get(
+        f"/api/sources/{source_response.json()['doc_id']}",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert source_detail.status_code == 200
+    chunk_id = source_detail.json()["chunks"][0]["chunk_id"]
+
+    memory_response = integration_client.post(
+        "/api/memories",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "created_from_doc_id": source_response.json()["doc_id"],
+            "memory_type": "procedural",
+            "canonical_text": (
+                "CLI recall miss should produce parseable JSON pipelines and exit code 4."
+            ),
+            "summary": "Recall CLI no-result contract",
+            "confidence": 0.9,
+            "importance": 4,
+            "access_level": "project",
+            "evidence": [{"chunk_id": chunk_id, "evidence_role": "supports"}],
+        },
+    )
+    assert memory_response.status_code == 201
+
+    recall_response = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "JSON pipeline exit code",
+            "limit": 5,
+        },
+    )
+
+    assert recall_response.status_code == 200
+    assert any(
+        item["memory_id"] == memory_response.json()["memory_id"]
+        for item in recall_response.json()["memories"]
+    )
+
+
 def test_seed_search_text_columns_are_populated(integration_db: str) -> None:
     with psycopg.connect(integration_db) as conn:
         with conn.cursor() as cur:
@@ -557,6 +616,35 @@ def test_sessions_and_observe_api_write_messages_and_batch_rolls_back(
     )
     assert message_response.status_code == 201
     assert message_response.json()["content"] == "请记录这个开发会话。"
+
+    second_message_response = integration_client.post(
+        "/api/observe",
+        json={
+            "session_id": session_id,
+            "sender_type": "agent",
+            "role": "assistant",
+            "content": "已记录当前开发会话。",
+        },
+    )
+    assert second_message_response.status_code == 201
+
+    messages_response = integration_client.get(
+        f"/api/sessions/{session_id}/messages",
+        params={"workspace_id": WORKSPACE_ID, "limit": 10},
+    )
+    assert messages_response.status_code == 200
+    messages_payload = messages_response.json()
+    assert messages_payload["total"] == 2
+    assert [item["content"] for item in messages_payload["items"]] == [
+        "请记录这个开发会话。",
+        "已记录当前开发会话。",
+    ]
+
+    wrong_workspace_messages = integration_client.get(
+        f"/api/sessions/{session_id}/messages",
+        params={"workspace_id": "00000000-0000-0000-0000-000000009999"},
+    )
+    assert wrong_workspace_messages.status_code == 404
 
     list_response = integration_client.get(
         "/api/sessions",

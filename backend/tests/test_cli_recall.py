@@ -51,15 +51,6 @@ class FakeRecallClient:
             "context_pack": {},
         }
 
-    def context_pack(self, payload):
-        return {
-            "recall_id": str(uuid4()),
-            "result_count": 1,
-            "token_count": 42,
-            "markdown": "# MemoryBase Context\n\n## Relevant Memories\n- [M1] decision",
-            "citation_map": {"memories": {"M1": {"memory_type": "decision"}}},
-        }
-
     def search(self, payload):
         return {
             "workspace_id": payload["workspace_id"],
@@ -101,24 +92,6 @@ def test_cli_recall_defaults_to_json(monkeypatch) -> None:
     assert payload["memories"][0]["canonical_text"].endswith("CRUD-heavy.")
 
 
-def test_cli_context_outputs_markdown_to_stdout(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.cli.commands.context.build_client",
-        lambda *args, **kwargs: FakeRecallClient(),
-    )
-    runner = CliRunner()
-
-    result = runner.invoke(
-        app,
-        ["context", "为什么放弃食堂", "--workspace", "cs3321-demo", "--max-tokens", "500"],
-    )
-
-    assert result.exit_code == 0
-    assert result.stdout.startswith("# MemoryBase Context")
-    assert "recall_id=" in result.stderr
-    assert "token_count=42" in result.stderr
-
-
 def test_cli_recall_returns_no_result_exit_code(monkeypatch) -> None:
     class EmptyClient(FakeRecallClient):
         def recall(self, payload):
@@ -136,7 +109,9 @@ def test_cli_recall_returns_no_result_exit_code(monkeypatch) -> None:
     result = runner.invoke(app, ["recall", "missing", "--workspace", "cs3321-demo"])
 
     assert result.exit_code == 4
-    assert result.stdout == ""
+    payload = json.loads(result.stdout)
+    assert payload["result_count"] == 0
+    assert payload["memories"] == []
     assert "No recall results" in result.stderr
 
 

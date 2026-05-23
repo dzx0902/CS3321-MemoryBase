@@ -12,10 +12,23 @@ from ..output import (
     EXIT_OK,
     EXIT_SERVER_ERROR,
     error,
+    info,
     validate_format,
     write_result,
 )
 from ..runtime import resolve_workspace_and_agent
+
+MEMORY_TYPES = (
+    "episodic",
+    "semantic",
+    "profile",
+    "procedural",
+    "decision",
+    "preference",
+    "task",
+    "risk",
+)
+MEMORY_TYPE_HELP = f"Allowed: {', '.join(MEMORY_TYPES)}."
 
 
 def remember(
@@ -24,7 +37,7 @@ def remember(
     api_base_url: str | None = typer.Option(None, "--api-base", help="MemoryBase API base URL."),
     workspace: str | None = typer.Option(None, "--workspace", help="Workspace slug or UUID."),
     agent: str | None = typer.Option(None, "--agent", help="Agent name or UUID."),
-    memory_type: str = typer.Option("semantic", "--type", help="Memory type."),
+    memory_type: str = typer.Option("semantic", "--type", help=MEMORY_TYPE_HELP),
     summary: str | None = typer.Option(None, "--summary", help="Memory summary."),
     confidence: float = typer.Option(0.7, "--confidence", min=0, max=1),
     importance: int = typer.Option(3, "--importance", min=1, max=5),
@@ -42,6 +55,12 @@ def remember(
     validate_format(output_format)
     if not reason:
         error("--reason is required for mb remember.")
+        raise typer.Exit(EXIT_CLIENT_ERROR)
+    if memory_type not in MEMORY_TYPES:
+        error(
+            "Unsupported memory type: "
+            f"{memory_type}. Use {'|'.join(MEMORY_TYPES)}."
+        )
         raise typer.Exit(EXIT_CLIENT_ERROR)
 
     config = load_config(config_path).with_overrides(
@@ -76,6 +95,7 @@ def remember(
             error("--dry-run and --commit cannot be used together.")
             raise typer.Exit(EXIT_CLIENT_ERROR)
         if not commit:
+            info("Dry run only. Re-run with --commit to persist this memory.")
             write_result({"dry_run": True, "payload": payload}, output_format=output_format)
             raise typer.Exit(EXIT_OK)
         result = client.create_memory(

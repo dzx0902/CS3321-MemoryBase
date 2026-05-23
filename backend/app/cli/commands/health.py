@@ -22,7 +22,7 @@ def health(
     api_base_url: str | None = typer.Option(None, "--api-base", help="MemoryBase API base URL."),
     workspace: str | None = typer.Option(None, "--workspace", help="Workspace slug or UUID."),
     agent: str | None = typer.Option(None, "--agent", help="Agent name or UUID."),
-    output_format: str = typer.Option("table", "--format", help="json, markdown, or table."),
+    output_format: str = typer.Option("json", "--format", help="json, markdown, or table."),
     local: bool = typer.Option(False, "--local", help="Use local service imports instead of HTTP."),
 ) -> None:
     validate_format(output_format)
@@ -51,6 +51,7 @@ def health(
         payload, "agent"
     )
     if resolution_error is not None:
+        write_result(payload, output_format=output_format)
         error(resolution_error)
         raise typer.Exit(EXIT_CLIENT_ERROR)
 

@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..models.conversation import (
+    MessageListResponse,
     SessionCreateRequest,
     SessionListResponse,
     SessionResponse,
@@ -59,5 +60,22 @@ def get_session(
 ) -> SessionResponse:
     try:
         return service.get_session(session_id, workspace_id)
+    except ConversationNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.get("/{session_id}/messages", response_model=MessageListResponse)
+def list_session_messages(
+    session_id: UUID,
+    workspace_id: UUID | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    service: ConversationService = Depends(get_conversation_service),
+) -> MessageListResponse:
+    try:
+        return service.list_messages(
+            session_id=session_id,
+            workspace_id=workspace_id,
+            limit=limit,
+        )
     except ConversationNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

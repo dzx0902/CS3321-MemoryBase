@@ -63,3 +63,9 @@ class MessageBatchCreateRequest(BaseModel):
 class MessageBatchResponse(BaseModel):
     items: list[MessageResponse]
     total: int
+
+
+class MessageListResponse(BaseModel):
+    items: list[MessageResponse]
+    total: int
+    limit: int

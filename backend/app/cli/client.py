@@ -38,6 +38,15 @@ class MemoryBaseClient(Protocol):
     def create_session(self, payload: dict[str, Any]) -> dict[str, Any]:
         ...
 
+    def get_session_messages(
+        self,
+        *,
+        session_id: str,
+        workspace_id: str | None,
+        limit: int,
+    ) -> dict[str, Any]:
+        ...
+
     def observe_message(self, payload: dict[str, Any]) -> dict[str, Any]:
         ...
 
@@ -89,6 +98,18 @@ class HttpMemoryBaseClient:
 
     def create_session(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/api/sessions", json=payload)
+
+    def get_session_messages(
+        self,
+        *,
+        session_id: str,
+        workspace_id: str | None,
+        limit: int,
+    ) -> dict[str, Any]:
+        params = {"limit": limit}
+        if workspace_id:
+            params["workspace_id"] = workspace_id
+        return self._request("GET", f"/api/sessions/{session_id}/messages", params=params)
 
     def observe_message(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/api/observe", json=payload)

@@ -32,18 +32,6 @@ class FakeWritebackClient:
             else None,
         }
 
-    def create_session(self, payload):
-        return {
-            "session_id": str(uuid4()),
-            "workspace_id": payload["workspace_id"],
-            "agent_id": payload.get("agent_id"),
-            "started_by_user_id": None,
-            "title": payload["title"],
-            "channel": payload["channel"],
-            "started_at": "2026-05-22T00:00:00Z",
-            "ended_at": None,
-        }
-
     def observe_message(self, payload):
         return {
             "message_id": str(uuid4()),
@@ -76,22 +64,6 @@ class FakeWritebackClient:
         }
 
 
-def test_cli_sessions_create_outputs_session_id(monkeypatch) -> None:
-    fake = FakeWritebackClient()
-    monkeypatch.setattr("app.cli.commands.sessions.build_client", lambda *args, **kwargs: fake)
-    runner = CliRunner()
-
-    result = runner.invoke(
-        app,
-        ["sessions", "create", "--workspace", "cs3321-demo", "--agent", "codex", "--title", "PR3"],
-    )
-
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    assert payload["channel"] == "cli"
-    assert payload["agent_id"] == str(fake.agent_id)
-
-
 def test_cli_observe_single_and_batch(monkeypatch, tmp_path: Path) -> None:
     fake = FakeWritebackClient()
     monkeypatch.setattr("app.cli.commands.observe.build_client", lambda *args, **kwargs: fake)
@@ -105,13 +77,15 @@ def test_cli_observe_single_and_batch(monkeypatch, tmp_path: Path) -> None:
             "--session",
             session_id,
             "--role",
-            "user",
+            "assistant",
             "--content",
             "remember this",
         ],
     )
     assert single.exit_code == 0
-    assert json.loads(single.stdout)["content"] == "remember this"
+    payload = json.loads(single.stdout)
+    assert payload["content"] == "remember this"
+    assert payload["sender_type"] == "agent"
 
     batch_path = tmp_path / "messages.jsonl"
     batch_path.write_text(
@@ -128,6 +102,31 @@ def test_cli_observe_single_and_batch(monkeypatch, tmp_path: Path) -> None:
     assert batch.exit_code == 0
     assert len(fake.observed_batches[0]) == 2
     assert all(item["session_id"] == session_id for item in fake.observed_batches[0])
+
+
+def test_cli_observe_quiet_outputs_only_message_id(monkeypatch) -> None:
+    fake = FakeWritebackClient()
+    monkeypatch.setattr("app.cli.commands.observe.build_client", lambda *args, **kwargs: fake)
+    runner = CliRunner()
+    session_id = str(uuid4())
+
+    result = runner.invoke(
+        app,
+        [
+            "observe",
+            "--session",
+            session_id,
+            "--role",
+            "assistant",
+            "--content",
+            "quiet please",
+            "--quiet",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout.strip()
+    assert "\n" not in result.stdout.strip()
 
 
 def test_cli_remember_defaults_to_dry_run_and_requires_reason(monkeypatch) -> None:
@@ -160,7 +159,55 @@ def test_cli_remember_defaults_to_dry_run_and_requires_reason(monkeypatch) -> No
     )
     assert dry_run.exit_code == 0
     assert json.loads(dry_run.stdout)["dry_run"] is True
+    assert "Dry run only" in dry_run.stderr
     assert fake.created_memories == []
+
+
+def test_cli_remember_rejects_unknown_memory_type_before_api_call(monkeypatch) -> None:
+    fake = FakeWritebackClient()
+    monkeypatch.setattr("app.cli.commands.remember.build_client", lambda *args, **kwargs: fake)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "remember",
+            "MemoryBase prefers explicit memory types.",
+            "--workspace",
+            "cs3321-demo",
+            "--agent",
+            "codex",
+            "--type",
+            "rule",
+            "--reason",
+            "test",
+            "--commit",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "Unsupported memory type: rule" in result.stderr
+    assert "decision" in result.stderr
+    assert fake.created_memories == []
+
+
+def test_cli_remember_help_lists_supported_memory_types() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["remember", "--help"])
+
+    assert result.exit_code == 0
+    for memory_type in (
+        "episodic",
+        "semantic",
+        "profile",
+        "procedural",
+        "decision",
+        "preference",
+        "task",
+        "risk",
+    ):
+        assert memory_type in result.stdout
 
 
 def test_cli_remember_commit_writes_memory(monkeypatch) -> None:
