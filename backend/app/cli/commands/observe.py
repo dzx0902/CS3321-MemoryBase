@@ -25,11 +25,12 @@ def observe(
     session_id: str | None = typer.Option(None, "--session", help="Session UUID."),
     role: str = typer.Option("user", "--role", help="Message role."),
     content: str | None = typer.Option(None, "--content", help="Message content."),
-    sender_type: str = typer.Option("user", "--sender-type", help="user, agent, or system."),
+    sender_type: str | None = typer.Option(None, "--sender-type", help="user, agent, or system."),
     sender_id: str | None = typer.Option(None, "--sender-id", help="Sender UUID."),
     batch_path: Path | None = typer.Option(
         None, "--batch", help="JSONL batch file, or '-' for stdin."
     ),
+    quiet: bool = typer.Option(False, "--quiet", help="Print only message_id for single writes."),
     output_format: str = typer.Option("json", "--format", help="json, markdown, or table."),
 ) -> None:
     validate_format(output_format)
@@ -50,7 +51,7 @@ def observe(
             result = client.observe_message(
                 {
                     "session_id": session_id,
-                    "sender_type": sender_type,
+                    "sender_type": sender_type or default_sender_type(role),
                     "sender_id": sender_id,
                     "role": role,
                     "content": content,
@@ -66,8 +67,22 @@ def observe(
         error(str(exc))
         raise typer.Exit(EXIT_CLIENT_ERROR) from exc
 
+    if quiet:
+        if isinstance(result, dict) and "message_id" in result:
+            typer.echo(str(result["message_id"]))
+            raise typer.Exit(EXIT_OK)
+        error("--quiet is only supported for single-message observe writes.")
+        raise typer.Exit(EXIT_CLIENT_ERROR)
     write_result(result, output_format=output_format)
     raise typer.Exit(EXIT_OK)
+
+
+def default_sender_type(role: str) -> str:
+    if role in {"assistant", "tool"}:
+        return "agent"
+    if role == "system":
+        return "system"
+    return "user"
 
 
 def read_jsonl_messages(path: Path, *, default_session_id: str) -> list[dict[str, Any]]:
@@ -84,7 +99,7 @@ def read_jsonl_messages(path: Path, *, default_session_id: str) -> list[dict[str
         if not isinstance(payload, dict):
             raise ValueError(f"JSONL line {line_no} must be an object")
         payload.setdefault("session_id", default_session_id)
-        payload.setdefault("sender_type", "user")
+        payload.setdefault("sender_type", default_sender_type(str(payload.get("role", "user"))))
         messages.append(payload)
     if not messages:
         raise ValueError("batch file did not contain any messages")

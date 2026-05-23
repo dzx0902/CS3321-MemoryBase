@@ -56,6 +56,7 @@ def recall(
 
     if int(result.get("result_count", 0)) == 0:
         info("No recall results.")
+        write_result(result, output_format=output_format)
         raise typer.Exit(EXIT_NO_RESULT)
 
     write_result(result, output_format=output_format)

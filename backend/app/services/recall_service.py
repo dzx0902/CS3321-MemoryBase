@@ -8,6 +8,7 @@ from uuid import UUID
 
 from ..core.database import Database
 from ..models.recall import RecallRequest, RecallResponse
+from ._search_query import build_websearch_query
 from .tokenizer import build_search_text
 
 QUERY_EXPANSION_FILE = (
@@ -63,6 +64,7 @@ class PostgresRecallRepository:
             "workspace_id": payload.workspace_id,
             "query_text": payload.query_text,
             "search_text": search_text,
+            "websearch_query": build_websearch_query(search_text),
             "keyword_patterns": keyword_patterns,
             "limit": payload.limit,
         }
@@ -132,7 +134,7 @@ class PostgresRecallRepository:
                             GREATEST(
                                 ts_rank(
                                     sc.search_vector,
-                                    websearch_to_tsquery('simple', %(search_text)s)
+                                    websearch_to_tsquery('simple', %(websearch_query)s)
                                 ),
                                 CASE
                                     WHEN sc.chunk_text ILIKE ANY(%(keyword_patterns)s::text[])
@@ -145,7 +147,7 @@ class PostgresRecallRepository:
                         WHERE sd.workspace_id = %(workspace_id)s
                           AND sd.status = 'active'
                           AND (
-                            sc.search_vector @@ websearch_to_tsquery('simple', %(search_text)s)
+                            sc.search_vector @@ websearch_to_tsquery('simple', %(websearch_query)s)
                             OR sc.chunk_text ILIKE ANY(%(keyword_patterns)s::text[])
                           )
                     ),

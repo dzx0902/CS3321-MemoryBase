@@ -6,6 +6,7 @@ from typing import Protocol
 
 from ..core.database import Database
 from ..models.search import SearchRequest, SearchResponse
+from ._search_query import build_websearch_query
 from .recall_service import _expand_query_text
 
 # Empirically tuned on PR4 adversarial gold; future eval-driven tuning starts here.
@@ -36,7 +37,7 @@ class PostgresSearchRepository:
             "agent_id": payload.agent_id,
             "query_text": payload.query_text,
             "tokenized_query": tokenized_query,
-            "websearch_query": _build_websearch_query(tokenized_query),
+            "websearch_query": build_websearch_query(tokenized_query),
             "limit": payload.limit,
             "include_chunks": payload.scope in ("all", "chunks"),
             "include_memories": payload.scope in ("all", "memories"),
@@ -77,11 +78,6 @@ def _make_snippet(text: str | None, *, max_chars: int = 240) -> str:
     if len(normalized) <= max_chars:
         return normalized
     return f"{normalized[: max_chars - 1].rstrip()}…"
-
-
-def _build_websearch_query(tokenized_query: str) -> str:
-    terms = [term for term in tokenized_query.split() if term]
-    return " OR ".join(terms) if terms else tokenized_query
 
 
 SEARCH_SQL = """

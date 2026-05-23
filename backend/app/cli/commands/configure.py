@@ -48,6 +48,7 @@ def configure(
         actor_type=actor_type,
     )
     registered: dict[str, object] | None = None
+    health_confirmed = False
 
     if register_agent:
         if not updated.workspace:
@@ -60,14 +61,23 @@ def configure(
                 name=register_agent,
                 agent_type=agent_type,
             )
+            updated = updated.with_overrides(agent=register_agent)
+            health = client.health_detail(workspace=updated.workspace, agent=updated.agent)
         except MemoryBaseClientError as exc:
             error(str(exc))
             raise typer.Exit(EXIT_CLIENT_ERROR) from exc
         except MemoryBaseServerError as exc:
             error(str(exc))
             raise typer.Exit(EXIT_SERVER_ERROR) from exc
-        updated = updated.with_overrides(agent=register_agent)
+        health_confirmed = bool(
+            isinstance(health.get("workspace"), dict)
+            and health["workspace"].get("found", True)
+            and isinstance(health.get("agent"), dict)
+            and health["agent"].get("found", True)
+        )
         info(f"Registered agent {register_agent}: {registered['agent_id']}")
+        if health_confirmed:
+            info("Configuration health confirmed.")
 
     target = default_write_config_path(config_path)
     write_config(updated, target)
@@ -81,6 +91,7 @@ def configure(
                 "agent": updated.agent,
                 "actor_type": updated.actor_type,
                 "registered_agent": registered,
+                "health_confirmed": health_confirmed,
             },
             output_format=output_format,
         )
