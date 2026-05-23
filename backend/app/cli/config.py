@@ -18,6 +18,7 @@ class CliConfig:
     actor_type: str = DEFAULT_ACTOR_TYPE
     actor_id: str | None = None
     database_url: str | None = None
+    active_session: str | None = None
 
     def with_overrides(
         self,
@@ -28,6 +29,7 @@ class CliConfig:
         actor_type: str | None = None,
         actor_id: str | None = None,
         database_url: str | None = None,
+        active_session: str | None = None,
     ) -> CliConfig:
         updates = {
             "api_base_url": api_base_url,
@@ -36,6 +38,7 @@ class CliConfig:
             "actor_type": actor_type,
             "actor_id": actor_id,
             "database_url": database_url,
+            "active_session": active_session,
         }
         return replace(self, **{key: value for key, value in updates.items() if value is not None})
 
@@ -85,6 +88,7 @@ def env_config() -> dict[str, str]:
         "actor_type": os.getenv("MEMORYBASE_ACTOR_TYPE"),
         "actor_id": os.getenv("MEMORYBASE_ACTOR_ID"),
         "database_url": os.getenv("DATABASE_URL") or os.getenv("MEMORYBASE_DATABASE_URL"),
+        "active_session": os.getenv("MEMORYBASE_ACTIVE_SESSION"),
     }
     return {key: value for key, value in mapping.items() if value}
 
@@ -97,6 +101,7 @@ def merge_mapping(config: CliConfig, values: dict[str, Any]) -> CliConfig:
         "actor_type",
         "actor_id",
         "database_url",
+        "active_session",
     }
     normalized = {key: str(value) for key, value in values.items() if key in allowed and value}
     return config.with_overrides(**normalized)
@@ -112,6 +117,7 @@ def write_config(config: CliConfig, path: Path) -> None:
         "actor_type",
         "actor_id",
         "database_url",
+        "active_session",
     ):
         value = getattr(config, key)
         if value is None:

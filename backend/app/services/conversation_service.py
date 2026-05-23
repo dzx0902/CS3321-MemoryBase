@@ -9,6 +9,7 @@ from ..models.conversation import (
     MessageBatchCreateRequest,
     MessageBatchResponse,
     MessageCreateRequest,
+    MessageListResponse,
     MessageResponse,
     SessionCreateRequest,
     SessionListResponse,
@@ -39,6 +40,15 @@ class ConversationRepository(Protocol):
         ...
 
     def get_session(self, session_id: UUID, workspace_id: UUID | None) -> SessionResponse | None:
+        ...
+
+    def list_messages(
+        self,
+        *,
+        session_id: UUID,
+        workspace_id: UUID | None,
+        limit: int,
+    ) -> MessageListResponse:
         ...
 
     def create_message(self, payload: MessageCreateRequest) -> MessageResponse:
@@ -75,6 +85,19 @@ class ConversationService:
         if session is None:
             raise ConversationNotFoundError(f"session {session_id} not found")
         return session
+
+    def list_messages(
+        self,
+        *,
+        session_id: UUID,
+        workspace_id: UUID | None,
+        limit: int,
+    ) -> MessageListResponse:
+        return self.repository.list_messages(
+            session_id=session_id,
+            workspace_id=workspace_id,
+            limit=limit,
+        )
 
     def create_message(self, payload: MessageCreateRequest) -> MessageResponse:
         return self.repository.create_message(payload)
@@ -203,6 +226,52 @@ class PostgresConversationRepository:
                 )
                 row = cur.fetchone()
         return SessionResponse(**row) if row else None
+
+    def list_messages(
+        self,
+        *,
+        session_id: UUID,
+        workspace_id: UUID | None,
+        limit: int,
+    ) -> MessageListResponse:
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                session = self.get_session(session_id, workspace_id)
+                if session is None:
+                    raise ConversationNotFoundError(f"session {session_id} not found")
+                cur.execute(
+                    """
+                    SELECT count(*) AS total
+                    FROM message
+                    WHERE session_id = %(session_id)s
+                    """,
+                    {"session_id": session_id},
+                )
+                total = cur.fetchone()["total"]
+                cur.execute(
+                    """
+                    SELECT
+                        message_id,
+                        session_id,
+                        sender_type,
+                        sender_id,
+                        role,
+                        content,
+                        created_at,
+                        reply_to_message_id
+                    FROM message
+                    WHERE session_id = %(session_id)s
+                    ORDER BY created_at DESC
+                    LIMIT %(limit)s
+                    """,
+                    {"session_id": session_id, "limit": limit},
+                )
+                rows = list(reversed(cur.fetchall()))
+        return MessageListResponse(
+            items=[MessageResponse(**row) for row in rows],
+            total=total,
+            limit=limit,
+        )
 
     def create_message(self, payload: MessageCreateRequest) -> MessageResponse:
         with self._database.connection() as conn:
