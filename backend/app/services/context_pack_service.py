@@ -178,6 +178,9 @@ def trim_to_token_budget(markdown: str, max_tokens: int) -> str:
 
 def count_tokens(text: str) -> int:
     if tiktoken is not None:
-        encoding = tiktoken.get_encoding("cl100k_base")
-        return len(encoding.encode(text))
+        try:
+            encoding = tiktoken.get_encoding("cl100k_base")
+            return len(encoding.encode(text))
+        except Exception:
+            pass
     return max(_estimate_token_count(text), len(text) // 2, 1)

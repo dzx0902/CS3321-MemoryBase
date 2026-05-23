@@ -43,6 +43,8 @@ def main() -> int:
             run_reset(psql_path, database_url)
         elif args.command == "check":
             run_check(psql_path, database_url)
+        elif args.command == "run":
+            run_single_sql_file(psql_path, database_url, args.sql_file)
         else:
             parser.error(f"unsupported command: {args.command}")
     except Exception as exc:  # pragma: no cover - cli entrypoint
@@ -56,8 +58,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Cross-platform database helper for MemoryBase.")
     parser.add_argument(
         "command",
-        choices=["init", "seed", "reset", "check"],
+        choices=["init", "seed", "reset", "check", "run"],
         help="Database action to execute.",
+    )
+    parser.add_argument(
+        "sql_file",
+        nargs="?",
+        help="SQL file to execute when command is `run`.",
     )
     parser.add_argument(
         "--database-url",
@@ -163,6 +170,17 @@ def run_check(psql_path: str, database_url: str) -> None:
         "SELECT title, event_type, event_time FROM timeline_entry ORDER BY event_time;",
     )
     print("Database check completed.")
+
+
+def run_single_sql_file(psql_path: str, database_url: str, sql_file_arg: str | None) -> None:
+    if not sql_file_arg:
+        raise RuntimeError("`run` requires a SQL file path, for example: database/04_indexes.sql")
+    sql_file = Path(sql_file_arg)
+    if not sql_file.is_absolute():
+        sql_file = REPO_ROOT / sql_file
+    print(f"Using DATABASE_URL={database_url}")
+    run_sql_file(psql_path, database_url, sql_file)
+    print(f"SQL file completed: {sql_file}")
 
 
 def existing_seed_files() -> list[Path]:
