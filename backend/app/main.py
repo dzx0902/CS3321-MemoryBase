@@ -11,6 +11,7 @@ from .api.recall import router as recall_router
 from .api.search import router as search_router
 from .api.sessions import router as sessions_router
 from .api.sources import router as sources_router
+from .api.stats import router as stats_router
 from .api.wiki import router as wiki_router
 from .core.config import get_settings
 
@@ -26,6 +27,7 @@ def create_app() -> FastAPI:
     app.include_router(recall_router, prefix="/api")
     app.include_router(search_router, prefix="/api")
     app.include_router(wiki_router, prefix="/api")
+    app.include_router(stats_router, prefix="/api")
     app.include_router(governance_router, prefix="/api")
     app.include_router(agents_router, prefix="/api")
     return app

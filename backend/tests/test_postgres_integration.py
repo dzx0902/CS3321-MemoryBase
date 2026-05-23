@@ -1411,6 +1411,26 @@ def test_wiki_read_endpoints_return_seed_page_detail_and_revisions(
     assert revisions_payload["items"][0]["body_markdown"].startswith("# Why MemoryBase")
 
 
+def test_stats_overview_returns_seed_workspace_counts(
+    integration_client, integration_db: str
+) -> None:
+    response = integration_client.get(
+        "/api/stats/overview",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workspace_id"] == WORKSPACE_ID
+    assert payload["source_count"] >= 6
+    assert payload["memory_count"] >= 20
+    assert payload["active_memory_count"] > 0
+    assert payload["wiki_page_count"] >= 3
+    assert payload["entity_count"] >= 1
+    assert payload["scene_count"] >= 1
+    assert any(item["memory_type"] == "decision" for item in payload["memory_statistics"])
+
+
 def test_forget_request_approval_forgets_memory_and_excludes_recall(
     integration_client, integration_db: str
 ) -> None:
