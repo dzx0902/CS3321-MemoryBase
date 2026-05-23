@@ -258,6 +258,11 @@ npm run db:check
 - docs/13-final-report-outline.md
 - docs/14-initial-issues.md
 - docs/15-api-contract-plan.md
+- docs/16-agent-runtime-gap-analysis.md
+- docs/17-agent-runtime-plan.md
+- docs/18-pr4-lexical-search-design.md
+- docs/19-repo-session-aware-context-design.md
+- docs/20-course-alignment-risk-and-recovery-plan.md
 
 ## GitHub Workflows
 
