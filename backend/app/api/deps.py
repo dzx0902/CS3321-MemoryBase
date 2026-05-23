@@ -10,6 +10,7 @@ from ..services.governance_service import GovernanceService, PostgresGovernanceR
 from ..services.memory_service import MemoryService, PostgresMemoryRepository
 from ..services.recall_service import PostgresRecallRepository, RecallService
 from ..services.search_service import PostgresSearchRepository, SearchService
+from ..services.semantic_service import PostgresSemanticRepository, SemanticService
 from ..services.source_service import PostgresSourceRepository, SourceService
 from ..services.stats_service import PostgresStatsRepository, StatsService
 from ..services.wiki_service import PostgresWikiRepository, WikiService
@@ -44,6 +45,11 @@ def get_recall_service() -> RecallService:
 def get_search_service() -> SearchService:
     repository = PostgresSearchRepository(get_database())
     return SearchService(repository=repository)
+
+
+def get_semantic_service() -> SemanticService:
+    repository = PostgresSemanticRepository(get_database())
+    return SemanticService(repository=repository)
 
 
 def get_governance_service() -> GovernanceService:

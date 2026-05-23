@@ -701,6 +701,26 @@ def test_memory_detail_includes_entities_and_scenes(
     assert any(scene["scene_slug"] == "topic-decision" for scene in payload["scenes"])
 
 
+def test_semantic_list_endpoints_return_seed_entities_and_scenes(
+    integration_client, integration_db: str
+) -> None:
+    entities = integration_client.get(
+        "/api/entities",
+        params={"workspace_id": WORKSPACE_ID, "keyword": "System"},
+    )
+    scenes = integration_client.get(
+        "/api/scenes",
+        params={"workspace_id": WORKSPACE_ID, "keyword": "topic"},
+    )
+
+    assert entities.status_code == 200
+    assert any(
+        entity["canonical_name"] == "Campus Cafeteria System" for entity in entities.json()["items"]
+    )
+    assert scenes.status_code == 200
+    assert any(scene["scene_slug"] == "topic-decision" for scene in scenes.json()["items"])
+
+
 def test_semantic_tables_and_conflicts_enforce_integrity(integration_db: str) -> None:
     with psycopg.connect(integration_db) as conn:
         with conn.cursor() as cur:
