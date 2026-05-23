@@ -6,11 +6,20 @@ from pathlib import Path
 from typing import Protocol
 
 from ..core.database import Database
-from ..models.wiki import WikiExportRequest, WikiExportResponse
+from ..models.wiki import (
+    WikiBatchExportPageResponse,
+    WikiBatchExportRequest,
+    WikiBatchExportResponse,
+    WikiExportRequest,
+    WikiExportResponse,
+)
 
 
 class WikiRepository(Protocol):
     def export_page(self, payload: WikiExportRequest) -> WikiExportResponse:
+        ...
+
+    def export_pages(self, payload: WikiBatchExportRequest) -> WikiBatchExportResponse:
         ...
 
 
@@ -20,6 +29,9 @@ class WikiService:
 
     def export_page(self, payload: WikiExportRequest) -> WikiExportResponse:
         return self.repository.export_page(payload)
+
+    def export_pages(self, payload: WikiBatchExportRequest) -> WikiBatchExportResponse:
+        return self.repository.export_pages(payload)
 
 
 class PostgresWikiRepository:
@@ -142,11 +154,37 @@ class PostgresWikiRepository:
             revision_no=page_row["current_revision_no"],
             body_markdown=page_data["body_markdown"],
             needs_rebuild=False,
-            output_path=str(output_path),
+            output_path=output_path,
             frontmatter_json=page_data["frontmatter_json"],
             source_doc_ids=page_data["source_doc_ids"],
             created_at=page_row["created_at"],
         )
+
+    def export_pages(self, payload: WikiBatchExportRequest) -> WikiBatchExportResponse:
+        pages: list[WikiBatchExportPageResponse] = []
+        for page in payload.pages:
+            page_response = self.export_page(
+                WikiExportRequest(
+                    workspace_id=payload.workspace_id,
+                    page_slug=page.page_slug,
+                    title=page.title,
+                    page_type=page.page_type,
+                    max_memories=page.max_memories,
+                    memory_ids=page.memory_ids,
+                    write_files=payload.write_files,
+                )
+            )
+            pages.append(
+                WikiBatchExportPageResponse(
+                    page_id=page_response.page_id,
+                    page_slug=page_response.page_slug,
+                    revision_no=page_response.revision_no,
+                    file_path=page_response.output_path,
+                    memory_count=len(page_response.frontmatter_json.get("memory_ids", [])),
+                    source_count=len(page_response.source_doc_ids),
+                )
+            )
+        return WikiBatchExportResponse(workspace_id=payload.workspace_id, pages=pages)
 
     def _build_markdown(self, payload: WikiExportRequest) -> dict[str, object]:
         filters = ["mi.workspace_id = %(workspace_id)s", "mi.status = 'active'"]
@@ -256,13 +294,14 @@ class PostgresWikiRepository:
 
     def _write_markdown_file(
         self, page_slug: str, contents: str, workspace_id: object, write_files: bool
-    ) -> Path:
+    ) -> str:
         workspace_dir = self._output_dir / str(workspace_id)
         output_path = workspace_dir / f"{page_slug}.md"
         if write_files:
             workspace_dir.mkdir(parents=True, exist_ok=True)
             output_path.write_text(contents, encoding="utf-8")
-        return output_path
+        project_root = Path(__file__).resolve().parents[3]
+        return output_path.relative_to(project_root).as_posix()
 
 
 def _json_dumps(payload: object) -> str:

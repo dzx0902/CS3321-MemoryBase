@@ -151,7 +151,43 @@ chunk / memory / source 级结构化结果；`--show-lines` 这类展示选项�
 
 导出 Markdown Wiki。
 
-返回：
+兼容单页请求：
+
+```json
+{
+  "workspace_id": "uuid",
+  "page_slug": "demo-report",
+  "title": "Demo Report",
+  "page_type": "report",
+  "memory_ids": ["uuid"],
+  "write_files": true
+}
+```
+
+也支持批量请求：
+
+```json
+{
+  "workspace_id": "uuid",
+  "pages": [
+    {
+      "page_slug": "why-memorybase",
+      "title": "Why MemoryBase",
+      "page_type": "synthesis",
+      "memory_ids": ["uuid"]
+    },
+    {
+      "page_slug": "demo-report",
+      "title": "Demo Report",
+      "page_type": "report",
+      "max_memories": 5
+    }
+  ],
+  "write_files": true
+}
+```
+
+单页返回：
 
 ```json
 {
@@ -174,7 +210,25 @@ chunk / memory / source 级结构化结果；`--show-lines` 这类展示选项�
 }
 ```
 
-## 6. Audit API
+批量返回：
+
+```json
+{
+  "workspace_id": "uuid",
+  "pages": [
+    {
+      "page_id": "uuid",
+      "page_slug": "why-memorybase",
+      "revision_no": 1,
+      "file_path": "data/markdown_wiki/{workspace_id}/why-memorybase.md",
+      "memory_count": 1,
+      "source_count": 1
+    }
+  ]
+}
+```
+
+## 7. Audit API
 
 ### GET /api/audit
 

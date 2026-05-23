@@ -4,6 +4,7 @@ from pathlib import Path
 
 import psycopg
 import pytest
+
 from scripts.backfill_search_terms import backfill_search_terms
 
 WORKSPACE_ID = "00000000-0000-0000-0000-000000000201"
@@ -204,9 +205,7 @@ def test_search_endpoint_returns_rrf_results_for_chinese_query(
     assert "cafeteria" in payload["tokenized_query"]
     assert any(item["result_type"] == "chunk" for item in payload["items"])
     assert any("chunk_fts" in item["strategies"] for item in payload["items"])
-    assert any(
-        "cafeteria system" in item["snippet"].lower() for item in payload["items"]
-    )
+    assert any("cafeteria system" in item["snippet"].lower() for item in payload["items"])
 
 
 def test_search_endpoint_hides_private_memories_without_agent(
@@ -226,9 +225,7 @@ def test_search_endpoint_hides_private_memories_without_agent(
     assert all(item["result_id"] != PRIVATE_MEMORY_ID for item in response.json()["items"])
 
 
-def test_search_endpoint_uses_trigram_fuzzy_route(
-    integration_client, integration_db: str
-) -> None:
+def test_search_endpoint_uses_trigram_fuzzy_route(integration_client, integration_db: str) -> None:
     response = integration_client.post(
         "/api/search",
         json={
@@ -699,8 +696,7 @@ def test_memory_detail_includes_entities_and_scenes(
     assert response.status_code == 200
     payload = response.json()
     assert any(
-        entity["canonical_name"] == "Campus Cafeteria System"
-        for entity in payload["entities"]
+        entity["canonical_name"] == "Campus Cafeteria System" for entity in payload["entities"]
     )
     assert any(scene["scene_slug"] == "topic-decision" for scene in payload["scenes"])
 
@@ -1261,10 +1257,7 @@ def test_audit_lifecycle_statistics_actor_timeline_and_diff(
         params={"workspace_id": WORKSPACE_ID, "group_by": "action_type"},
     )
     assert statistics_response.status_code == 200
-    assert any(
-        item["group_key"] == "memory.update"
-        for item in statistics_response.json()["items"]
-    )
+    assert any(item["group_key"] == "memory.update" for item in statistics_response.json()["items"])
 
     missing_workspace_response = integration_client.get(
         "/api/audit/lifecycle",
@@ -1314,6 +1307,73 @@ def test_wiki_export_writes_file_and_revision_end_to_end(
     )
     assert second.status_code == 200
     assert second.json()["revision_no"] == 2
+
+
+def test_wiki_batch_export_writes_independent_pages_and_respects_write_files(
+    integration_client, integration_db: str
+) -> None:
+    response = integration_client.post(
+        "/api/wiki/export",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "pages": [
+                {
+                    "page_slug": "batch-no-file-a",
+                    "title": "Why MemoryBase",
+                    "page_type": "synthesis",
+                    "memory_ids": [MEMORY_ID],
+                },
+                {
+                    "page_slug": "batch-no-file-b",
+                    "title": "Demo Plan",
+                    "page_type": "report",
+                    "max_memories": 3,
+                },
+                {
+                    "page_slug": "batch-no-file-c",
+                    "title": "Policy and Recall",
+                    "page_type": "handbook",
+                    "max_memories": 2,
+                },
+            ],
+            "write_files": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workspace_id"] == WORKSPACE_ID
+    assert [page["page_slug"] for page in payload["pages"]] == [
+        "batch-no-file-a",
+        "batch-no-file-b",
+        "batch-no-file-c",
+    ]
+    assert all(page["revision_no"] == 1 for page in payload["pages"])
+    assert all(
+        page["file_path"].startswith(f"data/markdown_wiki/{WORKSPACE_ID}/")
+        for page in payload["pages"]
+    )
+    assert not Path(payload["pages"][0]["file_path"]).exists()
+
+    second = integration_client.post(
+        "/api/wiki/export",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "pages": [
+                {
+                    "page_slug": "why-memorybase",
+                    "title": "Why MemoryBase",
+                    "page_type": "synthesis",
+                    "memory_ids": [MEMORY_ID],
+                }
+            ],
+            "write_files": True,
+        },
+    )
+
+    assert second.status_code == 200
+    assert second.json()["pages"][0]["revision_no"] == 2
+    assert Path(second.json()["pages"][0]["file_path"]).exists()
 
 
 def test_forget_request_approval_forgets_memory_and_excludes_recall(

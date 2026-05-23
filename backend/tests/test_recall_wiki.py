@@ -6,7 +6,13 @@ from uuid import uuid4
 from app.api.deps import get_recall_service, get_wiki_service
 from app.main import create_app
 from app.models.recall import RecallRequest, RecallResponse
-from app.models.wiki import WikiExportRequest, WikiExportResponse
+from app.models.wiki import (
+    WikiBatchExportPageResponse,
+    WikiBatchExportRequest,
+    WikiBatchExportResponse,
+    WikiExportRequest,
+    WikiExportResponse,
+)
 from app.services.recall_service import DEMO_QUERY_EXPANSIONS, QUERY_EXPANSION_FILE, _keyword_terms
 from fastapi.testclient import TestClient
 
@@ -94,6 +100,32 @@ class FakeWikiService:
             created_at=datetime(2026, 5, 16, tzinfo=timezone.utc),
         )
 
+    def export_pages(self, payload: WikiBatchExportRequest) -> WikiBatchExportResponse:
+        pages = []
+        for page in payload.pages:
+            page_response = self.export_page(
+                WikiExportRequest(
+                    workspace_id=payload.workspace_id,
+                    page_slug=page.page_slug,
+                    title=page.title,
+                    page_type=page.page_type,
+                    max_memories=page.max_memories,
+                    memory_ids=page.memory_ids,
+                    write_files=payload.write_files,
+                )
+            )
+            pages.append(
+                WikiBatchExportPageResponse(
+                    page_id=page_response.page_id,
+                    page_slug=page_response.page_slug,
+                    revision_no=page_response.revision_no,
+                    file_path=page_response.output_path,
+                    memory_count=len(page_response.frontmatter_json["memory_ids"]),
+                    source_count=len(page_response.source_doc_ids),
+                )
+            )
+        return WikiBatchExportResponse(workspace_id=payload.workspace_id, pages=pages)
+
 
 def build_client() -> tuple[TestClient, FakeRecallService, FakeWikiService]:
     app = create_app()
@@ -179,6 +211,42 @@ def test_wiki_export_returns_markdown_page() -> None:
     assert response.json()["body_markdown"].startswith("# Demo Report")
     assert response.json()["output_path"].endswith("demo-report.md")
     assert "memory_ids" in response.json()["frontmatter_json"]
+
+
+def test_wiki_export_accepts_batch_pages_request() -> None:
+    client, _, fake_wiki = build_client()
+    memory_id = uuid4()
+
+    response = client.post(
+        "/api/wiki/export",
+        json={
+            "workspace_id": str(fake_wiki.workspace_id),
+            "pages": [
+                {
+                    "page_slug": "why-memorybase",
+                    "title": "Why MemoryBase",
+                    "page_type": "synthesis",
+                    "memory_ids": [str(memory_id)],
+                },
+                {
+                    "page_slug": "demo-report",
+                    "title": "Demo Report",
+                    "page_type": "report",
+                    "max_memories": 3,
+                },
+            ],
+            "write_files": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workspace_id"] == str(fake_wiki.workspace_id)
+    assert [page["page_slug"] for page in payload["pages"]] == [
+        "why-memorybase",
+        "demo-report",
+    ]
+    assert payload["pages"][0]["memory_count"] == 1
 
 
 def test_demo_recall_expansions_cover_chinese_query_terms() -> None:
