@@ -87,6 +87,7 @@ Supported fields:
 api_base_url = "http://localhost:8000"
 workspace = "cs3321-demo"
 agent = "codex"
+active_session = "00000000-0000-0000-0000-000000000000"
 actor_type = "agent"
 actor_id = "00000000-0000-0000-0000-000000000301"
 database_url = "postgresql://memorybase:memorybase@localhost:5432/memorybase_db"
@@ -98,9 +99,10 @@ name scoped to the configured workspace.
 ### Commands
 
 ```bash
+mb --version
 mb configure --api-base http://localhost:8000 --workspace cs3321-demo
 mb configure --workspace cs3321-demo --register-agent codex --type editor
-mb health --format json
+mb health
 ```
 
 PR2 commands:
@@ -120,7 +122,9 @@ PR3 commands:
 
 ```bash
 mb sessions create --title "feature work"
+mb sessions create --title "feature work" --print session_id
 mb observe --session <id> --role user --content "..."
+mb observe --session <id> --role assistant --content "..." --quiet
 mb observe --session <id> --batch messages.jsonl
 mb observe --session <id> --batch - < messages.jsonl
 mb remember "fact" --type decision --reason "..." --dry-run
@@ -131,6 +135,11 @@ mb remember "fact" --type decision --reason "..." --commit
 If no explicit evidence chunk is supplied, committed agent writes rely on the
 backend `inline_agent_note` path so the memory still has source/evidence
 provenance.
+
+`mb sessions create` writes `active_session` to CLI config by default; use
+`--no-set-active` to opt out. `mb observe` infers sender type from role when
+`--sender-type` is omitted: `user` maps to `user`, `assistant` and `tool` map to
+`agent`, and `system` maps to `system`.
 
 PR4 commands:
 
@@ -145,13 +154,28 @@ mb eval recall --gold all --format json
 `--show-lines` is CLI-only and renders grep-like `source_path:start-end:
 snippet` rows without changing the `/api/search` request shape.
 
+PR5 context behavior:
+
+```bash
+mb context "current task" --session <id> --repo-root .
+mb context "current task" --repo-only
+```
+
+`mb context` now merges long-term memory, lexical search fallback, recent session
+messages, and local repository metadata/snippets into one Markdown pack. Repo
+context is collected locally by the CLI and is not uploaded to the backend.
+
 ### Output and Exit Codes
 
 - stdout contains the command result only.
 - stderr contains logs, metadata, and errors.
 - Use `--format json` for machine-parsed output.
-- Agent-facing commands default to machine-friendly output: `mb recall` defaults
-  to JSON, and `mb context` defaults to Markdown context.
+- Agent-facing commands default to machine-friendly output: `mb health`,
+  `mb recall`, `mb search`, `mb sessions`, `mb observe`, and `mb remember`
+  default to JSON, and `mb context` defaults to Markdown context.
+- No-result retrieval commands return exit code 4. `mb recall` still writes a
+  parseable JSON object with `result_count: 0` and an empty `memories` array so
+  shell pipelines can inspect the result safely.
 
 Exit codes:
 
