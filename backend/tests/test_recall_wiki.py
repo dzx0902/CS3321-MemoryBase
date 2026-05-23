@@ -12,6 +12,11 @@ from app.models.wiki import (
     WikiBatchExportResponse,
     WikiExportRequest,
     WikiExportResponse,
+    WikiPageDetailResponse,
+    WikiPageListResponse,
+    WikiPageSummaryResponse,
+    WikiRevisionListResponse,
+    WikiRevisionResponse,
 )
 from app.services.recall_service import DEMO_QUERY_EXPANSIONS, QUERY_EXPANSION_FILE, _keyword_terms
 from fastapi.testclient import TestClient
@@ -77,6 +82,81 @@ class FakeWikiService:
     def __init__(self) -> None:
         self.workspace_id = uuid4()
         self.page_id = uuid4()
+        self.revision = WikiRevisionResponse(
+            page_id=self.page_id,
+            revision_no=2,
+            frontmatter_json={
+                "memory_ids": [str(uuid4())],
+                "source_doc_ids": [str(uuid4())],
+            },
+            body_markdown="# Demo Report\n\nGenerated wiki content.\n",
+            generated_by="exporter",
+            created_at=datetime(2026, 5, 16, tzinfo=timezone.utc),
+        )
+
+    def list_pages(
+        self,
+        *,
+        workspace_id,
+        status,
+        keyword,
+        page,
+        page_size,
+    ) -> WikiPageListResponse:
+        return WikiPageListResponse(
+            items=[
+                WikiPageSummaryResponse(
+                    page_id=self.page_id,
+                    workspace_id=workspace_id or self.workspace_id,
+                    page_slug="demo-report",
+                    title="Demo Report",
+                    page_type="report",
+                    current_revision_no=2,
+                    needs_rebuild=False,
+                    status=status or "active",
+                    memory_count=1,
+                    source_count=1,
+                    latest_revision_at=self.revision.created_at,
+                    created_at=self.revision.created_at,
+                    updated_at=self.revision.created_at,
+                )
+            ],
+            page=page,
+            page_size=page_size,
+            total=1,
+        )
+
+    def get_page(self, *, page_id, workspace_id) -> WikiPageDetailResponse | None:
+        if page_id != self.page_id:
+            return None
+        return WikiPageDetailResponse(
+            page_id=self.page_id,
+            workspace_id=workspace_id,
+            page_slug="demo-report",
+            title="Demo Report",
+            page_type="report",
+            current_revision_no=2,
+            needs_rebuild=False,
+            status="active",
+            memory_count=1,
+            source_count=1,
+            latest_revision_at=self.revision.created_at,
+            created_at=self.revision.created_at,
+            updated_at=self.revision.created_at,
+            latest_revision=self.revision,
+            memory_ids=[self.revision.frontmatter_json["memory_ids"][0]],
+            source_doc_ids=[self.revision.frontmatter_json["source_doc_ids"][0]],
+        )
+
+    def list_revisions(self, *, page_id, workspace_id, page, page_size) -> WikiRevisionListResponse:
+        if page_id != self.page_id:
+            return WikiRevisionListResponse(items=[], page=page, page_size=page_size, total=0)
+        return WikiRevisionListResponse(
+            items=[self.revision],
+            page=page,
+            page_size=page_size,
+            total=1,
+        )
 
     def export_page(self, payload: WikiExportRequest) -> WikiExportResponse:
         return WikiExportResponse(
@@ -247,6 +327,25 @@ def test_wiki_export_accepts_batch_pages_request() -> None:
         "demo-report",
     ]
     assert payload["pages"][0]["memory_count"] == 1
+
+
+def test_wiki_read_endpoints_return_pages_and_revisions() -> None:
+    client, _, fake_wiki = build_client()
+
+    list_response = client.get(f"/api/wiki?workspace_id={fake_wiki.workspace_id}")
+    detail_response = client.get(
+        f"/api/wiki/{fake_wiki.page_id}?workspace_id={fake_wiki.workspace_id}"
+    )
+    revisions_response = client.get(
+        f"/api/wiki/{fake_wiki.page_id}/revisions?workspace_id={fake_wiki.workspace_id}"
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json()["items"][0]["page_slug"] == "demo-report"
+    assert detail_response.status_code == 200
+    assert detail_response.json()["latest_revision"]["revision_no"] == 2
+    assert revisions_response.status_code == 200
+    assert revisions_response.json()["items"][0]["body_markdown"].startswith("# Demo Report")
 
 
 def test_demo_recall_expansions_cover_chinese_query_terms() -> None:

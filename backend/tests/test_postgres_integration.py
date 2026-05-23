@@ -1376,6 +1376,41 @@ def test_wiki_batch_export_writes_independent_pages_and_respects_write_files(
     assert Path(second.json()["pages"][0]["file_path"]).exists()
 
 
+def test_wiki_read_endpoints_return_seed_page_detail_and_revisions(
+    integration_client, integration_db: str
+) -> None:
+    list_response = integration_client.get(
+        "/api/wiki",
+        params={"workspace_id": WORKSPACE_ID, "keyword": "MemoryBase"},
+    )
+    assert list_response.status_code == 200
+    list_payload = list_response.json()
+    assert list_payload["total"] >= 1
+    assert any(page["page_slug"] == "why-memorybase" for page in list_payload["items"])
+
+    detail_response = integration_client.get(
+        f"/api/wiki/{WIKI_PAGE_ID}",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert detail_response.status_code == 200
+    detail_payload = detail_response.json()
+    assert detail_payload["page_slug"] == "why-memorybase"
+    assert detail_payload["latest_revision"]["revision_no"] == detail_payload["current_revision_no"]
+    assert isinstance(detail_payload["memory_ids"], list)
+    assert isinstance(detail_payload["source_doc_ids"], list)
+    assert detail_payload["memory_count"] >= 0
+    assert detail_payload["source_count"] >= 0
+
+    revisions_response = integration_client.get(
+        f"/api/wiki/{WIKI_PAGE_ID}/revisions",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert revisions_response.status_code == 200
+    revisions_payload = revisions_response.json()
+    assert revisions_payload["total"] >= 1
+    assert revisions_payload["items"][0]["body_markdown"].startswith("# Why MemoryBase")
+
+
 def test_forget_request_approval_forgets_memory_and_excludes_recall(
     integration_client, integration_db: str
 ) -> None:

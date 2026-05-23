@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from .common import PageResponse
+
 WikiPageType = Literal["source", "entity", "concept", "synthesis", "report", "timeline", "handbook"]
 
 
@@ -55,3 +57,44 @@ class WikiBatchExportPageResponse(BaseModel):
 class WikiBatchExportResponse(BaseModel):
     workspace_id: UUID
     pages: list[WikiBatchExportPageResponse]
+
+
+class WikiRevisionResponse(BaseModel):
+    page_id: UUID
+    revision_no: int
+    frontmatter_json: dict[str, Any]
+    body_markdown: str
+    generated_by: str | None = None
+    created_at: datetime
+
+
+class WikiPageSummaryResponse(BaseModel):
+    page_id: UUID
+    workspace_id: UUID
+    page_slug: str
+    title: str
+    page_type: WikiPageType
+    current_revision_no: int
+    needs_rebuild: bool
+    status: str
+    generated_from_memory_id: UUID | None = None
+    generated_from_scene_id: UUID | None = None
+    memory_count: int = 0
+    source_count: int = 0
+    latest_revision_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class WikiPageDetailResponse(WikiPageSummaryResponse):
+    latest_revision: WikiRevisionResponse | None = None
+    memory_ids: list[UUID] = Field(default_factory=list)
+    source_doc_ids: list[UUID] = Field(default_factory=list)
+
+
+class WikiPageListResponse(PageResponse[WikiPageSummaryResponse]):
+    pass
+
+
+class WikiRevisionListResponse(PageResponse[WikiRevisionResponse]):
+    pass
