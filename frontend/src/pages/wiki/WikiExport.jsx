@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { wikiApi } from '../../api/client';
 import { DEMO_WORKSPACE_ID } from '../../api/constants';
 import { useToast } from '../../components/Toast';
@@ -17,8 +17,32 @@ export default function WikiExport() {
     write_files: true,
   });
   const [exporting, setExporting] = useState(false);
+  const [pages, setPages] = useState([]);
+  const [keyword, setKeyword] = useState('');
+  const [status, setStatus] = useState('');
+  const [selectedPage, setSelectedPage] = useState(null);
+  const [revisions, setRevisions] = useState([]);
+  const [loadingPage, setLoadingPage] = useState(false);
   const [result, setResult] = useState(null);
   const [viewMode, setViewMode] = useState('form'); // 'form' | 'preview' | 'json'
+
+  const loadPages = useCallback(async () => {
+    try {
+      const data = await wikiApi.list({
+        workspace_id: form.workspace_id,
+        keyword: keyword || undefined,
+        status: status || undefined,
+        page_size: 20,
+      });
+      setPages(data.items || []);
+    } catch (err) {
+      toast.error(err.message || 'Failed to load wiki pages');
+    }
+  }, [form.workspace_id, keyword, status, toast]);
+
+  useEffect(() => {
+    loadPages();
+  }, [loadPages]);
 
   function updateField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -47,6 +71,7 @@ export default function WikiExport() {
       });
       setResult(data);
       setViewMode('preview');
+      loadPages();
       toast.success('Wiki page exported successfully');
     } catch (err) {
       toast.error(err.message || 'Export failed');
@@ -55,10 +80,41 @@ export default function WikiExport() {
     }
   }
 
+  async function loadPageDetail(page) {
+    setLoadingPage(true);
+    setSelectedPage(null);
+    setRevisions([]);
+    try {
+      const [detail, revisionData] = await Promise.all([
+        wikiApi.detail(page.page_id, { workspace_id: page.workspace_id }),
+        wikiApi.revisions(page.page_id, { workspace_id: page.workspace_id, page_size: 20 }),
+      ]);
+      setSelectedPage(detail);
+      setRevisions(revisionData.items || []);
+      setViewMode('preview');
+      if (detail.latest_revision?.body_markdown) {
+        setResult({
+          ...detail.latest_revision,
+          page_id: detail.page_id,
+          workspace_id: detail.workspace_id,
+          page_slug: detail.page_slug,
+          title: detail.title,
+          page_type: detail.page_type,
+          body_markdown: detail.latest_revision.body_markdown,
+          frontmatter_json: detail.latest_revision.frontmatter_json,
+        });
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to load wiki page');
+    } finally {
+      setLoadingPage(false);
+    }
+  }
+
   return (
     <div>
       <div className="section-header">
-        <h1><span className="icon">▦</span> Wiki Export</h1>
+        <h1><span className="icon">▦</span> Wiki</h1>
       </div>
 
       <div className="panels" style={{ alignItems: 'start' }}>
@@ -116,6 +172,106 @@ export default function WikiExport() {
         </form>
 
         <div>
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card__header">
+              <h3 className="card__title">Existing Wiki Pages</h3>
+              <button className="btn btn--sm" onClick={loadPages}>Refresh</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 10, marginBottom: 14 }}>
+              <input className="input" placeholder="Filter keyword..." value={keyword}
+                onChange={(e) => setKeyword(e.target.value)} />
+              <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="">Any status</option>
+                <option value="active">active</option>
+                <option value="stale">stale</option>
+                <option value="archived">archived</option>
+              </select>
+            </div>
+            {pages.length === 0 ? (
+              <p className="text-muted">No wiki pages found for this workspace.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {pages.map((page) => (
+                  <div key={page.page_id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{page.title}</div>
+                      <div className="text-muted text-mono" style={{ fontSize: '0.75rem' }}>{page.page_slug}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span className="badge badge--default">{page.page_type}</span>
+                      {page.needs_rebuild && <span className="badge badge--danger">rebuild</span>}
+                      <span className="text-muted" style={{ fontSize: '0.75rem' }}>v{page.current_revision_no}</span>
+                      <button className="btn btn--sm" onClick={() => loadPageDetail(page)} disabled={loadingPage}>
+                        View
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {selectedPage && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div className="card__header">
+                <h3 className="card__title">{selectedPage.title}</h3>
+                <span className="badge badge--info">v{selectedPage.current_revision_no}</span>
+              </div>
+              <div className="detail-grid" style={{ marginBottom: 16 }}>
+                <div className="detail-item">
+                  <div className="detail-item__label">Slug</div>
+                  <div className="detail-item__value text-mono">{selectedPage.page_slug}</div>
+                </div>
+                <div className="detail-item">
+                  <div className="detail-item__label">Type</div>
+                  <div className="detail-item__value">{selectedPage.page_type}</div>
+                </div>
+                <div className="detail-item">
+                  <div className="detail-item__label">Memories</div>
+                  <div className="detail-item__value">{selectedPage.memory_count}</div>
+                </div>
+                <div className="detail-item">
+                  <div className="detail-item__label">Sources</div>
+                  <div className="detail-item__value">{selectedPage.source_count}</div>
+                </div>
+              </div>
+
+              <div className="card__header">
+                <h3 className="card__title">Revisions</h3>
+                <span className="badge badge--default">{revisions.length}</span>
+              </div>
+              {revisions.length === 0 ? (
+                <p className="text-muted">No revisions found.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {revisions.map((revision) => (
+                    <button
+                      key={`${revision.page_id}-${revision.revision_no}`}
+                      className="btn"
+                      style={{ justifyContent: 'space-between' }}
+                      onClick={() => {
+                        setResult({
+                          ...revision,
+                          page_id: selectedPage.page_id,
+                          workspace_id: selectedPage.workspace_id,
+                          page_slug: selectedPage.page_slug,
+                          title: selectedPage.title,
+                          page_type: selectedPage.page_type,
+                        });
+                        setViewMode('preview');
+                      }}
+                    >
+                      <span>Revision {revision.revision_no}</span>
+                      <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+                        {revision.created_at ? new Date(revision.created_at).toLocaleString() : '—'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {result && (
             <div className="card">
               <div className="card__header">

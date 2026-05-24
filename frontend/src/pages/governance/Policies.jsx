@@ -15,6 +15,8 @@ export default function Policies() {
   const [total, setTotal] = useState(0);
   const [workspaceId, setWorkspaceId] = useState(DEMO_WORKSPACE_ID);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingPolicy, setEditingPolicy] = useState(null);
+  const [deletingId, setDeletingId] = useState('');
   const toast = useToast();
   const pageSize = 15;
 
@@ -39,6 +41,22 @@ export default function Policies() {
 
   const totalPages = Math.ceil(total / pageSize);
 
+  async function deletePolicy(policy) {
+    const confirmed = window.confirm(`Delete policy ${policy.policy_id}?`);
+    if (!confirmed) return;
+    setDeletingId(policy.policy_id);
+    try {
+      await policiesApi.remove(policy.policy_id, { workspace_id: policy.workspace_id });
+      toast.success('Policy deleted');
+      if (editingPolicy?.policy_id === policy.policy_id) setEditingPolicy(null);
+      fetchPolicies();
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete policy');
+    } finally {
+      setDeletingId('');
+    }
+  }
+
   return (
     <div>
       <div className="section-header">
@@ -52,6 +70,14 @@ export default function Policies() {
         <PolicyCreateForm
           workspaceId={workspaceId}
           onSuccess={() => { setShowCreate(false); fetchPolicies(); }}
+        />
+      )}
+
+      {editingPolicy && (
+        <PolicyEditForm
+          policy={editingPolicy}
+          onCancel={() => setEditingPolicy(null)}
+          onSuccess={() => { setEditingPolicy(null); fetchPolicies(); }}
         />
       )}
 
@@ -78,6 +104,7 @@ export default function Policies() {
                   <th>Effect</th>
                   <th>Scope</th>
                   <th>Created</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -97,6 +124,18 @@ export default function Policies() {
                     </td>
                     <td><span className="badge badge--default">{p.resource_scope || '-'}</span></td>
                     <td className="text-muted">{p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        <button className="btn btn--sm" onClick={() => setEditingPolicy(p)}>Edit</button>
+                        <button
+                          className="btn btn--danger btn--sm"
+                          onClick={() => deletePolicy(p)}
+                          disabled={deletingId === p.policy_id}
+                        >
+                          {deletingId === p.policy_id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -115,6 +154,82 @@ export default function Policies() {
         </>
       )}
     </div>
+  );
+}
+
+function PolicyEditForm({ policy, onCancel, onSuccess }) {
+  const toast = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    resource_scope: policy.resource_scope || 'project',
+    effect: policy.effect || 'allow',
+    predicate_json: JSON.stringify(policy.predicate_json || {}, null, 2),
+  });
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await policiesApi.update(
+        policy.policy_id,
+        { workspace_id: policy.workspace_id },
+        {
+          resource_scope: form.resource_scope,
+          effect: form.effect,
+          predicate_json: form.predicate_json ? JSON.parse(form.predicate_json) : {},
+        },
+      );
+      toast.success('Policy updated');
+      onSuccess();
+    } catch (err) {
+      toast.error(err.message || 'Failed to update policy');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="card" style={{ marginBottom: 20 }}>
+      <div className="card__header">
+        <h3 className="card__title">Edit Policy</h3>
+        <span className="text-mono text-muted" style={{ fontSize: '0.72rem' }}>{policy.policy_id}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0 20px' }}>
+        <div className="form-group">
+          <label>Principal</label>
+          <input className="input" value={`${policy.principal_type}:${policy.principal_id || 'all'}`} disabled />
+        </div>
+        <div className="form-group">
+          <label>Resource Type</label>
+          <input className="input" value={policy.resource_type} disabled />
+        </div>
+        <div className="form-group">
+          <label>Effect</label>
+          <select className="select" value={form.effect}
+            onChange={(e) => setForm((f) => ({ ...f, effect: e.target.value }))}>
+            {EFFECTS.map((effect) => <option key={effect} value={effect}>{effect}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Scope</label>
+          <select className="select" value={form.resource_scope}
+            onChange={(e) => setForm((f) => ({ ...f, resource_scope: e.target.value }))}>
+            {RESOURCE_SCOPES.map((scope) => <option key={scope} value={scope}>{scope}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="form-group">
+        <label>Predicate JSON</label>
+        <textarea className="textarea text-mono" rows={4} value={form.predicate_json}
+          onChange={(e) => setForm((f) => ({ ...f, predicate_json: e.target.value }))} />
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button type="submit" className="btn btn--primary" disabled={submitting}>
+          {submitting ? 'Saving...' : 'Save Policy'}
+        </button>
+        <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
   );
 }
 

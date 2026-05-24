@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { sourcesApi } from '../api/client';
+import { statsApi } from '../api/client';
+import { DEMO_WORKSPACE_ID } from '../api/constants';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -9,20 +10,21 @@ export default function Dashboard() {
   useEffect(() => {
     async function load() {
       try {
-        const [sources, memories, policies, conflicts] = await Promise.all([
-          sourcesApi.list({ page_size: 1 }),
-          fetch('/api/memories?page_size=1').then((r) => r.json()),
-          fetch('/api/policies?page_size=1').then((r) => r.json()),
-          fetch('/api/conflicts?page_size=1').then((r) => r.json()),
-        ]);
+        const overview = await statsApi.overview({ workspace_id: DEMO_WORKSPACE_ID });
         setStats({
-          sources: sources.total || 0,
-          memories: memories.total || 0,
-          policies: policies.total || 0,
-          conflicts: conflicts.total || 0,
+          sources: overview.source_count || 0,
+          chunks: overview.chunk_count || 0,
+          memories: overview.memory_count || 0,
+          activeMemories: overview.active_memory_count || 0,
+          wikiPages: overview.wiki_page_count || 0,
+          policies: overview.policy_count || 0,
+          conflicts: overview.conflict_count || 0,
+          entities: overview.entity_count || 0,
+          scenes: overview.scene_count || 0,
+          latestActivityAt: overview.latest_activity_at,
         });
       } catch {
-        setStats({ sources: '—', memories: '—', policies: '—', conflicts: '—' });
+        setStats({ sources: '—', chunks: '—', memories: '—', activeMemories: '—', wikiPages: '—', policies: '—', conflicts: '—', entities: '—', scenes: '—' });
       } finally {
         setLoading(false);
       }
@@ -42,8 +44,13 @@ export default function Dashboard() {
   const cards = [
     { label: 'Sources', value: stats?.sources, to: '/sources', accent: true },
     { label: 'Memories', value: stats?.memories, to: '/memories', accent: true },
+    { label: 'Active Memories', value: stats?.activeMemories, to: '/memories' },
+    { label: 'Chunks', value: stats?.chunks, to: '/sources' },
+    { label: 'Wiki Pages', value: stats?.wikiPages, to: '/wiki' },
     { label: 'Policies', value: stats?.policies, to: '/governance/policies' },
     { label: 'Conflicts', value: stats?.conflicts, to: '/governance/conflicts' },
+    { label: 'Entities', value: stats?.entities, to: '/memories' },
+    { label: 'Scenes', value: stats?.scenes, to: '/wiki' },
   ];
 
   return (

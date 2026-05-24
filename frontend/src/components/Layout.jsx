@@ -6,6 +6,15 @@ const NAV = [
   { to: '/sources', label: 'Sources', icon: '▤' },
   { to: '/memories', label: 'Memories', icon: '◈' },
   { to: '/recall', label: 'Recall', icon: '◎' },
+  {
+    label: 'Agent Runtime',
+    icon: '⌁',
+    children: [
+      { to: '/runtime/sessions', label: 'Sessions', icon: '◉' },
+      { to: '/runtime/messages', label: 'Messages', icon: '✉' },
+      { to: '/runtime/search', label: 'Hybrid Search', icon: '⌕' },
+    ],
+  },
   { to: '/wiki', label: 'Wiki', icon: '▦' },
   {
     label: 'Governance',

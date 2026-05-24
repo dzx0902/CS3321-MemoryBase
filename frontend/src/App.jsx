@@ -9,6 +9,9 @@ import MemoryDetail from './pages/memories/MemoryDetail';
 import MemoryCreate from './pages/memories/MemoryCreate';
 import MemoryEdit from './pages/memories/MemoryEdit';
 import Recall from './pages/recall/Recall';
+import Sessions from './pages/runtime/Sessions';
+import Messages from './pages/runtime/Messages';
+import HybridSearch from './pages/runtime/HybridSearch';
 import WikiExport from './pages/wiki/WikiExport';
 import Timeline from './pages/governance/Timeline';
 import Audit from './pages/governance/Audit';
@@ -30,6 +33,9 @@ export default function App() {
             <Route path="memories/:memoryId" element={<MemoryDetail />} />
             <Route path="memories/:memoryId/edit" element={<MemoryEdit />} />
             <Route path="recall" element={<Recall />} />
+            <Route path="runtime/sessions" element={<Sessions />} />
+            <Route path="runtime/messages" element={<Messages />} />
+            <Route path="runtime/search" element={<HybridSearch />} />
             <Route path="wiki" element={<WikiExport />} />
             <Route path="governance/timeline" element={<Timeline />} />
             <Route path="governance/audit" element={<Audit />} />

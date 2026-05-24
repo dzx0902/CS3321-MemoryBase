@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { memoriesApi } from '../../api/client';
+import { memoriesApi, sourcesApi } from '../../api/client';
 import { DEMO_WORKSPACE_ID } from '../../api/constants';
 import { useToast } from '../../components/Toast';
 
@@ -12,6 +12,11 @@ export default function MemoryCreate() {
   const navigate = useNavigate();
   const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [sources, setSources] = useState([]);
+  const [selectedDocId, setSelectedDocId] = useState('');
+  const [chunks, setChunks] = useState([]);
+  const [loadingSources, setLoadingSources] = useState(false);
+  const [loadingChunks, setLoadingChunks] = useState(false);
   const [form, setForm] = useState({
     workspace_id: DEMO_WORKSPACE_ID,
     summary: '',
@@ -21,6 +26,44 @@ export default function MemoryCreate() {
     access_level: 'project',
     evidence: [],
   });
+
+  const loadSources = useCallback(async () => {
+    if (!form.workspace_id) return;
+    setLoadingSources(true);
+    try {
+      const data = await sourcesApi.list({ workspace_id: form.workspace_id, page_size: 100 });
+      const items = data.items || [];
+      setSources(items);
+      if (selectedDocId && !items.some((source) => source.doc_id === selectedDocId)) {
+        setSelectedDocId('');
+        setChunks([]);
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to load sources');
+    } finally {
+      setLoadingSources(false);
+    }
+  }, [form.workspace_id, selectedDocId, toast]);
+
+  const loadChunks = useCallback(async () => {
+    if (!form.workspace_id || !selectedDocId) {
+      setChunks([]);
+      return;
+    }
+    setLoadingChunks(true);
+    try {
+      const data = await sourcesApi.detail(selectedDocId, { workspace_id: form.workspace_id });
+      setChunks(data.chunks || []);
+    } catch (err) {
+      toast.error(err.message || 'Failed to load chunks');
+      setChunks([]);
+    } finally {
+      setLoadingChunks(false);
+    }
+  }, [form.workspace_id, selectedDocId, toast]);
+
+  useEffect(() => { loadSources(); }, [loadSources]);
+  useEffect(() => { loadChunks(); }, [loadChunks]);
 
   function updateField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -114,13 +157,31 @@ export default function MemoryCreate() {
             onChange={(e) => updateField('canonical_text', e.target.value)} placeholder="Memory content (Markdown supported)..." required />
         </div>
 
-        <div style={{ marginTop: 20, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ marginTop: 20, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <h4 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1rem' }}>Evidence</h4>
-          <button type="button" className="btn btn--sm" onClick={addEvidence}>+ Add Evidence</button>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              className="select"
+              value={selectedDocId}
+              onChange={(e) => setSelectedDocId(e.target.value)}
+              disabled={loadingSources}
+              style={{ minWidth: 260 }}
+            >
+              <option value="">{loadingSources ? 'Loading sources...' : 'Select source document...'}</option>
+              {sources.map((source) => (
+                <option key={source.doc_id} value={source.doc_id}>
+                  {source.title || source.source_path || source.doc_id}
+                </option>
+              ))}
+            </select>
+            <button type="button" className="btn btn--sm" onClick={addEvidence}>+ Add Evidence</button>
+          </div>
         </div>
 
         {form.evidence.length === 0 && (
-          <p className="text-muted" style={{ fontSize: '0.82rem', marginBottom: 12 }}>No evidence items. Optionally link source chunks.</p>
+          <p className="text-muted" style={{ fontSize: '0.82rem', marginBottom: 12 }}>
+            No evidence items. Select a source document, then link one of its chunks.
+          </p>
         )}
 
         {form.evidence.map((ev, idx) => (
@@ -129,9 +190,22 @@ export default function MemoryCreate() {
             padding: '12px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)',
           }}>
             <div className="form-group" style={{ flex: 2, marginBottom: 0 }}>
-              <label>Chunk ID</label>
-              <input className="input" value={ev.chunk_id} placeholder="e.g. chunk-001"
-                onChange={(e) => updateEvidence(idx, 'chunk_id', e.target.value)} />
+              <label>Chunk</label>
+              <select
+                className="select"
+                value={ev.chunk_id}
+                onChange={(e) => updateEvidence(idx, 'chunk_id', e.target.value)}
+                disabled={!selectedDocId || loadingChunks}
+              >
+                <option value="">
+                  {!selectedDocId ? 'Select source first...' : loadingChunks ? 'Loading chunks...' : 'Select chunk...'}
+                </option>
+                {chunks.map((chunk) => (
+                  <option key={chunk.chunk_id} value={chunk.chunk_id}>
+                    #{chunk.chunk_no} · {chunk.chunk_text ? chunk.chunk_text.slice(0, 80) : chunk.chunk_id}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
               <label>Role</label>

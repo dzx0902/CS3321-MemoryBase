@@ -15,9 +15,11 @@ export default function Recall() {
     access_level: '',
     status: 'active',
     limit: 10,
+    max_tokens: 3000,
   });
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState(null);
+  const [contextPack, setContextPack] = useState(null);
 
   function updateField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -31,6 +33,7 @@ export default function Recall() {
     }
     setSearching(true);
     setResults(null);
+    setContextPack(null);
     try {
       const data = await recallApi.search({
         workspace_id: form.workspace_id,
@@ -43,6 +46,31 @@ export default function Recall() {
       setResults(data);
     } catch (err) {
       toast.error(err.message || 'Recall failed');
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function handleContextPack() {
+    if (!form.query_text.trim()) {
+      toast.error('Please enter a query');
+      return;
+    }
+    setSearching(true);
+    setContextPack(null);
+    try {
+      const data = await recallApi.contextPack({
+        workspace_id: form.workspace_id,
+        query_text: form.query_text,
+        memory_type: form.memory_type || undefined,
+        access_level: form.access_level || undefined,
+        status: form.status || undefined,
+        limit: Number(form.limit),
+        max_tokens: Number(form.max_tokens),
+      });
+      setContextPack(data);
+    } catch (err) {
+      toast.error(err.message || 'Context pack failed');
     } finally {
       setSearching(false);
     }
@@ -89,14 +117,36 @@ export default function Recall() {
             <input className="input" type="number" min="1" max="50" value={form.limit}
               onChange={(e) => updateField('limit', e.target.value)} />
           </div>
+          <div className="form-group">
+            <label>Context Tokens</label>
+            <input className="input" type="number" min="100" max="16000" value={form.max_tokens}
+              onChange={(e) => updateField('max_tokens', e.target.value)} />
+          </div>
         </div>
 
-        <button type="submit" className="btn btn--primary" disabled={searching} style={{ marginTop: 8 }}>
-          {searching ? 'Searching...' : '◎ Search'}
-        </button>
+        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+          <button type="submit" className="btn btn--primary" disabled={searching}>
+            {searching ? 'Searching...' : '◎ Search'}
+          </button>
+          <button type="button" className="btn" disabled={searching} onClick={handleContextPack}>
+            Context Pack
+          </button>
+        </div>
       </form>
 
       {searching && <div className="loading"><div className="spinner" />Searching memories...</div>}
+
+      {contextPack && !searching && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card__header">
+            <h3 className="card__title">Context Pack</h3>
+            <span className="badge badge--info">{contextPack.token_count} tokens</span>
+          </div>
+          <pre className="markdown-body" style={{ whiteSpace: 'pre-wrap', fontSize: '0.86rem', maxHeight: 520, overflowY: 'auto' }}>
+            {contextPack.markdown}
+          </pre>
+        </div>
+      )}
 
       {results && !searching && (
         <>

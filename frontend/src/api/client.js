@@ -89,21 +89,59 @@ export const memoriesApi = {
 // ===== Recall =====
 export const recallApi = {
   search: (body) => request('/recall', { method: 'POST', body }),
+  contextPack: (body) => request('/recall/context-pack', { method: 'POST', body }),
+};
+
+export const searchApi = {
+  search: (body) => request('/search', { method: 'POST', body }),
+};
+
+export const sessionsApi = {
+  list: (params) => request(`/sessions${qs(params)}`),
+  create: (body) => request('/sessions', { method: 'POST', body }),
+  detail: (sessionId, params) => request(`/sessions/${sessionId}${qs(params)}`),
+  messages: (sessionId, params) => request(`/sessions/${sessionId}/messages${qs(params)}`),
+};
+
+export const observeApi = {
+  create: (body) => request('/observe', { method: 'POST', body }),
+  batch: (body) => request('/observe/batch', { method: 'POST', body }),
+};
+
+export const agentsApi = {
+  register: (body) => request('/agents/register', { method: 'POST', body }),
+  visibleMemories: (agentId, params) => request(`/agents/${agentId}/visible-memories${qs(params)}`),
 };
 
 // ===== Wiki =====
 export const wikiApi = {
+  list: (params) => request(`/wiki${qs(params)}`),
+  detail: (pageId, params) => request(`/wiki/${pageId}${qs(params)}`),
+  revisions: (pageId, params) => request(`/wiki/${pageId}/revisions${qs(params)}`),
   export: (body) => request('/wiki/export', { method: 'POST', body }),
+};
+
+export const statsApi = {
+  overview: (params) => request(`/stats/overview${qs(params)}`),
+};
+
+export const semanticApi = {
+  entities: (params) => request(`/entities${qs(params)}`),
+  scenes: (params) => request(`/scenes${qs(params)}`),
 };
 
 // ===== Governance =====
 export const policiesApi = {
   list: (params) => request(`/policies${qs(params)}`),
   create: (body) => request('/policies', { method: 'POST', body }),
+  update: (policyId, params, body) => request(`/policies/${policyId}${qs(params)}`, { method: 'PATCH', body }),
+  remove: (policyId, params) => request(`/policies/${policyId}${qs(params)}`, { method: 'DELETE' }),
 };
 
 export const auditApi = {
   list: (params) => request(`/audit${qs(params)}`),
+  lifecycle: (params) => request(`/audit/lifecycle${qs(params)}`),
+  statistics: (params) => request(`/audit/statistics${qs(params)}`),
 };
 
 export const conflictsApi = {
