@@ -23,6 +23,9 @@ export default [
         document: "readonly",
         window: "readonly",
         console: "readonly",
+        fetch: "readonly",
+        URLSearchParams: "readonly",
+        setTimeout: "readonly",
       },
     },
     settings: {
@@ -33,6 +36,7 @@ export default [
     rules: {
       ...reactPlugin.configs.recommended.rules,
       ...reactPlugin.configs["jsx-runtime"].rules,
+      "react/prop-types": "off",
       "no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
