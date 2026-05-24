@@ -38,6 +38,7 @@ def create_source(
 def list_sources(
     workspace_id: UUID | None = Query(default=None),
     keyword: str | None = Query(default=None),
+    status: str | None = Query(default=None, pattern="^(active|forgotten|all)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     service: SourceService = Depends(get_source_service),
@@ -45,6 +46,7 @@ def list_sources(
     return service.list_sources(
         workspace_id=workspace_id,
         keyword=keyword,
+        status=status,
         page=page,
         page_size=page_size,
     )
@@ -54,9 +56,10 @@ def list_sources(
 def get_source(
     doc_id: UUID,
     workspace_id: UUID = Query(...),
+    include_forgotten: bool = Query(default=False),
     service: SourceService = Depends(get_source_service),
 ) -> SourceDetailResponse:
     try:
-        return service.get_source(doc_id, workspace_id)
+        return service.get_source(doc_id, workspace_id, include_forgotten=include_forgotten)
     except SourceNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

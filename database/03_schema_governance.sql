@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS wiki_page (
   generated_from_scene_id UUID REFERENCES memory_scene(scene_id) ON DELETE SET NULL,
   generated_from_memory_id UUID REFERENCES memory_item(memory_id) ON DELETE SET NULL,
   needs_rebuild BOOLEAN NOT NULL DEFAULT TRUE,
+  status VARCHAR(20) NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'forgotten')),
+  forgotten_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(workspace_id, page_slug)

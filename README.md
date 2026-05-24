@@ -114,34 +114,28 @@ npm run db:check
 - `npm run db:reset`：重建 `public schema` 后重新执行初始化和 seed
 - `npm run db:check`：检查核心表与 demo 数据
 - `npm run db:setup`：等价于 `db:reset`
+- `npm run db:run -- <sql-file>`：读取 `.env` 后执行单个 SQL 文件，例如 `npm run db:run -- database/04_indexes.sql`
 
 这些命令由跨平台的 `python scripts/db_cli.py` 统一驱动。
 会优先读取当前终端的 `DATABASE_URL`，如果没设置，则自动读取项目根目录 `.env`，若 `.env` 不存在则回退读取 `.env.example`。
 
-如果你暂时不想用快捷命令，也可以继续按顺序手动执行：
+如果你暂时不想一次性执行完整流程，也可以按顺序执行单个 SQL 文件。推荐仍使用项目封装命令，这样会自动读取 `.env`：
 
 ```bash
-psql "$DATABASE_URL" -f database/00_init.sql
-psql "$DATABASE_URL" -f database/01_schema_core.sql
-psql "$DATABASE_URL" -f database/02_schema_memory.sql
-psql "$DATABASE_URL" -f database/03_schema_governance.sql
-psql "$DATABASE_URL" -f database/04_indexes.sql
-psql "$DATABASE_URL" -f database/05_views.sql
-psql "$DATABASE_URL" -f database/06_triggers.sql
-psql "$DATABASE_URL" -f database/07_seed.sql
+npm run db:run -- database/00_init.sql
+npm run db:run -- database/01_schema_core.sql
+npm run db:run -- database/02_schema_memory.sql
+npm run db:run -- database/03_schema_governance.sql
+npm run db:run -- database/04_indexes.sql
+npm run db:run -- database/05_views.sql
+npm run db:run -- database/06_triggers.sql
+npm run db:run -- database/07_seed.sql
 ```
 
-PowerShell 可直接写成：
+如果直接使用裸 `psql`，PowerShell 不会自动读取 `.env`，需要你先在当前 shell 设置 `DATABASE_URL`。因此调试单个 SQL 文件时优先使用：
 
 ```powershell
-psql $env:DATABASE_URL -f database/00_init.sql
-psql $env:DATABASE_URL -f database/01_schema_core.sql
-psql $env:DATABASE_URL -f database/02_schema_memory.sql
-psql $env:DATABASE_URL -f database/03_schema_governance.sql
-psql $env:DATABASE_URL -f database/04_indexes.sql
-psql $env:DATABASE_URL -f database/05_views.sql
-psql $env:DATABASE_URL -f database/06_triggers.sql
-psql $env:DATABASE_URL -f database/07_seed.sql
+npm run db:run -- database/04_indexes.sql
 ```
 
 如果使用快捷命令，确保本机 `python` 与 `psql` 都在 PATH 中，并在项目根目录执行：
@@ -258,6 +252,11 @@ npm run db:check
 - docs/13-final-report-outline.md
 - docs/14-initial-issues.md
 - docs/15-api-contract-plan.md
+- docs/16-agent-runtime-gap-analysis.md
+- docs/17-agent-runtime-plan.md
+- docs/18-pr4-lexical-search-design.md
+- docs/19-repo-session-aware-context-design.md
+- docs/20-course-alignment-risk-and-recovery-plan.md
 
 ## GitHub Workflows
 

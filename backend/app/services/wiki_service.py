@@ -4,13 +4,47 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
+from uuid import UUID
 
 from ..core.database import Database
-from ..models.wiki import WikiExportRequest, WikiExportResponse
+from ..models.wiki import (
+    WikiBatchExportPageResponse,
+    WikiBatchExportRequest,
+    WikiBatchExportResponse,
+    WikiExportRequest,
+    WikiExportResponse,
+    WikiPageDetailResponse,
+    WikiPageListResponse,
+    WikiPageSummaryResponse,
+    WikiRevisionListResponse,
+    WikiRevisionResponse,
+)
 
 
 class WikiRepository(Protocol):
+    def list_pages(
+        self,
+        *,
+        workspace_id: UUID | None,
+        status: str | None,
+        keyword: str | None,
+        page: int,
+        page_size: int,
+    ) -> WikiPageListResponse:
+        ...
+
+    def get_page(self, *, page_id: UUID, workspace_id: UUID) -> WikiPageDetailResponse | None:
+        ...
+
+    def list_revisions(
+        self, *, page_id: UUID, workspace_id: UUID, page: int, page_size: int
+    ) -> WikiRevisionListResponse:
+        ...
+
     def export_page(self, payload: WikiExportRequest) -> WikiExportResponse:
+        ...
+
+    def export_pages(self, payload: WikiBatchExportRequest) -> WikiBatchExportResponse:
         ...
 
 
@@ -18,14 +52,225 @@ class WikiRepository(Protocol):
 class WikiService:
     repository: WikiRepository
 
+    def list_pages(
+        self,
+        *,
+        workspace_id: UUID | None,
+        status: str | None,
+        keyword: str | None,
+        page: int,
+        page_size: int,
+    ) -> WikiPageListResponse:
+        return self.repository.list_pages(
+            workspace_id=workspace_id,
+            status=status,
+            keyword=keyword,
+            page=page,
+            page_size=page_size,
+        )
+
+    def get_page(self, *, page_id: UUID, workspace_id: UUID) -> WikiPageDetailResponse | None:
+        return self.repository.get_page(page_id=page_id, workspace_id=workspace_id)
+
+    def list_revisions(
+        self, *, page_id: UUID, workspace_id: UUID, page: int, page_size: int
+    ) -> WikiRevisionListResponse:
+        return self.repository.list_revisions(
+            page_id=page_id,
+            workspace_id=workspace_id,
+            page=page,
+            page_size=page_size,
+        )
+
     def export_page(self, payload: WikiExportRequest) -> WikiExportResponse:
         return self.repository.export_page(payload)
+
+    def export_pages(self, payload: WikiBatchExportRequest) -> WikiBatchExportResponse:
+        return self.repository.export_pages(payload)
 
 
 class PostgresWikiRepository:
     def __init__(self, database: Database) -> None:
         self._database = database
         self._output_dir = Path(__file__).resolve().parents[3] / "data" / "markdown_wiki"
+
+    def list_pages(
+        self,
+        *,
+        workspace_id: UUID | None,
+        status: str | None,
+        keyword: str | None,
+        page: int,
+        page_size: int,
+    ) -> WikiPageListResponse:
+        filters: list[str] = []
+        params: dict[str, object] = {
+            "limit": page_size,
+            "offset": (page - 1) * page_size,
+        }
+        if workspace_id is not None:
+            filters.append("wp.workspace_id = %(workspace_id)s")
+            params["workspace_id"] = workspace_id
+        if status is not None and status != "all":
+            filters.append("wp.status = %(status)s")
+            params["status"] = status
+        if keyword:
+            filters.append("(wp.page_slug ILIKE %(keyword)s OR wp.title ILIKE %(keyword)s)")
+            params["keyword"] = f"%{keyword}%"
+
+        where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
+        query = f"""
+            SELECT
+                wp.page_id,
+                wp.workspace_id,
+                wp.page_slug,
+                wp.title,
+                wp.page_type,
+                wp.current_revision_no,
+                wp.needs_rebuild,
+                wp.status,
+                wp.generated_from_memory_id,
+                wp.generated_from_scene_id,
+                wp.created_at,
+                wp.updated_at,
+                wpr.created_at AS latest_revision_at,
+                COALESCE(jsonb_array_length(wpr.frontmatter_json->'memory_ids'), 0)
+                    AS memory_count,
+                COALESCE(jsonb_array_length(wpr.frontmatter_json->'source_doc_ids'), 0)
+                    AS source_count
+            FROM wiki_page wp
+            LEFT JOIN wiki_page_revision wpr
+              ON wpr.page_id = wp.page_id
+             AND wpr.revision_no = wp.current_revision_no
+            {where_clause}
+            ORDER BY wp.updated_at DESC, wp.page_slug ASC
+            LIMIT %(limit)s OFFSET %(offset)s
+        """
+        count_query = f"SELECT COUNT(*) AS total FROM wiki_page wp {where_clause}"
+
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(count_query, params)
+                total = cur.fetchone()["total"]
+                cur.execute(query, params)
+                rows = cur.fetchall()
+
+        return WikiPageListResponse(
+            items=[self._to_page_summary(row) for row in rows],
+            page=page,
+            page_size=page_size,
+            total=total,
+        )
+
+    def get_page(self, *, page_id: UUID, workspace_id: UUID) -> WikiPageDetailResponse | None:
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        wp.page_id,
+                        wp.workspace_id,
+                        wp.page_slug,
+                        wp.title,
+                        wp.page_type,
+                        wp.current_revision_no,
+                        wp.needs_rebuild,
+                        wp.status,
+                        wp.generated_from_memory_id,
+                        wp.generated_from_scene_id,
+                        wp.created_at,
+                        wp.updated_at,
+                        wpr.revision_no,
+                        wpr.frontmatter_json,
+                        wpr.body_markdown,
+                        wpr.generated_by,
+                        wpr.created_at AS revision_created_at,
+                        wpr.created_at AS latest_revision_at,
+                        COALESCE(jsonb_array_length(wpr.frontmatter_json->'memory_ids'), 0)
+                            AS memory_count,
+                        COALESCE(jsonb_array_length(wpr.frontmatter_json->'source_doc_ids'), 0)
+                            AS source_count
+                    FROM wiki_page wp
+                    LEFT JOIN wiki_page_revision wpr
+                      ON wpr.page_id = wp.page_id
+                     AND wpr.revision_no = wp.current_revision_no
+                    WHERE wp.page_id = %(page_id)s
+                      AND wp.workspace_id = %(workspace_id)s
+                    """,
+                    {"page_id": page_id, "workspace_id": workspace_id},
+                )
+                row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        frontmatter = row["frontmatter_json"] or {}
+        revision = None
+        if row["revision_no"] is not None:
+            revision = WikiRevisionResponse(
+                page_id=row["page_id"],
+                revision_no=row["revision_no"],
+                frontmatter_json=frontmatter,
+                body_markdown=row["body_markdown"],
+                generated_by=row["generated_by"],
+                created_at=row["revision_created_at"],
+            )
+        summary = self._to_page_summary(row)
+        return WikiPageDetailResponse(
+            **summary.model_dump(),
+            latest_revision=revision,
+            memory_ids=_uuid_list(frontmatter.get("memory_ids", [])),
+            source_doc_ids=_uuid_list(frontmatter.get("source_doc_ids", [])),
+        )
+
+    def list_revisions(
+        self, *, page_id: UUID, workspace_id: UUID, page: int, page_size: int
+    ) -> WikiRevisionListResponse:
+        params = {
+            "page_id": page_id,
+            "workspace_id": workspace_id,
+            "limit": page_size,
+            "offset": (page - 1) * page_size,
+        }
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS total
+                    FROM wiki_page_revision wpr
+                    JOIN wiki_page wp ON wp.page_id = wpr.page_id
+                    WHERE wpr.page_id = %(page_id)s
+                      AND wp.workspace_id = %(workspace_id)s
+                    """,
+                    params,
+                )
+                total = cur.fetchone()["total"]
+                cur.execute(
+                    """
+                    SELECT
+                        wpr.page_id,
+                        wpr.revision_no,
+                        wpr.frontmatter_json,
+                        wpr.body_markdown,
+                        wpr.generated_by,
+                        wpr.created_at
+                    FROM wiki_page_revision wpr
+                    JOIN wiki_page wp ON wp.page_id = wpr.page_id
+                    WHERE wpr.page_id = %(page_id)s
+                      AND wp.workspace_id = %(workspace_id)s
+                    ORDER BY wpr.revision_no DESC
+                    LIMIT %(limit)s OFFSET %(offset)s
+                    """,
+                    params,
+                )
+                rows = cur.fetchall()
+
+        return WikiRevisionListResponse(
+            items=[self._to_revision(row) for row in rows],
+            page=page,
+            page_size=page_size,
+            total=total,
+        )
 
     def export_page(self, payload: WikiExportRequest) -> WikiExportResponse:
         page_data = self._build_markdown(payload)
@@ -142,10 +387,65 @@ class PostgresWikiRepository:
             revision_no=page_row["current_revision_no"],
             body_markdown=page_data["body_markdown"],
             needs_rebuild=False,
-            output_path=str(output_path),
+            output_path=output_path,
             frontmatter_json=page_data["frontmatter_json"],
             source_doc_ids=page_data["source_doc_ids"],
             created_at=page_row["created_at"],
+        )
+
+    def export_pages(self, payload: WikiBatchExportRequest) -> WikiBatchExportResponse:
+        pages: list[WikiBatchExportPageResponse] = []
+        for page in payload.pages:
+            page_response = self.export_page(
+                WikiExportRequest(
+                    workspace_id=payload.workspace_id,
+                    page_slug=page.page_slug,
+                    title=page.title,
+                    page_type=page.page_type,
+                    max_memories=page.max_memories,
+                    memory_ids=page.memory_ids,
+                    write_files=payload.write_files,
+                )
+            )
+            pages.append(
+                WikiBatchExportPageResponse(
+                    page_id=page_response.page_id,
+                    page_slug=page_response.page_slug,
+                    revision_no=page_response.revision_no,
+                    file_path=page_response.output_path,
+                    memory_count=len(page_response.frontmatter_json.get("memory_ids", [])),
+                    source_count=len(page_response.source_doc_ids),
+                )
+            )
+        return WikiBatchExportResponse(workspace_id=payload.workspace_id, pages=pages)
+
+    def _to_page_summary(self, row: dict[str, object]) -> WikiPageSummaryResponse:
+        return WikiPageSummaryResponse(
+            page_id=row["page_id"],
+            workspace_id=row["workspace_id"],
+            page_slug=row["page_slug"],
+            title=row["title"],
+            page_type=row["page_type"],
+            current_revision_no=row["current_revision_no"],
+            needs_rebuild=row["needs_rebuild"],
+            status=row["status"],
+            generated_from_memory_id=row["generated_from_memory_id"],
+            generated_from_scene_id=row["generated_from_scene_id"],
+            memory_count=row["memory_count"] or 0,
+            source_count=row["source_count"] or 0,
+            latest_revision_at=row["latest_revision_at"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    def _to_revision(self, row: dict[str, object]) -> WikiRevisionResponse:
+        return WikiRevisionResponse(
+            page_id=row["page_id"],
+            revision_no=row["revision_no"],
+            frontmatter_json=row["frontmatter_json"] or {},
+            body_markdown=row["body_markdown"],
+            generated_by=row["generated_by"],
+            created_at=row["created_at"],
         )
 
     def _build_markdown(self, payload: WikiExportRequest) -> dict[str, object]:
@@ -176,6 +476,7 @@ class PostgresWikiRepository:
                     LEFT JOIN source_chunk sc ON sc.chunk_id = me.chunk_id
                     LEFT JOIN source_document sd ON sd.doc_id = sc.doc_id
                     WHERE {where_clause}
+                      AND (sd.doc_id IS NULL OR sd.status = 'active')
                     GROUP BY
                         mi.memory_id,
                         mi.memory_type,
@@ -255,16 +556,23 @@ class PostgresWikiRepository:
 
     def _write_markdown_file(
         self, page_slug: str, contents: str, workspace_id: object, write_files: bool
-    ) -> Path:
+    ) -> str:
         workspace_dir = self._output_dir / str(workspace_id)
         output_path = workspace_dir / f"{page_slug}.md"
         if write_files:
             workspace_dir.mkdir(parents=True, exist_ok=True)
             output_path.write_text(contents, encoding="utf-8")
-        return output_path
+        project_root = Path(__file__).resolve().parents[3]
+        return output_path.relative_to(project_root).as_posix()
 
 
 def _json_dumps(payload: object) -> str:
     import json
 
     return json.dumps(payload, default=str)
+
+
+def _uuid_list(values: object) -> list[UUID]:
+    if not isinstance(values, list):
+        return []
+    return [value if isinstance(value, UUID) else UUID(str(value)) for value in values]

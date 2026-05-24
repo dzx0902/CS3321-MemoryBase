@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS agent_session (
   started_by_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
   title VARCHAR(200) NOT NULL,
   channel VARCHAR(30) NOT NULL DEFAULT 'meeting'
-    CHECK (channel IN ('meeting', 'chat', 'import', 'manual')),
+    CHECK (channel IN ('meeting', 'chat', 'import', 'manual', 'cli')),
   started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   ended_at TIMESTAMPTZ
 );
@@ -26,11 +26,14 @@ CREATE TABLE IF NOT EXISTS source_document (
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
   session_id UUID REFERENCES agent_session(session_id) ON DELETE SET NULL,
   doc_type VARCHAR(30) NOT NULL DEFAULT 'markdown'
-    CHECK (doc_type IN ('markdown', 'txt', 'meeting', 'chat', 'note', 'report')),
+    CHECK (doc_type IN ('markdown', 'txt', 'meeting', 'chat', 'note', 'report', 'inline_agent_note')),
   title VARCHAR(240) NOT NULL,
   source_path TEXT,
   raw_text TEXT NOT NULL,
   checksum VARCHAR(128),
+  status VARCHAR(20) NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'forgotten')),
+  forgotten_at TIMESTAMPTZ,
   imported_by_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,
   imported_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(workspace_id, checksum)
@@ -44,8 +47,9 @@ CREATE TABLE IF NOT EXISTS source_chunk (
   start_line INT,
   end_line INT,
   token_count INT,
+  search_text_zh TEXT,
   search_vector TSVECTOR GENERATED ALWAYS AS (
-    to_tsvector('simple', coalesce(chunk_text, ''))
+    to_tsvector('simple', coalesce(search_text_zh, ''))
   ) STORED,
   UNIQUE(doc_id, chunk_no)
 );
@@ -58,6 +62,10 @@ CREATE TABLE IF NOT EXISTS memory_item (
     CHECK (memory_type IN ('episodic', 'semantic', 'profile', 'procedural', 'decision', 'preference', 'task', 'risk')),
   canonical_text TEXT NOT NULL,
   summary TEXT,
+  search_text_zh TEXT,
+  search_vector TSVECTOR GENERATED ALWAYS AS (
+    to_tsvector('simple', coalesce(search_text_zh, ''))
+  ) STORED,
   confidence NUMERIC(4,3) NOT NULL DEFAULT 0.700 CHECK (confidence >= 0 AND confidence <= 1),
   importance INT NOT NULL DEFAULT 3 CHECK (importance BETWEEN 1 AND 5),
   status VARCHAR(20) NOT NULL DEFAULT 'active'
@@ -107,6 +115,9 @@ CREATE TABLE IF NOT EXISTS entity (
   entity_type VARCHAR(40) NOT NULL
     CHECK (entity_type IN ('person', 'project', 'concept', 'document', 'event', 'other')),
   description TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'forgotten')),
+  forgotten_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(entity_id, workspace_id),

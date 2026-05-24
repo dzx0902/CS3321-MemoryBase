@@ -7,6 +7,7 @@
 | user_id | 用户编号 | UUID | PK | 6f9e... |
 | agent_id | Agent 编号 | UUID | PK | a12c... |
 | workspace_id | 工作区编号 | UUID | PK | w001 |
+| workspace_slug | 工作区短标识 | VARCHAR(64) | UNIQUE, NOT NULL | cs3321-demo |
 | session_id | 会话编号 | UUID | PK | s001 |
 | message_id | 消息编号 | UUID | PK | m001 |
 | doc_id | 源文档编号 | UUID | PK | doc001 |
@@ -21,13 +22,18 @@
 | audit_id | 审计日志编号 | UUID | PK | audit001 |
 | access_level | 访问范围 | VARCHAR | public/project/team/private | project |
 | memory_type | 记忆类型 | VARCHAR | episodic/semantic/profile/procedural/decision/preference/task/risk | decision |
+| doc_type | SourceDocument 类型 | VARCHAR | markdown/txt/meeting/chat/note/report/inline_agent_note | inline_agent_note |
+| channel | AgentSession 来源通道 | VARCHAR | meeting/chat/import/manual/cli | cli |
 | status | 数据状态 | VARCHAR | active/archived/forgotten/superseded/conflicted | active |
+| forgotten_at | 非 memory 目标被遗忘时间 | TIMESTAMPTZ | NULL 表示未被遗忘 | 2026-05-16T12:00:00Z |
 | confidence | 置信度 | NUMERIC | 0.00–1.00 | 0.85 |
 | importance | 重要性 | INT | 1–5 | 4 |
 | relation_role | memory 与 entity 的关系角色 | VARCHAR | about/mentions/authored_by/owned_by/related_to | about |
 | scene_slug | 场景短标识 | VARCHAR | workspace 内唯一 | topic-decision |
 | cell_role | scene 中 memory 的叙事角色 | VARCHAR | background/context/support/decision/outcome | decision |
 | forget_status | 遗忘请求状态 | VARCHAR | pending/approved/rejected/done | approved |
+| search_text_zh | 中文/中英混排检索文本 | TEXT | 由 jieba 搜索模式分词后空格连接 | 校园 食堂 方向 |
+| search_vector | PostgreSQL 全文检索向量 | TSVECTOR | generated column, GIN index | '食堂':2 |
 
 ## 2. 数据结构字典
 
@@ -35,30 +41,37 @@
 |---|---|---|
 | UserAccount | user_id、username、display_name、role_hint、created_at | 人类用户 |
 | Agent | agent_id、workspace_id、name、agent_type、status | 可参与检索和写入的 Agent |
-| SourceDocument | doc_id、workspace_id、title、raw_text、checksum | 原始文档 |
-| SourceChunk | chunk_id、doc_id、chunk_no、chunk_text、line range | 文档切块 |
-| MemoryItem | memory_id、workspace_id、memory_type、canonical_text、status | 长期记忆核心 |
+| AgentSession | session_id、workspace_id、agent_id、title、channel、started_at | Agent / CLI / 导入会话 |
+| Message | message_id、session_id、sender_type、role、content、created_at | 会话消息；observe API 的落库对象 |
+| SourceDocument | doc_id、workspace_id、title、raw_text、checksum、status、forgotten_at | 原始文档；`inline_agent_note` 用于 Agent 写回时自动补证据链 |
+| SourceChunk | chunk_id、doc_id、chunk_no、chunk_text、line range、search_text_zh、search_vector | 文档切块；search_vector 基于分词后的 search_text_zh 生成 |
+| MemoryItem | memory_id、workspace_id、memory_type、canonical_text、summary、search_text_zh、search_vector、status | 长期记忆核心；支持 memory 级全文检索 |
 | MemoryEvidence | evidence_id、memory_id、chunk_id、evidence_role | 记忆来源证据 |
 | MemoryRevision | memory_id、revision_no、revision_text、editor | 记忆版本 |
-| Entity | entity_id、workspace_id、canonical_name、entity_type、description | 工作区内的项目对象、概念、文档或事件 |
+| Entity | entity_id、workspace_id、canonical_name、entity_type、description、status、forgotten_at | 工作区内的项目对象、概念、文档或事件；支持软遗忘 |
 | MemoryEntity | memory_id、entity_id、workspace_id、relation_role | MemoryItem 与 Entity 的 M:N 关系 |
 | MemoryScene | scene_id、workspace_id、scene_slug、title、summary | 面向演示和 Wiki 的主题/决策场景 |
 | MemorySceneCell | scene_id、memory_id、workspace_id、cell_role、sort_order、note | MemoryScene 与 MemoryItem 的 M:N 聚合关系 |
+| WikiPage | page_id、workspace_id、page_slug、title、status、forgotten_at | Wiki 页面索引；遗忘治理时保留版本历史并隐藏页面 |
 | WikiPageRevision | page_id、revision_no、frontmatter_json、body_markdown | Wiki 页面版本 |
-| ForgetRequest | request_id、target、requester、reviewer、reason、status、resolved_at | 遗忘/归档审批记录；审批 memory_item 时更新 memory status |
-| AuditLog | audit_id、actor、action、target、before/after | 操作审计 |
+| ForgetRequest | request_id、target、requester、reviewer、reason、status、resolved_at | 遗忘/归档审批记录；审批 memory_item、source_document、wiki_page、entity 时执行对应软治理 |
+| AuditLog | audit_id、actor、action、target、before/after、diff | 操作审计；支持按 target 生命周期、actor 时间线和聚合统计查询 |
 
 ## 3. 数据流字典
 
 | 数据流 | 来源 | 去向 | 组成 |
 |---|---|---|---|
 | SourceImportFlow | Markdown 文件 | Source Ingestor | title、doc_type、raw_text、path |
-| ChunkFlow | Source Ingestor | SourceChunk | doc_id、chunk_no、text、line range |
-| MemoryExtractFlow | SourceChunk / 用户 | MemoryItem | type、text、summary、evidence |
+| ChunkFlow | Source Ingestor | SourceChunk | doc_id、chunk_no、text、line range、search_text_zh |
+| MemoryExtractFlow | SourceChunk / 用户 | MemoryItem | type、text、summary、search_text_zh、evidence |
+| AgentObserveFlow | Agent / CLI | AgentSession / Message | session、role、sender、content |
+| AgentRememberFlow | Agent / CLI | SourceDocument / SourceChunk / MemoryItem / MemoryEvidence | memory text、reason、inline evidence |
 | RecallFlow | 用户 / Agent | Retriever | question、workspace_id、agent_id |
 | ContextPackFlow | Retriever | Agent / UI | memory list、evidence、score |
 | WikiExportFlow | Wiki Exporter | 文件系统 | frontmatter、body、sources |
 | AuditFlow | 各模块 | AuditLog | actor、action、target、before/after |
+| ConflictGovernanceFlow | 用户 / 系统 | ConflictRecord / MemoryItem / AuditLog | conflict pair、status、actor、resolution |
+| ForgetGovernanceFlow | 用户 / Reviewer | ForgetRequest / target table / AuditLog | target、reason、reviewer、status、forgotten_at |
 
 ## 4. 数据存储字典
 

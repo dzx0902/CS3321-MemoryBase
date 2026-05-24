@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_DIR = REPO_ROOT / "backend"
 DATABASE_DIR = REPO_ROOT / "database"
 INIT_SQL_FILES = [
     DATABASE_DIR / "00_init.sql",
@@ -20,6 +21,8 @@ INIT_SQL_FILES = [
 ]
 SEED_SQL_FILES = [
     DATABASE_DIR / "07_seed.sql",
+]
+DEMO_QUERY_SQL_FILES = [
     DATABASE_DIR / "08_demo_queries.sql",
 ]
 
@@ -40,6 +43,8 @@ def main() -> int:
             run_reset(psql_path, database_url)
         elif args.command == "check":
             run_check(psql_path, database_url)
+        elif args.command == "run":
+            run_single_sql_file(psql_path, database_url, args.sql_file)
         else:
             parser.error(f"unsupported command: {args.command}")
     except Exception as exc:  # pragma: no cover - cli entrypoint
@@ -53,8 +58,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Cross-platform database helper for MemoryBase.")
     parser.add_argument(
         "command",
-        choices=["init", "seed", "reset", "check"],
+        choices=["init", "seed", "reset", "check", "run"],
         help="Database action to execute.",
+    )
+    parser.add_argument(
+        "sql_file",
+        nargs="?",
+        help="SQL file to execute when command is `run`.",
     )
     parser.add_argument(
         "--database-url",
@@ -116,6 +126,9 @@ def run_seed(psql_path: str, database_url: str) -> None:
     print(f"Using DATABASE_URL={database_url}")
     for sql_file in existing_seed_files():
         run_sql_file(psql_path, database_url, sql_file)
+    run_search_backfill(database_url)
+    for sql_file in existing_demo_query_files():
+        run_sql_file(psql_path, database_url, sql_file)
     print("Database seed and demo query scripts completed.")
 
 
@@ -159,8 +172,53 @@ def run_check(psql_path: str, database_url: str) -> None:
     print("Database check completed.")
 
 
+def run_single_sql_file(psql_path: str, database_url: str, sql_file_arg: str | None) -> None:
+    if not sql_file_arg:
+        raise RuntimeError("`run` requires a SQL file path, for example: database/04_indexes.sql")
+    sql_file = Path(sql_file_arg)
+    if not sql_file.is_absolute():
+        sql_file = REPO_ROOT / sql_file
+    print(f"Using DATABASE_URL={database_url}")
+    run_sql_file(psql_path, database_url, sql_file)
+    print(f"SQL file completed: {sql_file}")
+
+
 def existing_seed_files() -> list[Path]:
     return [path for path in SEED_SQL_FILES if path.exists()]
+
+
+def existing_demo_query_files() -> list[Path]:
+    return [path for path in DEMO_QUERY_SQL_FILES if path.exists()]
+
+
+def run_search_backfill(database_url: str) -> None:
+    print("==> Backfilling lexical search fields")
+    run_subprocess(
+        [
+            resolve_backend_python(),
+            str(BACKEND_DIR / "scripts" / "backfill_search_terms.py"),
+            "--full",
+            "--database-url",
+            database_url,
+        ],
+        extra_env={"PYTHONPATH": str(BACKEND_DIR)},
+    )
+
+
+def resolve_backend_python() -> str:
+    configured_python = os.getenv("MEMORYBASE_PYTHON")
+    if configured_python:
+        return configured_python
+
+    unix_venv_python = REPO_ROOT / ".venv" / "bin" / "python"
+    if unix_venv_python.exists():
+        return str(unix_venv_python)
+
+    windows_venv_python = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+    if windows_venv_python.exists():
+        return str(windows_venv_python)
+
+    return sys.executable
 
 
 def run_sql_file(psql_path: str, database_url: str, sql_file: Path) -> None:
@@ -174,12 +232,16 @@ def run_sql_command(psql_path: str, database_url: str, sql: str) -> None:
     run_subprocess([psql_path, database_url, "-v", "ON_ERROR_STOP=1", "-c", sql])
 
 
-def run_subprocess(command: list[str]) -> None:
+def run_subprocess(command: list[str], *, extra_env: dict[str, str] | None = None) -> None:
     env = os.environ.copy()
     env.setdefault("PGCLIENTENCODING", "UTF8")
+    if extra_env:
+        env.update(extra_env)
     completed = subprocess.run(command, cwd=REPO_ROOT, env=env, check=False)
     if completed.returncode != 0:
-        raise RuntimeError(f"psql command failed with exit code {completed.returncode}.")
+        raise RuntimeError(
+            f"command failed with exit code {completed.returncode}: {' '.join(command)}"
+        )
 
 
 if __name__ == "__main__":

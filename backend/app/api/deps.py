@@ -4,10 +4,15 @@ from functools import lru_cache
 
 from ..core.config import Settings, get_settings
 from ..core.database import Database
+from ..services.agent_service import AgentService, PostgresAgentRepository
+from ..services.conversation_service import ConversationService, PostgresConversationRepository
 from ..services.governance_service import GovernanceService, PostgresGovernanceRepository
 from ..services.memory_service import MemoryService, PostgresMemoryRepository
 from ..services.recall_service import PostgresRecallRepository, RecallService
+from ..services.search_service import PostgresSearchRepository, SearchService
+from ..services.semantic_service import PostgresSemanticRepository, SemanticService
 from ..services.source_service import PostgresSourceRepository, SourceService
+from ..services.stats_service import PostgresStatsRepository, StatsService
 from ..services.wiki_service import PostgresWikiRepository, WikiService
 
 
@@ -37,14 +42,39 @@ def get_recall_service() -> RecallService:
     return RecallService(repository=repository)
 
 
+def get_search_service() -> SearchService:
+    repository = PostgresSearchRepository(get_database())
+    return SearchService(repository=repository)
+
+
+def get_semantic_service() -> SemanticService:
+    repository = PostgresSemanticRepository(get_database())
+    return SemanticService(repository=repository)
+
+
 def get_governance_service() -> GovernanceService:
     repository = PostgresGovernanceRepository(get_database())
     return GovernanceService(repository=repository)
 
 
+def get_agent_service() -> AgentService:
+    repository = PostgresAgentRepository(get_database())
+    return AgentService(repository=repository)
+
+
+def get_conversation_service() -> ConversationService:
+    repository = PostgresConversationRepository(get_database())
+    return ConversationService(repository=repository)
+
+
 def get_wiki_service() -> WikiService:
     repository = PostgresWikiRepository(get_database())
     return WikiService(repository=repository)
+
+
+def get_stats_service() -> StatsService:
+    repository = PostgresStatsRepository(get_database())
+    return StatsService(repository=repository)
 
 
 def get_app_settings() -> Settings:

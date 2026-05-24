@@ -1,0 +1,55 @@
+[
+  {
+    "query": "为什么放弃校园食堂系统？",
+    "workspace": "cs3321-demo",
+    "expected_canonical_text_substrings": [
+      "too CRUD-heavy"
+    ],
+    "expected_source_titles": [
+      "Discussion 01: Project Pivot"
+    ]
+  },
+  {
+    "query": "MemoryBase 为什么适合数据库课程？",
+    "workspace": "cs3321-demo",
+    "expected_canonical_text_substrings": [
+      "source chunks",
+      "evidence",
+      "audit logs"
+    ],
+    "expected_source_titles": [
+      "Discussion 01: Project Pivot"
+    ]
+  },
+  {
+    "query": "Wiki 如何追溯来源？",
+    "workspace": "cs3321-demo",
+    "expected_canonical_text_substrings": [
+      "trace back to MemoryItem"
+    ],
+    "expected_source_titles": [
+      "Discussion 05: Wiki and Timeline"
+    ]
+  },
+  {
+    "query": "权限治理涉及哪些 policy 和 recall 能力？",
+    "workspace": "cs3321-demo",
+    "expected_canonical_text_substrings": [
+      "policies",
+      "recall logs"
+    ],
+    "expected_source_titles": [
+      "Discussion 01: Project Pivot"
+    ]
+  },
+  {
+    "query": "演示需要展示哪些内容？",
+    "workspace": "cs3321-demo",
+    "expected_canonical_text_substrings": [
+      "five to eight minute demo"
+    ],
+    "expected_source_titles": [
+      "Discussion 06: Demo Plan"
+    ]
+  }
+]

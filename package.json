@@ -6,7 +6,11 @@
     "db:init": "python scripts/db_cli.py init",
     "db:seed": "python scripts/db_cli.py seed",
     "db:reset": "python scripts/db_cli.py reset",
+    "db:run": "python scripts/db_cli.py run",
     "db:check": "python scripts/db_cli.py check",
     "db:setup": "python scripts/db_cli.py reset"
+  },
+  "dependencies": {
+    "react-router-dom": "^7.15.1"
   }
 }

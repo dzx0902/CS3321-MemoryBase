@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS user_account (
 
 CREATE TABLE IF NOT EXISTS workspace (
   workspace_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug VARCHAR(64) NOT NULL UNIQUE,
   name VARCHAR(120) NOT NULL,
   description TEXT,
   scope_type VARCHAR(30) NOT NULL DEFAULT 'project'

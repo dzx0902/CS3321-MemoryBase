@@ -6,7 +6,18 @@ from uuid import uuid4
 from app.api.deps import get_recall_service, get_wiki_service
 from app.main import create_app
 from app.models.recall import RecallRequest, RecallResponse
-from app.models.wiki import WikiExportRequest, WikiExportResponse
+from app.models.wiki import (
+    WikiBatchExportPageResponse,
+    WikiBatchExportRequest,
+    WikiBatchExportResponse,
+    WikiExportRequest,
+    WikiExportResponse,
+    WikiPageDetailResponse,
+    WikiPageListResponse,
+    WikiPageSummaryResponse,
+    WikiRevisionListResponse,
+    WikiRevisionResponse,
+)
 from app.services.recall_service import DEMO_QUERY_EXPANSIONS, QUERY_EXPANSION_FILE, _keyword_terms
 from fastapi.testclient import TestClient
 
@@ -17,8 +28,10 @@ class FakeRecallService:
         self.memory_id = uuid4()
         self.chunk_id = uuid4()
         self.doc_id = uuid4()
+        self.last_payload: RecallRequest | None = None
 
     def execute(self, payload: RecallRequest) -> RecallResponse:
+        self.last_payload = payload
         return RecallResponse(
             recall_id=uuid4(),
             workspace_id=payload.workspace_id,
@@ -69,6 +82,81 @@ class FakeWikiService:
     def __init__(self) -> None:
         self.workspace_id = uuid4()
         self.page_id = uuid4()
+        self.revision = WikiRevisionResponse(
+            page_id=self.page_id,
+            revision_no=2,
+            frontmatter_json={
+                "memory_ids": [str(uuid4())],
+                "source_doc_ids": [str(uuid4())],
+            },
+            body_markdown="# Demo Report\n\nGenerated wiki content.\n",
+            generated_by="exporter",
+            created_at=datetime(2026, 5, 16, tzinfo=timezone.utc),
+        )
+
+    def list_pages(
+        self,
+        *,
+        workspace_id,
+        status,
+        keyword,
+        page,
+        page_size,
+    ) -> WikiPageListResponse:
+        return WikiPageListResponse(
+            items=[
+                WikiPageSummaryResponse(
+                    page_id=self.page_id,
+                    workspace_id=workspace_id or self.workspace_id,
+                    page_slug="demo-report",
+                    title="Demo Report",
+                    page_type="report",
+                    current_revision_no=2,
+                    needs_rebuild=False,
+                    status=status or "active",
+                    memory_count=1,
+                    source_count=1,
+                    latest_revision_at=self.revision.created_at,
+                    created_at=self.revision.created_at,
+                    updated_at=self.revision.created_at,
+                )
+            ],
+            page=page,
+            page_size=page_size,
+            total=1,
+        )
+
+    def get_page(self, *, page_id, workspace_id) -> WikiPageDetailResponse | None:
+        if page_id != self.page_id:
+            return None
+        return WikiPageDetailResponse(
+            page_id=self.page_id,
+            workspace_id=workspace_id,
+            page_slug="demo-report",
+            title="Demo Report",
+            page_type="report",
+            current_revision_no=2,
+            needs_rebuild=False,
+            status="active",
+            memory_count=1,
+            source_count=1,
+            latest_revision_at=self.revision.created_at,
+            created_at=self.revision.created_at,
+            updated_at=self.revision.created_at,
+            latest_revision=self.revision,
+            memory_ids=[self.revision.frontmatter_json["memory_ids"][0]],
+            source_doc_ids=[self.revision.frontmatter_json["source_doc_ids"][0]],
+        )
+
+    def list_revisions(self, *, page_id, workspace_id, page, page_size) -> WikiRevisionListResponse:
+        if page_id != self.page_id:
+            return WikiRevisionListResponse(items=[], page=page, page_size=page_size, total=0)
+        return WikiRevisionListResponse(
+            items=[self.revision],
+            page=page,
+            page_size=page_size,
+            total=1,
+        )
 
     def export_page(self, payload: WikiExportRequest) -> WikiExportResponse:
         return WikiExportResponse(
@@ -91,6 +179,32 @@ class FakeWikiService:
             source_doc_ids=[uuid4()],
             created_at=datetime(2026, 5, 16, tzinfo=timezone.utc),
         )
+
+    def export_pages(self, payload: WikiBatchExportRequest) -> WikiBatchExportResponse:
+        pages = []
+        for page in payload.pages:
+            page_response = self.export_page(
+                WikiExportRequest(
+                    workspace_id=payload.workspace_id,
+                    page_slug=page.page_slug,
+                    title=page.title,
+                    page_type=page.page_type,
+                    max_memories=page.max_memories,
+                    memory_ids=page.memory_ids,
+                    write_files=payload.write_files,
+                )
+            )
+            pages.append(
+                WikiBatchExportPageResponse(
+                    page_id=page_response.page_id,
+                    page_slug=page_response.page_slug,
+                    revision_no=page_response.revision_no,
+                    file_path=page_response.output_path,
+                    memory_count=len(page_response.frontmatter_json["memory_ids"]),
+                    source_count=len(page_response.source_doc_ids),
+                )
+            )
+        return WikiBatchExportResponse(workspace_id=payload.workspace_id, pages=pages)
 
 
 def build_client() -> tuple[TestClient, FakeRecallService, FakeWikiService]:
@@ -119,6 +233,44 @@ def test_recall_returns_memory_and_evidence() -> None:
     assert response.json()["memories"][0]["evidence"][0]["start_line"] == 10
 
 
+def test_recall_accepts_as_of_filter() -> None:
+    client, fake_recall, _ = build_client()
+
+    response = client.post(
+        "/api/recall",
+        json={
+            "workspace_id": str(fake_recall.workspace_id),
+            "query_text": "why MemoryBase",
+            "as_of": "2026-03-20T00:00:00Z",
+        },
+    )
+
+    assert response.status_code == 200
+    assert fake_recall.last_payload is not None
+    assert fake_recall.last_payload.as_of is not None
+
+
+def test_recall_context_pack_returns_markdown_and_citation_map() -> None:
+    client, fake_recall, _ = build_client()
+
+    response = client.post(
+        "/api/recall/context-pack",
+        json={
+            "workspace_id": str(fake_recall.workspace_id),
+            "query_text": "为什么放弃校园食堂系统？",
+            "max_tokens": 500,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["recall_id"]
+    assert payload["result_count"] == 1
+    assert payload["token_count"] <= 500
+    assert "## Relevant Memories" in payload["markdown"]
+    assert payload["citation_map"]["memories"]["M1"]["memory_type"] == "decision"
+
+
 def test_wiki_export_returns_markdown_page() -> None:
     client, _, fake_wiki = build_client()
 
@@ -141,9 +293,68 @@ def test_wiki_export_returns_markdown_page() -> None:
     assert "memory_ids" in response.json()["frontmatter_json"]
 
 
+def test_wiki_export_accepts_batch_pages_request() -> None:
+    client, _, fake_wiki = build_client()
+    memory_id = uuid4()
+
+    response = client.post(
+        "/api/wiki/export",
+        json={
+            "workspace_id": str(fake_wiki.workspace_id),
+            "pages": [
+                {
+                    "page_slug": "why-memorybase",
+                    "title": "Why MemoryBase",
+                    "page_type": "synthesis",
+                    "memory_ids": [str(memory_id)],
+                },
+                {
+                    "page_slug": "demo-report",
+                    "title": "Demo Report",
+                    "page_type": "report",
+                    "max_memories": 3,
+                },
+            ],
+            "write_files": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workspace_id"] == str(fake_wiki.workspace_id)
+    assert [page["page_slug"] for page in payload["pages"]] == [
+        "why-memorybase",
+        "demo-report",
+    ]
+    assert payload["pages"][0]["memory_count"] == 1
+
+
+def test_wiki_read_endpoints_return_pages_and_revisions() -> None:
+    client, _, fake_wiki = build_client()
+
+    list_response = client.get(f"/api/wiki?workspace_id={fake_wiki.workspace_id}")
+    detail_response = client.get(
+        f"/api/wiki/{fake_wiki.page_id}?workspace_id={fake_wiki.workspace_id}"
+    )
+    revisions_response = client.get(
+        f"/api/wiki/{fake_wiki.page_id}/revisions?workspace_id={fake_wiki.workspace_id}"
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json()["items"][0]["page_slug"] == "demo-report"
+    assert detail_response.status_code == 200
+    assert detail_response.json()["latest_revision"]["revision_no"] == 2
+    assert revisions_response.status_code == 200
+    assert revisions_response.json()["items"][0]["body_markdown"].startswith("# Demo Report")
+
+
 def test_demo_recall_expansions_cover_chinese_query_terms() -> None:
     terms = _keyword_terms("为什么放弃校园食堂系统？")
+    wiki_terms = _keyword_terms("Wiki 如何追溯来源？")
+    demo_terms = _keyword_terms("演示需要展示哪些内容？")
 
     assert QUERY_EXPANSION_FILE.exists()
-    assert set(DEMO_QUERY_EXPANSIONS) == {"食堂", "校园", "放弃", "系统", "数据库"}
+    assert {"食堂", "校园", "放弃", "系统", "数据库"}.issubset(DEMO_QUERY_EXPANSIONS)
     assert {"cafeteria", "campus", "abandon", "abandoned", "system"}.issubset(terms)
+    assert {"trace", "trace back", "provenance", "source", "evidence"}.issubset(wiki_terms)
+    assert {"demo", "show"}.issubset(demo_terms)

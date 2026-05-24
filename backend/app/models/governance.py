@@ -28,6 +28,12 @@ class PolicyCreateRequest(BaseModel):
     predicate_json: dict[str, Any] = Field(default_factory=dict)
 
 
+class PolicyUpdateRequest(BaseModel):
+    resource_scope: ResourceScope | None = None
+    effect: PolicyEffect | None = None
+    predicate_json: dict[str, Any] | None = None
+
+
 class PolicyResponse(BaseModel):
     policy_id: UUID
     workspace_id: UUID
@@ -42,6 +48,12 @@ class PolicyResponse(BaseModel):
 
 class PolicyListResponse(PageResponse[PolicyResponse]):
     pass
+
+
+class PolicyDeleteResponse(BaseModel):
+    policy_id: UUID
+    workspace_id: UUID
+    deleted: bool
 
 
 class AuditQueryResponse(BaseModel):
@@ -61,7 +73,46 @@ class AuditEntryResponse(BaseModel):
     target_id: UUID | None = None
     before_json: dict[str, Any] | None = None
     after_json: dict[str, Any] | None = None
+    diff_json: dict[str, Any] | None = None
     created_at: datetime
+
+
+class AuditLifecycleEventResponse(BaseModel):
+    ts: datetime
+    kind: str
+    payload: dict[str, Any]
+
+
+class AuditLifecycleResponse(BaseModel):
+    items: list[AuditLifecycleEventResponse]
+
+
+class AuditStatisticResponse(BaseModel):
+    group_key: str
+    event_count: int
+    last_event_at: datetime | None = None
+
+
+class AuditStatisticsResponse(BaseModel):
+    group_by: str
+    items: list[AuditStatisticResponse]
+
+
+class AgentVisibleMemoryResponse(BaseModel):
+    memory_id: UUID
+    workspace_id: UUID
+    memory_type: str
+    canonical_text: str
+    summary: str | None = None
+    confidence: float
+    importance: int
+    status: str
+    access_level: str
+    updated_at: datetime
+
+
+class AgentVisibleMemoryListResponse(PageResponse[AgentVisibleMemoryResponse]):
+    pass
 
 
 class ConflictResponse(BaseModel):
@@ -89,6 +140,24 @@ class ConflictListResponse(PageResponse[ConflictResponse]):
     pass
 
 
+class ConflictCreateRequest(BaseModel):
+    workspace_id: UUID
+    left_memory_id: UUID
+    right_memory_id: UUID
+    conflict_type: Literal[
+        "semantic",
+        "temporal",
+        "policy",
+        "duplicate",
+        "contradiction",
+        "supersession",
+        "uncertain",
+    ] = "semantic"
+    resolution_note: str | None = None
+    actor_type: Literal["user", "agent", "system"] = "system"
+    actor_id: UUID | None = None
+
+
 class ConflictUpdateRequest(BaseModel):
     status: ConflictStatus
     resolution_note: str | None = None
@@ -110,8 +179,6 @@ class ForgetRequestUpdateRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_reviewer_for_status(self) -> "ForgetRequestUpdateRequest":
-        if self.status == "pending" and self.reviewed_by_user_id is not None:
-            raise ValueError("reviewed_by_user_id is not allowed while status is pending")
         if self.status != "pending" and self.reviewed_by_user_id is None:
             raise ValueError("reviewed_by_user_id is required for reviewed requests")
         return self

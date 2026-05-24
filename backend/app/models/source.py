@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from .common import PageResponse
 
-DocType = Literal["markdown", "txt", "meeting", "chat", "note", "report"]
+DocType = Literal["markdown", "txt", "meeting", "chat", "note", "report", "inline_agent_note"]
 
 
 class HealthDatabaseStatus(BaseModel):
@@ -52,6 +52,7 @@ class SourceSummaryResponse(BaseModel):
     title: str
     doc_type: DocType
     source_path: str | None = None
+    status: str = "active"
     imported_at: datetime
     chunk_count: int
 

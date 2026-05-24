@@ -5,3 +5,6 @@ pydantic
 python-dotenv
 pytest
 httpx
+jieba
+tiktoken
+typer>=0.12

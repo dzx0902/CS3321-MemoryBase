@@ -8,6 +8,8 @@ from uuid import UUID
 
 from ..core.database import Database
 from ..models.recall import RecallRequest, RecallResponse
+from ._search_query import build_websearch_query
+from .tokenizer import build_search_text
 
 QUERY_EXPANSION_FILE = (
     Path(__file__).resolve().parents[3] / "data" / "recall" / "demo_query_expansions.json"
@@ -62,6 +64,7 @@ class PostgresRecallRepository:
             "workspace_id": payload.workspace_id,
             "query_text": payload.query_text,
             "search_text": search_text,
+            "websearch_query": build_websearch_query(search_text),
             "keyword_patterns": keyword_patterns,
             "limit": payload.limit,
         }
@@ -86,6 +89,16 @@ class PostgresRecallRepository:
                 """
             )
             params["agent_id"] = payload.agent_id
+        else:
+            filters.append("mi.access_level IN ('public', 'project')")
+        if payload.as_of is not None:
+            filters.append(
+                """
+                mi.valid_from <= %(as_of)s
+                AND (mi.valid_to IS NULL OR mi.valid_to > %(as_of)s)
+                """
+            )
+            params["as_of"] = payload.as_of
 
         where_clause = " AND ".join(filters)
         memories: list[dict[str, object]] = []
@@ -99,6 +112,7 @@ class PostgresRecallRepository:
                 "access_level": payload.access_level,
                 "status": payload.status,
                 "agent_id": str(payload.agent_id) if payload.agent_id else None,
+                "as_of": payload.as_of.isoformat() if payload.as_of else None,
             },
             "top_memory_ids": [],
             "matched_source_ids": [],
@@ -120,7 +134,7 @@ class PostgresRecallRepository:
                             GREATEST(
                                 ts_rank(
                                     sc.search_vector,
-                                    websearch_to_tsquery('simple', %(search_text)s)
+                                    websearch_to_tsquery('simple', %(websearch_query)s)
                                 ),
                                 CASE
                                     WHEN sc.chunk_text ILIKE ANY(%(keyword_patterns)s::text[])
@@ -131,8 +145,9 @@ class PostgresRecallRepository:
                         FROM source_chunk sc
                         JOIN source_document sd ON sd.doc_id = sc.doc_id
                         WHERE sd.workspace_id = %(workspace_id)s
+                          AND sd.status = 'active'
                           AND (
-                            sc.search_vector @@ websearch_to_tsquery('simple', %(search_text)s)
+                            sc.search_vector @@ websearch_to_tsquery('simple', %(websearch_query)s)
                             OR sc.chunk_text ILIKE ANY(%(keyword_patterns)s::text[])
                           )
                     ),
@@ -288,7 +303,7 @@ def _keyword_terms(query_text: str) -> list[str]:
 
 
 def _expand_query_text(query_text: str) -> str:
-    return " ".join(_keyword_terms(query_text))
+    return build_search_text(" ".join(_keyword_terms(query_text)))
 
 
 def _dedupe_terms(terms: list[str]) -> list[str]:

@@ -6,7 +6,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..models.governance import (
+    AuditLifecycleResponse,
     AuditQueryResponse,
+    AuditStatisticsResponse,
+    ConflictCreateRequest,
     ConflictListResponse,
     ConflictResponse,
     ConflictUpdateRequest,
@@ -15,16 +18,21 @@ from ..models.governance import (
     ForgetRequestResponse,
     ForgetRequestUpdateRequest,
     PolicyCreateRequest,
+    PolicyDeleteResponse,
     PolicyListResponse,
     PolicyResponse,
+    PolicyUpdateRequest,
     TimelineCreateRequest,
     TimelineEntryResponse,
     TimelineListResponse,
 )
 from ..services.governance_service import (
+    ConflictAlreadyExistsError,
     ConflictNotFoundError,
+    ConflictValidationError,
     ForgetRequestNotFoundError,
     GovernanceService,
+    PolicyNotFoundError,
     ReviewerRequiredError,
     TargetNotFoundError,
     UnsupportedForgetTargetError,
@@ -47,22 +55,66 @@ def create_policy(
 @router.get("/policies", response_model=PolicyListResponse)
 def list_policies(
     workspace_id: UUID | None = Query(default=None),
+    principal_type: str | None = Query(default=None),
+    principal_id: UUID | None = Query(default=None),
+    resource_type: str | None = Query(default=None),
+    effect: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     service: GovernanceService = Depends(get_governance_service),
 ) -> PolicyListResponse:
-    return service.list_policies(workspace_id=workspace_id, page=page, page_size=page_size)
+    return service.list_policies(
+        workspace_id=workspace_id,
+        principal_type=principal_type,
+        principal_id=principal_id,
+        resource_type=resource_type,
+        effect=effect,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.patch("/policies/{policy_id}", response_model=PolicyResponse)
+def update_policy(
+    policy_id: UUID,
+    payload: PolicyUpdateRequest,
+    workspace_id: UUID = Query(...),
+    service: GovernanceService = Depends(get_governance_service),
+) -> PolicyResponse:
+    try:
+        return service.update_policy(
+            policy_id=policy_id,
+            workspace_id=workspace_id,
+            payload=payload,
+        )
+    except PolicyNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.delete("/policies/{policy_id}", response_model=PolicyDeleteResponse)
+def delete_policy(
+    policy_id: UUID,
+    workspace_id: UUID = Query(...),
+    service: GovernanceService = Depends(get_governance_service),
+) -> PolicyDeleteResponse:
+    try:
+        return service.delete_policy(policy_id=policy_id, workspace_id=workspace_id)
+    except PolicyNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.get("/audit", response_model=AuditQueryResponse)
 def list_audit_logs(
     workspace_id: UUID | None = Query(default=None),
     actor_type: str | None = Query(default=None),
+    actor_id: UUID | None = Query(default=None),
     action_type: str | None = Query(default=None),
     target_type: str | None = Query(default=None),
     target_id: UUID | None = Query(default=None),
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
+    sort: str = Query(default="desc", pattern="^(asc|desc)$"),
+    include_diff: bool = Query(default=False),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     service: GovernanceService = Depends(get_governance_service),
@@ -71,11 +123,14 @@ def list_audit_logs(
         return service.list_audit_logs(
             workspace_id=workspace_id,
             actor_type=actor_type,
+            actor_id=actor_id,
             action_type=action_type,
             target_type=target_type,
             target_id=target_id,
             start_time=start_time,
             end_time=end_time,
+            sort=sort,
+            include_diff=include_diff,
             page=page,
             page_size=page_size,
         )
@@ -83,14 +138,79 @@ def list_audit_logs(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.get("/conflicts", response_model=ConflictListResponse)
-def list_conflicts(
+@router.get("/audit/lifecycle", response_model=AuditLifecycleResponse)
+def list_audit_lifecycle(
+    workspace_id: UUID = Query(...),
+    target_type: str = Query(...),
+    target_id: UUID = Query(...),
+    service: GovernanceService = Depends(get_governance_service),
+) -> AuditLifecycleResponse:
+    try:
+        return service.list_audit_lifecycle(
+            workspace_id=workspace_id,
+            target_type=target_type,
+            target_id=target_id,
+        )
+    except WorkspaceNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.get("/audit/actors/{actor_type}/{actor_id}/timeline", response_model=AuditQueryResponse)
+def list_actor_timeline(
+    actor_type: str,
+    actor_id: UUID,
     workspace_id: UUID | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     service: GovernanceService = Depends(get_governance_service),
+) -> AuditQueryResponse:
+    return service.list_actor_timeline(
+        workspace_id=workspace_id,
+        actor_type=actor_type,
+        actor_id=actor_id,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/audit/statistics", response_model=AuditStatisticsResponse)
+def get_audit_statistics(
+    workspace_id: UUID | None = Query(default=None),
+    group_by: str = Query(default="action_type", pattern="^(action_type|actor_type|target_type)$"),
+    service: GovernanceService = Depends(get_governance_service),
+) -> AuditStatisticsResponse:
+    return service.get_audit_statistics(workspace_id=workspace_id, group_by=group_by)
+
+
+@router.get("/conflicts", response_model=ConflictListResponse)
+def list_conflicts(
+    workspace_id: UUID | None = Query(default=None),
+    status: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    service: GovernanceService = Depends(get_governance_service),
 ) -> ConflictListResponse:
-    return service.list_conflicts(workspace_id=workspace_id, page=page, page_size=page_size)
+    return service.list_conflicts(
+        workspace_id=workspace_id,
+        status=status,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.post("/conflicts", response_model=ConflictResponse, status_code=status.HTTP_201_CREATED)
+def create_conflict(
+    payload: ConflictCreateRequest,
+    service: GovernanceService = Depends(get_governance_service),
+) -> ConflictResponse:
+    try:
+        return service.create_conflict(payload)
+    except ConflictAlreadyExistsError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ConflictValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except TargetNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.patch("/conflicts/{conflict_id}", response_model=ConflictResponse)

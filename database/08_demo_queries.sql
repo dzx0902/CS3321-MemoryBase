@@ -58,3 +58,56 @@ JOIN memory_scene_cell msc ON msc.scene_id = ms.scene_id
 JOIN memory_item mi ON mi.memory_id = msc.memory_id
 WHERE ms.scene_slug = 'topic-decision'
 ORDER BY msc.sort_order ASC;
+
+-- 10. Verify seeded Chinese / mixed-language search text is ready for FTS
+SELECT memory_id, memory_type, search_text_zh
+FROM memory_item
+WHERE workspace_id = '00000000-0000-0000-0000-000000000201'
+  AND search_text_zh IS NOT NULL
+ORDER BY importance DESC, updated_at DESC
+LIMIT 10;
+
+-- 11. Inspect recent recall logs and their context-pack metadata
+SELECT
+  recall_id,
+  query_text,
+  result_count,
+  top_memory_ids_json,
+  context_pack_json -> 'filters' AS filters,
+  created_at
+FROM recall_log
+WHERE workspace_id = '00000000-0000-0000-0000-000000000201'
+ORDER BY created_at DESC
+LIMIT 10;
+
+-- 12. Review memory lifecycle audit entries with before/after JSON
+SELECT
+  audit_id,
+  action_type,
+  target_type,
+  target_id,
+  before_json,
+  after_json,
+  created_at
+FROM audit_log
+WHERE workspace_id = '00000000-0000-0000-0000-000000000201'
+  AND target_type IN ('memory_item', 'conflict_record', 'forget_request')
+ORDER BY created_at DESC
+LIMIT 10;
+
+-- 13. Check forget governance requests and target state without hard deletion
+SELECT
+  fr.request_id,
+  fr.target_type,
+  fr.target_id,
+  fr.status AS request_status,
+  mi.status AS memory_status,
+  fr.requested_at,
+  fr.resolved_at
+FROM forget_request fr
+LEFT JOIN memory_item mi
+  ON fr.target_type = 'memory_item'
+ AND fr.target_id = mi.memory_id
+WHERE fr.workspace_id = '00000000-0000-0000-0000-000000000201'
+ORDER BY fr.requested_at DESC
+LIMIT 10;

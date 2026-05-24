@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from ..models.recall import RecallRequest, RecallResponse
+from ..models.recall import (
+    RecallContextPackRequest,
+    RecallContextPackResponse,
+    RecallRequest,
+    RecallResponse,
+)
+from ..services.context_pack_service import format_context_pack
 from ..services.recall_service import RecallService
 from .deps import get_recall_service
 
@@ -15,3 +21,19 @@ def execute_recall(
     service: RecallService = Depends(get_recall_service),
 ) -> RecallResponse:
     return service.execute(payload)
+
+
+@router.post("/context-pack", response_model=RecallContextPackResponse)
+def execute_context_pack(
+    payload: RecallContextPackRequest,
+    service: RecallService = Depends(get_recall_service),
+) -> RecallContextPackResponse:
+    recall = service.execute(RecallRequest(**payload.model_dump(exclude={"max_tokens"})))
+    context = format_context_pack(recall, max_tokens=payload.max_tokens)
+    return RecallContextPackResponse(
+        markdown=context.markdown,
+        recall_id=recall.recall_id,
+        result_count=recall.result_count,
+        citation_map=context.citation_map,
+        token_count=context.token_count,
+    )
