@@ -183,8 +183,7 @@ export default function WikiExport() {
               <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">Any status</option>
                 <option value="active">active</option>
-                <option value="stale">stale</option>
-                <option value="archived">archived</option>
+                <option value="forgotten">forgotten</option>
               </select>
             </div>
             {pages.length === 0 ? (
