@@ -28,6 +28,12 @@ class PolicyCreateRequest(BaseModel):
     predicate_json: dict[str, Any] = Field(default_factory=dict)
 
 
+class PolicyUpdateRequest(BaseModel):
+    resource_scope: ResourceScope | None = None
+    effect: PolicyEffect | None = None
+    predicate_json: dict[str, Any] | None = None
+
+
 class PolicyResponse(BaseModel):
     policy_id: UUID
     workspace_id: UUID
@@ -42,6 +48,12 @@ class PolicyResponse(BaseModel):
 
 class PolicyListResponse(PageResponse[PolicyResponse]):
     pass
+
+
+class PolicyDeleteResponse(BaseModel):
+    policy_id: UUID
+    workspace_id: UUID
+    deleted: bool
 
 
 class AuditQueryResponse(BaseModel):

@@ -4,7 +4,6 @@ from pathlib import Path
 
 import psycopg
 import pytest
-
 from scripts.backfill_search_terms import backfill_search_terms
 
 WORKSPACE_ID = "00000000-0000-0000-0000-000000000201"
@@ -131,6 +130,49 @@ def test_recall_policy_visibility_and_log_end_to_end(
     assert visible_response.json()["result_count"] == 1
     assert visible_response.json()["memories"][0]["memory_id"] == PRIVATE_MEMORY_ID
     assert visible_response.json()["context_pack"]["top_memory_ids"] == [PRIVATE_MEMORY_ID]
+
+    lifecycle_policy = integration_client.post(
+        "/api/policies",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "principal_type": "role",
+            "resource_type": "wiki_page",
+            "resource_scope": "team",
+            "effect": "allow",
+            "predicate_json": {"purpose": "policy lifecycle test"},
+        },
+    )
+    assert lifecycle_policy.status_code == 201
+    policy_id = lifecycle_policy.json()["policy_id"]
+
+    update_policy = integration_client.patch(
+        f"/api/policies/{policy_id}",
+        params={"workspace_id": WORKSPACE_ID},
+        json={"effect": "deny", "predicate_json": {"purpose": "updated"}},
+    )
+    assert update_policy.status_code == 200
+    assert update_policy.json()["effect"] == "deny"
+
+    delete_policy = integration_client.delete(
+        f"/api/policies/{policy_id}",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert delete_policy.status_code == 200
+    assert delete_policy.json()["deleted"] is True
+
+    policy_audit = integration_client.get(
+        "/api/audit",
+        params={
+            "workspace_id": WORKSPACE_ID,
+            "target_type": "access_policy",
+            "target_id": policy_id,
+            "include_diff": "true",
+        },
+    )
+    assert policy_audit.status_code == 200
+    actions = [item["action_type"] for item in policy_audit.json()["items"]]
+    assert "policy.update" in actions
+    assert "policy.delete" in actions
 
     with psycopg.connect(integration_db) as conn:
         with conn.cursor() as cur:
@@ -699,6 +741,26 @@ def test_memory_detail_includes_entities_and_scenes(
         entity["canonical_name"] == "Campus Cafeteria System" for entity in payload["entities"]
     )
     assert any(scene["scene_slug"] == "topic-decision" for scene in payload["scenes"])
+
+
+def test_semantic_list_endpoints_return_seed_entities_and_scenes(
+    integration_client, integration_db: str
+) -> None:
+    entities = integration_client.get(
+        "/api/entities",
+        params={"workspace_id": WORKSPACE_ID, "keyword": "System"},
+    )
+    scenes = integration_client.get(
+        "/api/scenes",
+        params={"workspace_id": WORKSPACE_ID, "keyword": "topic"},
+    )
+
+    assert entities.status_code == 200
+    assert any(
+        entity["canonical_name"] == "Campus Cafeteria System" for entity in entities.json()["items"]
+    )
+    assert scenes.status_code == 200
+    assert any(scene["scene_slug"] == "topic-decision" for scene in scenes.json()["items"])
 
 
 def test_semantic_tables_and_conflicts_enforce_integrity(integration_db: str) -> None:
@@ -1374,6 +1436,61 @@ def test_wiki_batch_export_writes_independent_pages_and_respects_write_files(
     assert second.status_code == 200
     assert second.json()["pages"][0]["revision_no"] == 2
     assert Path(second.json()["pages"][0]["file_path"]).exists()
+
+
+def test_wiki_read_endpoints_return_seed_page_detail_and_revisions(
+    integration_client, integration_db: str
+) -> None:
+    list_response = integration_client.get(
+        "/api/wiki",
+        params={"workspace_id": WORKSPACE_ID, "keyword": "MemoryBase"},
+    )
+    assert list_response.status_code == 200
+    list_payload = list_response.json()
+    assert list_payload["total"] >= 1
+    assert any(page["page_slug"] == "why-memorybase" for page in list_payload["items"])
+
+    detail_response = integration_client.get(
+        f"/api/wiki/{WIKI_PAGE_ID}",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert detail_response.status_code == 200
+    detail_payload = detail_response.json()
+    assert detail_payload["page_slug"] == "why-memorybase"
+    assert detail_payload["latest_revision"]["revision_no"] == detail_payload["current_revision_no"]
+    assert isinstance(detail_payload["memory_ids"], list)
+    assert isinstance(detail_payload["source_doc_ids"], list)
+    assert detail_payload["memory_count"] >= 0
+    assert detail_payload["source_count"] >= 0
+
+    revisions_response = integration_client.get(
+        f"/api/wiki/{WIKI_PAGE_ID}/revisions",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert revisions_response.status_code == 200
+    revisions_payload = revisions_response.json()
+    assert revisions_payload["total"] >= 1
+    assert revisions_payload["items"][0]["body_markdown"].startswith("# Why MemoryBase")
+
+
+def test_stats_overview_returns_seed_workspace_counts(
+    integration_client, integration_db: str
+) -> None:
+    response = integration_client.get(
+        "/api/stats/overview",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workspace_id"] == WORKSPACE_ID
+    assert payload["source_count"] >= 6
+    assert payload["memory_count"] >= 20
+    assert payload["active_memory_count"] > 0
+    assert payload["wiki_page_count"] >= 3
+    assert payload["entity_count"] >= 1
+    assert payload["scene_count"] >= 1
+    assert any(item["memory_type"] == "decision" for item in payload["memory_statistics"])
 
 
 def test_forget_request_approval_forgets_memory_and_excludes_recall(

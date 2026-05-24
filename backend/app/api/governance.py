@@ -18,8 +18,10 @@ from ..models.governance import (
     ForgetRequestResponse,
     ForgetRequestUpdateRequest,
     PolicyCreateRequest,
+    PolicyDeleteResponse,
     PolicyListResponse,
     PolicyResponse,
+    PolicyUpdateRequest,
     TimelineCreateRequest,
     TimelineEntryResponse,
     TimelineListResponse,
@@ -30,6 +32,7 @@ from ..services.governance_service import (
     ConflictValidationError,
     ForgetRequestNotFoundError,
     GovernanceService,
+    PolicyNotFoundError,
     ReviewerRequiredError,
     TargetNotFoundError,
     UnsupportedForgetTargetError,
@@ -69,6 +72,35 @@ def list_policies(
         page=page,
         page_size=page_size,
     )
+
+
+@router.patch("/policies/{policy_id}", response_model=PolicyResponse)
+def update_policy(
+    policy_id: UUID,
+    payload: PolicyUpdateRequest,
+    workspace_id: UUID = Query(...),
+    service: GovernanceService = Depends(get_governance_service),
+) -> PolicyResponse:
+    try:
+        return service.update_policy(
+            policy_id=policy_id,
+            workspace_id=workspace_id,
+            payload=payload,
+        )
+    except PolicyNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.delete("/policies/{policy_id}", response_model=PolicyDeleteResponse)
+def delete_policy(
+    policy_id: UUID,
+    workspace_id: UUID = Query(...),
+    service: GovernanceService = Depends(get_governance_service),
+) -> PolicyDeleteResponse:
+    try:
+        return service.delete_policy(policy_id=policy_id, workspace_id=workspace_id)
+    except PolicyNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.get("/audit", response_model=AuditQueryResponse)
