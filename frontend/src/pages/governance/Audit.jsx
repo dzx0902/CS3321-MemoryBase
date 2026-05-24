@@ -5,6 +5,12 @@ import { useToast } from '../../components/Toast';
 const ACTION_TYPES = ['', 'create', 'update', 'delete', 'read', 'export', 'approve', 'reject', 'forget', 'resolve'];
 const ACTOR_TYPES = ['', 'user', 'agent', 'system'];
 
+function auditDetails(entry) {
+  const detail = entry.diff_json || entry.after_json || entry.before_json;
+  if (!detail) return '';
+  return JSON.stringify(detail);
+}
+
 export default function Audit() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +34,7 @@ export default function Audit() {
         target_id: filters.target_id || undefined,
         start_time: filters.start_time || undefined,
         end_time: filters.end_time || undefined,
+        include_diff: true,
       });
       setEntries(data.items || []);
       setTotal(data.total || 0);
@@ -46,7 +53,7 @@ export default function Audit() {
   return (
     <div>
       <div className="section-header">
-        <h1><span className="icon">☰</span> Audit Log</h1>
+        <h1><span className="icon">A</span> Audit Log</h1>
       </div>
 
       <div className="filter-bar">
@@ -74,7 +81,7 @@ export default function Audit() {
         <div className="loading"><div className="spinner" />Loading audit log...</div>
       ) : entries.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state__icon">☰</div>
+          <div className="empty-state__icon">A</div>
           <div className="empty-state__title">No audit entries</div>
         </div>
       ) : (
@@ -94,19 +101,19 @@ export default function Audit() {
                 {entries.map((e, i) => (
                   <tr key={e.audit_id || i}>
                     <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>
-                      {e.created_at ? new Date(e.created_at).toLocaleString() : '—'}
+                      {e.created_at ? new Date(e.created_at).toLocaleString() : '-'}
                     </td>
-                    <td><span className={`badge ${e.action_type === 'delete' || e.action_type === 'forget' ? 'badge--danger' : e.action_type === 'create' ? 'badge--success' : 'badge--default'}`}>{e.action_type || '—'}</span></td>
+                    <td><span className={`badge ${e.action_type === 'delete' || e.action_type === 'forget' ? 'badge--danger' : e.action_type === 'create' ? 'badge--success' : 'badge--default'}`}>{e.action_type || '-'}</span></td>
                     <td>
-                      <span className="badge badge--info">{e.actor_type || '—'}</span>
-                      <span className="text-mono" style={{ marginLeft: 6, fontSize: '0.75rem' }}>{e.actor_id || '—'}</span>
+                      <span className="badge badge--info">{e.actor_type || '-'}</span>
+                      <span className="text-mono" style={{ marginLeft: 6, fontSize: '0.75rem' }}>{e.actor_id || '-'}</span>
                     </td>
                     <td>
-                      <span className="text-muted" style={{ fontSize: '0.75rem' }}>{e.target_type || '—'}</span>
-                      <span className="text-mono" style={{ marginLeft: 6, fontSize: '0.72rem' }}>{e.target_id || '—'}</span>
+                      <span className="text-muted" style={{ fontSize: '0.75rem' }}>{e.target_type || '-'}</span>
+                      <span className="text-mono" style={{ marginLeft: 6, fontSize: '0.72rem' }}>{e.target_id || '-'}</span>
                     </td>
                     <td className="text-muted" style={{ maxWidth: 300, fontSize: '0.8rem' }}>
-                      {e.details ? (typeof e.details === 'string' ? e.details : JSON.stringify(e.details)) : '—'}
+                      {auditDetails(e) || '-'}
                     </td>
                   </tr>
                 ))}
@@ -116,11 +123,11 @@ export default function Audit() {
 
           {totalPages > 1 && (
             <div className="pagination">
-              <button disabled={page <= 1} onClick={() => setPage(page - 1)}>← Previous</button>
+              <button disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
               <span className="text-muted" style={{ padding: '0 12px', fontSize: '0.82rem' }}>
                 Page {page} of {totalPages}
               </span>
-              <button disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next →</button>
+              <button disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</button>
             </div>
           )}
         </>

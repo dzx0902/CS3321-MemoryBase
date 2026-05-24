@@ -26,7 +26,8 @@ export default function Messages() {
       const data = await sessionsApi.list({ workspace_id: workspaceId, page_size: 50 });
       const items = data.items || [];
       setSessions(items);
-      if (!sessionId && items[0]) setSessionId(items[0].session_id);
+      const selectedExists = items.some((item) => item.session_id === sessionId);
+      if (!selectedExists) setSessionId(items[0]?.session_id || '');
     } catch (err) {
       toast.error(err.message || 'Failed to load sessions');
     }
@@ -47,6 +48,11 @@ export default function Messages() {
       setLoading(false);
     }
   }, [sessionId, toast, workspaceId]);
+
+  useEffect(() => {
+    setSessionId('');
+    setMessages([]);
+  }, [workspaceId]);
 
   useEffect(() => { loadSessions(); }, [loadSessions]);
   useEffect(() => { loadMessages(); }, [loadMessages]);

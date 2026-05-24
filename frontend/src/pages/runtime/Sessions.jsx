@@ -27,7 +27,8 @@ export default function Sessions() {
       });
       const items = data.items || [];
       setSessions(items);
-      if (!selectedSessionId && items[0]) setSelectedSessionId(items[0].session_id);
+      const selectedExists = items.some((item) => item.session_id === selectedSessionId);
+      if (!selectedExists) setSelectedSessionId(items[0]?.session_id || '');
     } catch (err) {
       toast.error(err.message || 'Failed to load sessions');
     } finally {
@@ -51,6 +52,11 @@ export default function Sessions() {
     }
   }, [selectedSessionId, toast, workspaceId]);
 
+  useEffect(() => {
+    setSelectedSessionId('');
+    setMessages([]);
+  }, [agentId, workspaceId]);
+
   useEffect(() => { loadSessions(); }, [loadSessions]);
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
@@ -67,7 +73,10 @@ export default function Sessions() {
       });
       toast.success('Session created');
       setSelectedSessionId(created.session_id);
-      await loadSessions();
+      setSessions((items) => {
+        const exists = items.some((item) => item.session_id === created.session_id);
+        return exists ? items : [created, ...items];
+      });
     } catch (err) {
       toast.error(err.message || 'Failed to create session');
     } finally {

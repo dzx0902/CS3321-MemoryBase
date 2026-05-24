@@ -32,9 +32,9 @@ export default function Conflicts() {
 
   const totalPages = Math.ceil(total / pageSize);
 
-  async function handleStatusChange(conflictId, newStatus) {
+  async function handleStatusChange(conflict, newStatus) {
     try {
-      await conflictsApi.update(conflictId, { workspace_id: workspaceId }, { status: newStatus });
+      await conflictsApi.update(conflict.conflict_id, { workspace_id: conflict.workspace_id }, { status: newStatus });
       toast.success(`Conflict ${newStatus}`);
       fetchConflicts();
     } catch (err) {
@@ -82,14 +82,14 @@ export default function Conflicts() {
                     {c.status === 'open' && (
                       <>
                         <button className="btn btn--sm" style={{ borderColor: 'var(--success)', color: 'var(--success)' }}
-                          onClick={() => handleStatusChange(c.conflict_id, 'resolved')}>Resolve</button>
+                          onClick={() => handleStatusChange(c, 'resolved')}>Resolve</button>
                         <button className="btn btn--sm" style={{ borderColor: 'var(--text-muted)', color: 'var(--text-muted)' }}
-                          onClick={() => handleStatusChange(c.conflict_id, 'ignored')}>Ignore</button>
+                          onClick={() => handleStatusChange(c, 'ignored')}>Ignore</button>
                       </>
                     )}
                     {c.status !== 'open' && (
                       <button className="btn btn--sm" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
-                        onClick={() => handleStatusChange(c.conflict_id, 'open')}>Reopen</button>
+                        onClick={() => handleStatusChange(c, 'open')}>Reopen</button>
                     )}
                   </div>
                 </div>

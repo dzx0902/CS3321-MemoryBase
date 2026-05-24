@@ -186,7 +186,27 @@ export default function Layout() {
           overflow-y: auto;
         }
         @media (max-width: 768px) {
-          .sidebar { display: none; }
+          .app-shell {
+            flex-direction: column;
+          }
+          .sidebar {
+            display: flex;
+            width: 100%;
+            min-width: 0;
+            height: auto;
+            max-height: 44vh;
+            border-right: 0;
+            border-bottom: 1px solid var(--border);
+          }
+          .sidebar__brand {
+            padding: 14px 16px 10px;
+          }
+          .sidebar__nav {
+            padding: 8px;
+          }
+          .sidebar__footer {
+            display: none;
+          }
           .main-content { padding: 16px; }
         }
       `}</style>
