@@ -1,31 +1,44 @@
-/* ===== MemoryBase Design System ===== */
+/* ===== MemoryBase Design System (parchment + navy, inspired by tw93/kami) ===== */
 :root {
-  --bg-primary: #0d0d12;
-  --bg-secondary: #111118;
-  --bg-tertiary: #18181f;
-  --bg-hover: #1e1e2a;
-  --bg-active: #222231;
-  --text-primary: #e8e0d5;
-  --text-secondary: #9d958b;
-  --text-muted: #6b6560;
-  --accent: #c8a45c;
-  --accent-hover: #d4b36a;
-  --accent-dim: rgba(200, 164, 92, 0.10);
-  --accent-glow: rgba(200, 164, 92, 0.25);
-  --border: #1f1f2a;
-  --border-light: #2a2a38;
-  --danger: #e0556a;
-  --danger-dim: rgba(224, 85, 106, 0.12);
-  --success: #6baf7a;
-  --success-dim: rgba(107, 175, 122, 0.12);
-  --info: #5c8abf;
-  --info-dim: rgba(92, 138, 191, 0.12);
+  /* Surfaces — parchment / warm sand / ivory */
+  --bg-primary:   #f5f4ed;
+  --bg-secondary: #ebe9dd;
+  --bg-tertiary:  #faf9f5;
+  --bg-hover:     #e8e6dc;
+  --bg-active:    #ddd9c8;
+
+  /* Text — deep warm grays */
+  --text-primary:   #1d1d1b;
+  --text-secondary: #3f3d38;
+  --text-muted:     #5e5850;
+
+  /* Accent — deep navy (kami --brand) */
+  --accent:       #1B365D;
+  --accent-hover: #2D5A8A;
+  --accent-dim:   rgba(27, 54, 93, 0.10);
+  --accent-glow:  rgba(27, 54, 93, 0.20);
+
+  /* Borders */
+  --border:       #e3e0d3;
+  --border-light: #d2cebd;
+
+  /* Semantic — tuned for light bg */
+  --danger:       #a83a31;
+  --danger-dim:   rgba(168, 58, 49, 0.10);
+  --success:      #3d6e48;
+  --success-dim:  rgba(61, 110, 72, 0.12);
+  --info:         #2D5A8A;
+  --info-dim:     rgba(45, 90, 138, 0.10);
+
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 10px;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.03);
-  --shadow-elevated: 0 4px 16px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05);
+  --shadow-card:     0 1px 2px rgba(20,20,19,0.05), 0 0 0 1px rgba(20,20,19,0.04);
+  --shadow-elevated: 0 4px 16px rgba(20,20,19,0.10), 0 0 0 1px rgba(20,20,19,0.06);
   --transition: 180ms ease;
+
+  /* Serif stack for headings (no paid fonts; system fallbacks) */
+  --serif: 'Source Han Serif SC', 'Noto Serif CJK SC', 'Songti SC', 'STSong', Georgia, 'Playfair Display', serif;
 }
 
 /* ===== Reset & Base ===== */
@@ -42,7 +55,7 @@ html {
 }
 
 body {
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
@@ -61,7 +74,7 @@ body::before {
 }
 
 h1, h2, h3, h4 {
-  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  font-family: var(--serif);
   font-weight: 600;
   line-height: 1.25;
   color: var(--text-primary);
@@ -137,8 +150,10 @@ code {
 }
 .btn:hover { background: var(--bg-hover); border-color: var(--border-light); }
 .btn:active { background: var(--bg-active); }
-.btn--primary { background: var(--accent); color: #0d0d12; border-color: var(--accent); font-weight: 600; }
+.btn--primary { background: var(--accent); color: var(--bg-tertiary); border-color: var(--accent); font-weight: 600; }
 .btn--primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn--primary .text-muted,
+.btn--primary .text-secondary { color: var(--bg-tertiary); opacity: 0.78; }
 .btn--danger { border-color: var(--danger); color: var(--danger); }
 .btn--danger:hover { background: var(--danger-dim); }
 .btn--sm { padding: 4px 12px; font-size: 0.78rem; }
@@ -169,7 +184,7 @@ code {
 .textarea { resize: vertical; min-height: 80px; }
 .select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%239d958b'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%233f3d38'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: 32px;
@@ -202,7 +217,7 @@ label {
   padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
 }
-.card__title { font-size: 1.1rem; font-family: 'Playfair Display', serif; }
+.card__title { font-size: 1.1rem; font-family: var(--serif); }
 
 /* ===== Tables ===== */
 .table-wrap {
@@ -309,7 +324,7 @@ tbody tr:hover { background: var(--bg-hover); }
   margin-bottom: 6px;
 }
 .stat-card__value {
-  font-family: 'Playfair Display', serif;
+  font-family: var(--serif);
   font-size: 2rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -402,7 +417,7 @@ tbody tr:hover { background: var(--bg-hover); }
   border: 1px solid var(--border);
   max-width: 380px;
 }
-.toast--success { background: #1a2a1e; color: var(--success); border-color: rgba(107,175,122,0.3); }
-.toast--error   { background: #2a1a1e; color: var(--danger); border-color: rgba(224,85,106,0.3); }
-.toast--info    { background: #1a1e2a; color: var(--info); border-color: rgba(92,138,191,0.3); }
+.toast--success { background: #ecf2ee; color: var(--success); border-color: rgba(61,110,72,0.25); }
+.toast--error   { background: #f6e9e7; color: var(--danger); border-color: rgba(168,58,49,0.25); }
+.toast--info    { background: #e8eef5; color: var(--info); border-color: rgba(45,90,138,0.25); }
 @keyframes slideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
