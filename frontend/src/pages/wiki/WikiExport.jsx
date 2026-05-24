@@ -287,7 +287,7 @@ export default function WikiExport() {
                 <div className="markdown-body">
                   {result.frontmatter_json && (
                     <div style={{
-                      padding: '10px 14px', background: 'var(--bg-secondary)',
+                      padding: '10px 14px', background: 'var(--bg-elevated)',
                       borderRadius: 'var(--radius-md)', marginBottom: 16, border: '1px solid var(--border)',
                     }}>
                       <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 4 }}>
