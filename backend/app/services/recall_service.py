@@ -7,8 +7,10 @@ from typing import Protocol
 from uuid import UUID
 
 from ..core.database import Database
+from ..models.embedding import EmbeddingGenerateRequest
 from ..models.recall import RecallRequest, RecallResponse
 from ._search_query import build_websearch_query
+from .embedding_service import LocalHashingEmbeddingProvider, cosine_similarity
 from .tokenizer import build_search_text
 
 QUERY_EXPANSION_FILE = (
@@ -55,6 +57,7 @@ class RecallService:
 class PostgresRecallRepository:
     def __init__(self, database: Database) -> None:
         self._database = database
+        self._embedding_provider = LocalHashingEmbeddingProvider()
 
     def execute_recall(self, payload: RecallRequest) -> RecallResponse:
         search_text = _expand_query_text(payload.query_text)
@@ -213,6 +216,13 @@ class PostgresRecallRepository:
                     params,
                 )
                 memory_rows = cur.fetchall()
+                memory_rows = self._merge_vector_rows(
+                    cur=cur,
+                    payload=payload,
+                    where_clause=where_clause,
+                    params=params,
+                    keyword_rows=memory_rows,
+                )
 
                 for row in memory_rows:
                     if row["memory_id"] in memory_ids:
@@ -299,6 +309,138 @@ class PostgresRecallRepository:
             created_at=created_at,
         )
 
+    def _merge_vector_rows(
+        self,
+        *,
+        cur,
+        payload: RecallRequest,
+        where_clause: str,
+        params: dict[str, object],
+        keyword_rows: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        query_embedding = self._embedding_provider.embed(
+            EmbeddingGenerateRequest(
+                text=payload.query_text,
+                provider="local",
+                model="hashing-v1",
+                dimension=128,
+            )
+        ).embedding
+        vector_params = {
+            **params,
+            "embedding_provider": "local",
+            "embedding_model": "hashing-v1",
+            "embedding_dimension": 128,
+            "vector_candidate_limit": max(payload.limit * 5, payload.limit),
+        }
+        cur.execute(
+            f"""
+            SELECT
+                mi.memory_id,
+                mi.memory_type,
+                mi.canonical_text,
+                mi.summary,
+                mi.confidence,
+                mi.importance,
+                mi.status,
+                mi.access_level,
+                mi.updated_at,
+                me.embedding_json,
+                COALESCE(AVG(mem_evidence.weight), 0) * 0.2 AS evidence_score
+            FROM memory_embedding me
+            JOIN memory_item mi ON mi.memory_id = me.memory_id
+            LEFT JOIN memory_evidence mem_evidence ON mem_evidence.memory_id = mi.memory_id
+            WHERE {where_clause}
+              AND me.provider = %(embedding_provider)s
+              AND me.model = %(embedding_model)s
+              AND me.dimension = %(embedding_dimension)s
+            GROUP BY
+                mi.memory_id,
+                mi.memory_type,
+                mi.canonical_text,
+                mi.summary,
+                mi.confidence,
+                mi.importance,
+                mi.status,
+                mi.access_level,
+                mi.updated_at,
+                me.embedding_json
+            ORDER BY mi.updated_at DESC
+            LIMIT %(vector_candidate_limit)s
+            """,
+            vector_params,
+        )
+        merged: dict[UUID, dict[str, object]] = {
+            row["memory_id"]: dict(row) for row in keyword_rows
+        }
+        terms = _keyword_terms(payload.query_text)
+        for row in cur.fetchall():
+            vector = _embedding_json_to_vector(row["embedding_json"])
+            vector_score = max(0.0, cosine_similarity(query_embedding, vector))
+            if vector_score <= 0:
+                continue
+            keyword_score = _text_keyword_score(
+                text=f"{row['canonical_text']} {row['summary'] or ''}",
+                terms=terms,
+            )
+            recency_score = _recency_score(row["updated_at"])
+            evidence_score = float(row["evidence_score"] or 0)
+            score = (
+                keyword_score
+                + (vector_score * 0.45)
+                + recency_score
+                + evidence_score
+                + (float(row["importance"]) * 0.1)
+            )
+            candidate = {
+                "memory_id": row["memory_id"],
+                "memory_type": row["memory_type"],
+                "canonical_text": row["canonical_text"],
+                "summary": row["summary"],
+                "confidence": row["confidence"],
+                "importance": row["importance"],
+                "status": row["status"],
+                "access_level": row["access_level"],
+                "keyword_score": keyword_score,
+                "vector_score": vector_score,
+                "recency_score": recency_score,
+                "evidence_score": evidence_score,
+                "score": score,
+                "rank_reason": _rank_reason(
+                    keyword_score,
+                    vector_score,
+                    recency_score,
+                    evidence_score,
+                ),
+            }
+            existing = merged.get(row["memory_id"])
+            if existing is None or float(existing["score"]) < score:
+                merged[row["memory_id"]] = candidate
+            else:
+                existing["vector_score"] = max(
+                    float(existing.get("vector_score") or 0),
+                    vector_score,
+                )
+                existing["recency_score"] = max(
+                    float(existing.get("recency_score") or 0),
+                    recency_score,
+                )
+                existing["rank_reason"] = _rank_reason(
+                    float(existing.get("keyword_score") or 0),
+                    float(existing.get("vector_score") or 0),
+                    float(existing.get("recency_score") or 0),
+                    float(existing.get("evidence_score") or 0),
+                )
+        return sorted(
+            merged.values(),
+            key=lambda row: (
+                float(row["score"]),
+                float(row["importance"]),
+                float(row["confidence"]),
+            ),
+            reverse=True,
+        )[: payload.limit]
+
 
 def _json_dumps(payload: object) -> str:
     return json.dumps(payload, default=str)
@@ -326,3 +468,50 @@ def _dedupe_terms(terms: list[str]) -> list[str]:
         seen.add(normalized.lower())
         deduped.append(normalized)
     return deduped
+
+
+def _embedding_json_to_vector(payload: object) -> list[float]:
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    if not isinstance(payload, list):
+        return []
+    return [float(value) for value in payload]
+
+
+def _text_keyword_score(*, text: str, terms: list[str]) -> float:
+    normalized = text.lower()
+    for term in terms:
+        if term.lower() in normalized:
+            return 0.15
+    return 0.0
+
+
+def _recency_score(updated_at: object) -> float:
+    if not hasattr(updated_at, "timestamp"):
+        return 0.0
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    timestamp = updated_at
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    age_days = max((now - timestamp).total_seconds() / 86400, 0)
+    return max(0.0, 1.0 - (age_days / 90)) * 0.1
+
+
+def _rank_reason(
+    keyword_score: float,
+    vector_score: float,
+    recency_score: float,
+    evidence_score: float,
+) -> str:
+    reasons: list[str] = []
+    if vector_score > 0:
+        reasons.append("semantic match")
+    if keyword_score > 0:
+        reasons.append("keyword match")
+    if recency_score > 0:
+        reasons.append("recent memory")
+    if evidence_score > 0:
+        reasons.append("weighted evidence")
+    return " + ".join(reasons) or "importance boost"
