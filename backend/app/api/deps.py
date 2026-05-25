@@ -9,6 +9,7 @@ from ..services.conversation_service import ConversationService, PostgresConvers
 from ..services.embedding_service import (
     EmbeddingService,
     LocalHashingEmbeddingProvider,
+    PostgresEmbeddingRepository,
 )
 from ..services.governance_service import GovernanceService, PostgresGovernanceRepository
 from ..services.memory_service import MemoryService, PostgresMemoryRepository
@@ -82,7 +83,10 @@ def get_stats_service() -> StatsService:
 
 
 def get_embedding_service() -> EmbeddingService:
-    return EmbeddingService(provider=LocalHashingEmbeddingProvider())
+    return EmbeddingService(
+        provider=LocalHashingEmbeddingProvider(),
+        repository=PostgresEmbeddingRepository(get_database()),
+    )
 
 
 def get_app_settings() -> Settings:
