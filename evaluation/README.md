@@ -133,9 +133,10 @@ summary_memory
 db_memory
 ```
 
-`no_memory`, `--dry-run`, and `db_memory` execute. `db_memory` requires a running API,
-workspace, and optionally an agent. Other modes return explicit "reserved but not
-implemented" errors until their adapters are connected.
+`no_memory`, `recency_only`, `summary_memory`, `--dry-run`, and `db_memory` execute.
+`recency_only` and `summary_memory` use only the case sessions and do not call the
+backend. `db_memory` requires a running API, workspace, and optionally an agent.
+`naive_vector_rag` remains reserved until embeddings/vector search are available.
 
 ## Adding Cases
 

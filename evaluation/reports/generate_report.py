@@ -70,9 +70,8 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
             "",
             "## Baseline Comparison",
             "",
-            "Baseline hooks are present for `no_memory`, `recency_only`, "
-            "`naive_vector_rag`, `summary_memory`, and `db_memory`. "
-            "Only `no_memory` and `--dry-run` execute in Phase E1.",
+            "`no_memory`, `recency_only`, `summary_memory`, and `db_memory` execute. "
+            "`naive_vector_rag` remains reserved until embeddings/vector search exist.",
             "",
             "## Failed Cases",
             "",
@@ -94,9 +93,9 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
             "",
             "## Current Limitations",
             "",
-            "- Phase E1 does not call the real MemoryBase API.",
-            "- `db_memory` is reserved but not implemented yet.",
-            "- External benchmark adapters are skeleton work for the next phase.",
+            "- `recency_only` and `summary_memory` use case sessions directly.",
+            "- `db_memory` uses memory create and recall APIs, not automatic extraction.",
+            "- External benchmark adapters support common JSON/JSONL shapes only.",
             "- LLM-as-judge, groundedness, and token cost are not implemented yet.",
             "",
         ]

@@ -99,6 +99,44 @@ class UnsupportedBaseline:
         )
 
 
+class LocalMemoryBaseline:
+    def __init__(self, *, mode: str, run_id: str) -> None:
+        self._mode = mode
+        self._run_id = run_id
+
+    def run_case(self, case: EvaluationCase) -> EvaluationResult:
+        started = time.perf_counter()
+        memories = _local_case_memories(case)
+        if self._mode == "recency_only":
+            selected = list(reversed(memories))[:3]
+        else:
+            selected = [_summarize_memory(memory) for memory in memories[:8]]
+        generated_answer = "\n".join(selected)
+        return EvaluationResult(
+            case_id=case.case_id,
+            source=case.source,
+            category=case.category,
+            query=case.query,
+            expected_answer=case.expected_answer,
+            generated_answer=generated_answer,
+            retrieved_memory_ids=[
+                f"{self._mode}:{case.case_id}:{index}"
+                for index, _memory in enumerate(selected, start=1)
+            ],
+            retrieved_memory_texts=selected,
+            retrieved_scores=[1 / index for index, _memory in enumerate(selected, start=1)],
+            latency_ms=(time.perf_counter() - started) * 1000,
+            mode=self._mode,
+            run_id=self._run_id,
+            metadata={
+                "injection_mode": "local_case_memory",
+                "limitation": (
+                    "Uses EvaluationCase sessions directly; does not call MemoryBase APIs."
+                ),
+            },
+        )
+
+
 def build_baseline(*, mode: str, run_id: str, dry_run: bool = False) -> BaselineRunner:
     return build_baseline_with_config(mode=mode, run_id=run_id, dry_run=dry_run)
 
@@ -116,6 +154,8 @@ def build_baseline_with_config(
         raise ValueError(f"unsupported mode {mode!r}; expected one of {sorted(SUPPORTED_MODES)}")
     if mode == "no_memory" or dry_run:
         return NoMemoryBaseline(mode=mode, run_id=run_id, dry_run=dry_run)
+    if mode in {"recency_only", "summary_memory"}:
+        return LocalMemoryBaseline(mode=mode, run_id=run_id)
     if mode == "db_memory":
         return DbMemoryBaseline(
             run_id=run_id,
@@ -368,3 +408,25 @@ def _float(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _local_case_memories(case: EvaluationCase) -> list[str]:
+    memories: list[str] = []
+    for session in case.sessions:
+        for turn in session.turns:
+            if turn.role != "user":
+                continue
+            if _is_query_turn(turn.content, case.query):
+                continue
+            if _is_forget_turn(turn.content):
+                memories.clear()
+                continue
+            memories.append(turn.content)
+    return memories
+
+
+def _summarize_memory(memory: str) -> str:
+    compact = " ".join(memory.strip().split())
+    if len(compact) <= 120:
+        return compact
+    return compact[:117] + "..."
