@@ -6,6 +6,10 @@ from ..core.config import Settings, get_settings
 from ..core.database import Database
 from ..services.agent_service import AgentService, PostgresAgentRepository
 from ..services.conversation_service import ConversationService, PostgresConversationRepository
+from ..services.embedding_service import (
+    EmbeddingService,
+    LocalHashingEmbeddingProvider,
+)
 from ..services.governance_service import GovernanceService, PostgresGovernanceRepository
 from ..services.memory_service import MemoryService, PostgresMemoryRepository
 from ..services.recall_service import PostgresRecallRepository, RecallService
@@ -75,6 +79,10 @@ def get_wiki_service() -> WikiService:
 def get_stats_service() -> StatsService:
     repository = PostgresStatsRepository(get_database())
     return StatsService(repository=repository)
+
+
+def get_embedding_service() -> EmbeddingService:
+    return EmbeddingService(provider=LocalHashingEmbeddingProvider())
 
 
 def get_app_settings() -> Settings:

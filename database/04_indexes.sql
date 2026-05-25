@@ -37,6 +37,18 @@ CREATE INDEX IF NOT EXISTS idx_memory_canonical_text_trgm
 CREATE INDEX IF NOT EXISTS idx_memory_evidence_chunk
   ON memory_evidence(chunk_id);
 
+CREATE INDEX IF NOT EXISTS idx_memory_embedding_memory
+  ON memory_embedding(memory_id);
+
+CREATE INDEX IF NOT EXISTS idx_memory_embedding_workspace_model
+  ON memory_embedding(workspace_id, provider, model);
+
+CREATE INDEX IF NOT EXISTS idx_source_chunk_embedding_chunk
+  ON source_chunk_embedding(chunk_id);
+
+CREATE INDEX IF NOT EXISTS idx_source_chunk_embedding_workspace_model
+  ON source_chunk_embedding(workspace_id, provider, model);
+
 CREATE INDEX IF NOT EXISTS idx_source_document_title_trgm
   ON source_document USING GIN(title gin_trgm_ops);
 

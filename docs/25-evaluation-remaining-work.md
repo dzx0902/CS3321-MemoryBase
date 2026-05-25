@@ -1,0 +1,107 @@
+# Evaluation Remaining Work
+
+## Purpose
+
+This document records evaluation-route items that are intentionally not complete yet. They require backend features, external datasets, a running API, or model/judge configuration.
+
+## Backend-Dependent Items
+
+```text
+- naive_vector_rag baseline
+- embedding similarity scoring
+- vector retrieval against memory and source chunks
+- keyword-only vs vector vs hybrid baseline comparison
+- real write/query/update/delete P50/P95/P99/QPS performance suite
+- real context leakage and answer leakage split
+- long history 1K / 10K / 50K / 100K / 500K retention curves
+```
+
+Required backend support:
+
+```text
+- memory embedding storage
+- source chunk embedding storage
+- embedding generation service boundary
+- vector or vector-like search repository
+- hybrid scoring with score breakdown
+- context package leakage inspection
+- agent answer or answer-generation endpoint
+```
+
+## External Dataset Items
+
+```text
+- official LongMemEval full-format validation
+- official LoCoMo full-format validation
+- official MemoryAgentBench full-format validation
+- BEIR / MS MARCO retriever-only benchmark conversion
+- BEAM long-context stress benchmark conversion
+```
+
+Current state:
+
+```text
+- LongMemEval / LoCoMo / MemoryAgentBench support common JSON/JSONL shapes.
+- Raw official datasets are not stored in this repository.
+- Download URLs, licenses, and exact file names still need to be documented before use.
+```
+
+## Model-Dependent Items
+
+```text
+- LLM-as-judge
+- groundedness
+- hallucination rate
+- embedding similarity judge
+- token usage
+- token cost per answer
+```
+
+Required configuration:
+
+```text
+- model provider
+- judge prompt
+- API key through environment/config only
+- deterministic evaluation settings
+- cost accounting policy
+```
+
+## Live API Items
+
+```text
+- db_memory synthetic benchmark evidence against a live API
+- real deletion retrieval leakage
+- real conflict stale memory error rate
+- real context-pack leakage
+- real wiki/export leakage
+```
+
+Current `db_memory` behavior:
+
+```text
+/api/health/detail
+/api/sessions
+/api/observe
+/api/memories
+/api/recall
+DELETE /api/memories/{memory_id} for injected deletion cases
+```
+
+Limitation:
+
+```text
+It uses direct memory API injection. It does not yet test automatic memory extraction or full agent answer generation.
+```
+
+## Next Backend Route
+
+Start with backend B1 because it unlocks the largest number of remaining evaluation items:
+
+```text
+1. Add memory and chunk embedding storage.
+2. Add embedding service boundary.
+3. Add vector-like repository interface.
+4. Add hybrid retrieval score breakdown.
+5. Connect evaluation naive_vector_rag / hybrid baselines.
+```

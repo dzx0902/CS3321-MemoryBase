@@ -108,6 +108,35 @@ CREATE TABLE IF NOT EXISTS memory_evidence (
   UNIQUE(memory_id, chunk_id, evidence_role)
 );
 
+CREATE TABLE IF NOT EXISTS memory_embedding (
+  embedding_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  memory_id UUID NOT NULL REFERENCES memory_item(memory_id) ON DELETE CASCADE,
+  workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
+  provider VARCHAR(80) NOT NULL,
+  model VARCHAR(160) NOT NULL,
+  dimension INT NOT NULL CHECK (dimension > 0),
+  embedding_json JSONB NOT NULL,
+  embedding_text_hash VARCHAR(128) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(memory_id, provider, model, embedding_text_hash),
+  FOREIGN KEY (memory_id, workspace_id)
+    REFERENCES memory_item(memory_id, workspace_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS source_chunk_embedding (
+  embedding_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chunk_id UUID NOT NULL REFERENCES source_chunk(chunk_id) ON DELETE CASCADE,
+  doc_id UUID NOT NULL REFERENCES source_document(doc_id) ON DELETE CASCADE,
+  workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
+  provider VARCHAR(80) NOT NULL,
+  model VARCHAR(160) NOT NULL,
+  dimension INT NOT NULL CHECK (dimension > 0),
+  embedding_json JSONB NOT NULL,
+  embedding_text_hash VARCHAR(128) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(chunk_id, provider, model, embedding_text_hash)
+);
+
 CREATE TABLE IF NOT EXISTS entity (
   entity_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
