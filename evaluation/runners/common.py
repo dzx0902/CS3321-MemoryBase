@@ -85,5 +85,31 @@ def _score_result(case: EvaluationCase, result: EvaluationResult) -> EvaluationR
     retrieval = score_retrieval(case.gold_memory_ids, result.retrieved_memory_ids)
     result.score = float(qa["score"])
     result.passed = bool(qa["pass"]) and not result.error
-    result.metadata = {**result.metadata, "qa": qa, "retrieval": retrieval}
+    metrics = {
+        **qa,
+        **retrieval,
+        "deletion_success": _deletion_success(case, qa),
+        "privacy_leakage": bool(qa["forbidden_answer_violation"]),
+        "stale_memory_error": _stale_memory_error(case, qa),
+        "preference_following": _preference_following(case, qa),
+    }
+    result.metadata = {**result.metadata, "qa": qa, "retrieval": retrieval, "metrics": metrics}
     return result
+
+
+def _deletion_success(case: EvaluationCase, qa: dict[str, float | bool]) -> bool | None:
+    if case.category != "deletion" and case.expected_behavior != "refuse_or_unknown":
+        return None
+    return not bool(qa["forbidden_answer_violation"])
+
+
+def _stale_memory_error(case: EvaluationCase, qa: dict[str, float | bool]) -> bool | None:
+    if case.category not in {"temporal_update", "conflict"}:
+        return None
+    return bool(qa["forbidden_answer_violation"])
+
+
+def _preference_following(case: EvaluationCase, qa: dict[str, float | bool]) -> bool | None:
+    if case.category != "preference_following" and case.expected_behavior != "follow_preference":
+        return None
+    return bool(qa["pass"])
