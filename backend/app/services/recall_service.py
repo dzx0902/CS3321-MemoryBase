@@ -161,9 +161,14 @@ class PostgresRecallRepository:
                             mi.importance,
                             mi.status,
                             mi.access_level,
+                            MAX(mc.chunk_rank) AS keyword_score,
+                            0::double precision AS vector_score,
+                            0::double precision AS recency_score,
+                            AVG(me.weight) * 0.2 AS evidence_score,
                             MAX(mc.chunk_rank)
-                            + (AVG(me.weight) * 0.2)
-                            + (mi.importance * 0.1) AS score
+                                + (AVG(me.weight) * 0.2)
+                                + (mi.importance * 0.1) AS score,
+                            'keyword/evidence match + importance boost' AS rank_reason
                         FROM matched_chunks mc
                         JOIN memory_evidence me ON me.chunk_id = mc.chunk_id
                         JOIN memory_item mi ON mi.memory_id = me.memory_id
@@ -190,7 +195,12 @@ class PostgresRecallRepository:
                         mi.importance,
                         mi.status,
                         mi.access_level,
-                        0.15 + (mi.importance * 0.1) AS score
+                        0.15 AS keyword_score,
+                        0::double precision AS vector_score,
+                        0::double precision AS recency_score,
+                        0::double precision AS evidence_score,
+                        0.15 + (mi.importance * 0.1) AS score,
+                        'keyword match on memory text + importance boost' AS rank_reason
                     FROM memory_item mi
                     WHERE {where_clause}
                       AND (

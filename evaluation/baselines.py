@@ -1,0 +1,370 @@
+from __future__ import annotations
+
+import os
+import time
+from dataclasses import dataclass, field
+from typing import Any, Protocol
+
+import httpx
+
+from evaluation.cases import EvaluationCase
+
+SUPPORTED_MODES = {
+    "no_memory",
+    "recency_only",
+    "naive_vector_rag",
+    "summary_memory",
+    "db_memory",
+}
+
+
+@dataclass(slots=True)
+class EvaluationResult:
+    case_id: str
+    source: str
+    category: str
+    query: str
+    expected_answer: str | None
+    generated_answer: str
+    retrieved_memory_ids: list[str] = field(default_factory=list)
+    retrieved_memory_texts: list[str] = field(default_factory=list)
+    retrieved_scores: list[float] = field(default_factory=list)
+    latency_ms: float = 0.0
+    token_usage: int | None = None
+    score: float = 0.0
+    passed: bool = False
+    error: str = ""
+    mode: str = "no_memory"
+    run_id: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class BaselineRunner(Protocol):
+    def run_case(self, case: EvaluationCase) -> EvaluationResult:
+        ...
+
+
+class NoMemoryBaseline:
+    def __init__(self, *, mode: str, run_id: str, dry_run: bool = False) -> None:
+        self._mode = mode
+        self._run_id = run_id
+        self._dry_run = dry_run
+
+    def run_case(self, case: EvaluationCase) -> EvaluationResult:
+        started = time.perf_counter()
+        if self._dry_run:
+            answer = "[dry-run] case validated; no model or memory system was called"
+        elif case.expected_answer is None:
+            answer = "I do not know."
+        else:
+            answer = ""
+        return EvaluationResult(
+            case_id=case.case_id,
+            source=case.source,
+            category=case.category,
+            query=case.query,
+            expected_answer=case.expected_answer,
+            generated_answer=answer,
+            latency_ms=(time.perf_counter() - started) * 1000,
+            mode=self._mode,
+            run_id=self._run_id,
+            metadata={
+                "injection_mode": "none",
+                "limitation": "No MemoryBase backend was called by this baseline.",
+                "dry_run": self._dry_run,
+            },
+        )
+
+
+class UnsupportedBaseline:
+    def __init__(self, *, mode: str, run_id: str) -> None:
+        self._mode = mode
+        self._run_id = run_id
+
+    def run_case(self, case: EvaluationCase) -> EvaluationResult:
+        return EvaluationResult(
+            case_id=case.case_id,
+            source=case.source,
+            category=case.category,
+            query=case.query,
+            expected_answer=case.expected_answer,
+            generated_answer="",
+            mode=self._mode,
+            run_id=self._run_id,
+            error=(
+                f"Mode {self._mode!r} is reserved but not implemented yet. "
+                "Use --mode no_memory or --dry-run for the current framework."
+            ),
+            metadata={"injection_mode": "not_supported"},
+        )
+
+
+def build_baseline(*, mode: str, run_id: str, dry_run: bool = False) -> BaselineRunner:
+    return build_baseline_with_config(mode=mode, run_id=run_id, dry_run=dry_run)
+
+
+def build_baseline_with_config(
+    *,
+    mode: str,
+    run_id: str,
+    dry_run: bool = False,
+    api_base_url: str | None = None,
+    workspace: str | None = None,
+    agent: str | None = None,
+) -> BaselineRunner:
+    if mode not in SUPPORTED_MODES:
+        raise ValueError(f"unsupported mode {mode!r}; expected one of {sorted(SUPPORTED_MODES)}")
+    if mode == "no_memory" or dry_run:
+        return NoMemoryBaseline(mode=mode, run_id=run_id, dry_run=dry_run)
+    if mode == "db_memory":
+        return DbMemoryBaseline(
+            run_id=run_id,
+            api_base_url=api_base_url or "http://localhost:8000",
+            workspace=workspace,
+            agent=agent,
+        )
+    return UnsupportedBaseline(mode=mode, run_id=run_id)
+
+
+class DbMemoryBaseline:
+    def __init__(
+        self,
+        *,
+        run_id: str,
+        api_base_url: str,
+        workspace: str | None,
+        agent: str | None,
+    ) -> None:
+        self._run_id = run_id
+        self._api_base_url = api_base_url.rstrip("/")
+        self._workspace = workspace or os.getenv("MEMORYBASE_WORKSPACE")
+        self._agent = agent or os.getenv("MEMORYBASE_AGENT")
+
+    def run_case(self, case: EvaluationCase) -> EvaluationResult:
+        started = time.perf_counter()
+        created_memory_ids: list[str] = []
+        try:
+            workspace_id, agent_id = self._resolve_workspace_and_agent()
+            for session in case.sessions:
+                session_id = self._create_session(
+                    workspace_id=workspace_id,
+                    agent_id=agent_id,
+                    title=f"{self._run_id}:{case.case_id}:{session.session_id}",
+                )
+                for turn in session.turns:
+                    self._observe_message(
+                        session_id=session_id,
+                        role=turn.role,
+                        content=turn.content,
+                        agent_id=agent_id,
+                    )
+                    if turn.role != "user":
+                        continue
+                    if _is_query_turn(turn.content, case.query):
+                        continue
+                    if _is_forget_turn(turn.content):
+                        self._delete_created_memories(workspace_id, created_memory_ids)
+                        created_memory_ids.clear()
+                        continue
+                    created_memory_ids.append(
+                        self._create_memory(
+                            workspace_id=workspace_id,
+                            agent_id=agent_id,
+                            content=turn.content,
+                            case=case,
+                        )
+                    )
+
+            recall = self._recall(
+                workspace_id=workspace_id,
+                agent_id=agent_id,
+                query=case.query,
+            )
+            memories = [item for item in recall.get("memories", []) if isinstance(item, dict)]
+            generated_answer = "\n".join(str(item.get("canonical_text", "")) for item in memories)
+            return EvaluationResult(
+                case_id=case.case_id,
+                source=case.source,
+                category=case.category,
+                query=case.query,
+                expected_answer=case.expected_answer,
+                generated_answer=generated_answer,
+                retrieved_memory_ids=[str(item.get("memory_id", "")) for item in memories],
+                retrieved_memory_texts=[str(item.get("canonical_text", "")) for item in memories],
+                retrieved_scores=[_float(item.get("score")) for item in memories],
+                latency_ms=(time.perf_counter() - started) * 1000,
+                mode="db_memory",
+                run_id=self._run_id,
+                metadata={
+                    "injection_mode": "memory_api",
+                    "workspace_id": workspace_id,
+                    "agent_id": agent_id,
+                    "created_memory_ids": created_memory_ids,
+                    "limitation": (
+                        "Uses existing memory create and recall APIs. "
+                        "Automatic extraction and full agent answering are not implemented yet."
+                    ),
+                },
+            )
+        except Exception as exc:
+            return EvaluationResult(
+                case_id=case.case_id,
+                source=case.source,
+                category=case.category,
+                query=case.query,
+                expected_answer=case.expected_answer,
+                generated_answer="",
+                latency_ms=(time.perf_counter() - started) * 1000,
+                mode="db_memory",
+                run_id=self._run_id,
+                error=str(exc),
+                metadata={"injection_mode": "memory_api"},
+            )
+
+    def _resolve_workspace_and_agent(self) -> tuple[str, str | None]:
+        if not self._workspace:
+            raise ValueError("db_memory mode requires --workspace or MEMORYBASE_WORKSPACE.")
+        params = {"workspace": self._workspace}
+        if self._agent:
+            params["agent"] = self._agent
+        payload = self._request("GET", "/api/health/detail", params=params)
+        workspace = _checked_target(payload, "workspace")
+        agent = _checked_target(payload, "agent") if self._agent else None
+        return str(workspace["workspace_id"]), str(agent["agent_id"]) if agent else None
+
+    def _create_session(
+        self,
+        *,
+        workspace_id: str,
+        agent_id: str | None,
+        title: str,
+    ) -> str:
+        payload = {
+            "workspace_id": workspace_id,
+            "agent_id": agent_id,
+            "title": title[:200],
+            "channel": "cli",
+        }
+        response = self._request("POST", "/api/sessions", json=payload)
+        return str(response["session_id"])
+
+    def _observe_message(
+        self,
+        *,
+        session_id: str,
+        role: str,
+        content: str,
+        agent_id: str | None,
+    ) -> None:
+        sender_type = "agent" if role == "assistant" else "user" if role == "user" else "system"
+        payload = {
+            "session_id": session_id,
+            "sender_type": sender_type,
+            "sender_id": agent_id if sender_type == "agent" else None,
+            "role": role,
+            "content": content,
+        }
+        self._request("POST", "/api/observe", json=payload)
+
+    def _create_memory(
+        self,
+        *,
+        workspace_id: str,
+        agent_id: str | None,
+        content: str,
+        case: EvaluationCase,
+    ) -> str:
+        payload = {
+            "workspace_id": workspace_id,
+            "memory_type": _memory_type_for_case(case, content),
+            "canonical_text": content,
+            "summary": f"Evaluation case {case.case_id}",
+            "confidence": 0.7,
+            "importance": 3,
+            "access_level": "project",
+            "owner_agent_id": agent_id,
+            "evidence": [],
+        }
+        headers = {
+            "X-Actor-Type": "agent",
+            "X-Revision-Reason": f"evaluation injection {self._run_id}",
+        }
+        if agent_id:
+            headers["X-Actor-Id"] = agent_id
+        response = self._request("POST", "/api/memories", json=payload, headers=headers)
+        return str(response["memory_id"])
+
+    def _delete_created_memories(self, workspace_id: str, memory_ids: list[str]) -> None:
+        for memory_id in list(memory_ids):
+            self._request(
+                "DELETE",
+                f"/api/memories/{memory_id}",
+                params={"workspace_id": workspace_id},
+                headers={
+                    "X-Actor-Type": "system",
+                    "X-Revision-Reason": f"evaluation forgetting {self._run_id}",
+                },
+            )
+
+    def _recall(self, *, workspace_id: str, agent_id: str | None, query: str) -> dict[str, Any]:
+        payload = {
+            "workspace_id": workspace_id,
+            "agent_id": agent_id,
+            "query_text": query,
+            "status": "active",
+            "limit": 10,
+        }
+        return self._request("POST", "/api/recall", json=payload)
+
+    def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        try:
+            response = httpx.request(
+                method,
+                f"{self._api_base_url}{path}",
+                timeout=10.0,
+                **kwargs,
+            )
+        except httpx.RequestError as exc:
+            raise RuntimeError(f"MemoryBase API request failed: {exc}") from exc
+        if response.status_code >= 400:
+            raise RuntimeError(f"MemoryBase API {response.status_code}: {response.text}")
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise RuntimeError("MemoryBase API returned a non-object response.")
+        return payload
+
+
+def _checked_target(payload: dict[str, Any], key: str) -> dict[str, Any]:
+    target = payload.get(key)
+    if not isinstance(target, dict) or not target.get("found", False):
+        reason = target.get("error") if isinstance(target, dict) else f"{key} not found"
+        raise ValueError(str(reason))
+    return target
+
+
+def _is_query_turn(content: str, query: str) -> bool:
+    return content.strip() == query.strip()
+
+
+def _is_forget_turn(content: str) -> bool:
+    lowered = content.lower()
+    return any(term in lowered for term in ("忘记", "删除", "forget", "delete", "remove"))
+
+
+def _memory_type_for_case(case: EvaluationCase, content: str) -> str:
+    if case.category == "preference_following" or "以后" in content:
+        return "preference"
+    if case.category in {"temporal_update", "single_fact", "long_context_retention"}:
+        return "semantic"
+    if "风险" in content:
+        return "risk"
+    if "任务" in content:
+        return "task"
+    return "episodic"
+
+
+def _float(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0

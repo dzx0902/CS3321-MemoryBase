@@ -44,6 +44,11 @@ class RecallMemoryResponse(BaseModel):
     status: str
     access_level: str
     score: float
+    keyword_score: float = 0.0
+    vector_score: float = 0.0
+    recency_score: float = 0.0
+    evidence_score: float = 0.0
+    rank_reason: str | None = None
     evidence: list[RecallEvidenceResponse]
 
 

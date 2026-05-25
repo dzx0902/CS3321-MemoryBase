@@ -1,0 +1,149 @@
+from __future__ import annotations
+
+import argparse
+import csv
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from evaluation.metrics.system_metrics import latency_summary  # noqa: E402
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUTS = PROJECT_ROOT / "evaluation" / "outputs"
+
+
+def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
+    outputs_dir.mkdir(parents=True, exist_ok=True)
+    report_path = outputs_dir / "benchmark_report.md"
+    csv_paths = sorted(path for path in outputs_dir.glob("*_results.csv") if path.is_file())
+    lines = [
+        "# MemoryBase Benchmark Report",
+        "",
+        "## Experiment Settings",
+        "",
+        "| Field | Value |",
+        "| --- | --- |",
+        "| framework | local evaluation runner |",
+        "| model | not configured in Phase E1 |",
+        "| database | not called by no_memory/dry-run baseline |",
+        "| outputs_dir | `%s` |" % outputs_dir.as_posix(),
+        "",
+        "## Result Files",
+        "",
+    ]
+    if not csv_paths:
+        lines.append("No result CSV files were found.")
+    else:
+        lines.extend(
+            [
+                "| File | Cases | Pass Rate | Error Count | P95 Latency (ms) |",
+                "| --- | ---: | ---: | ---: | ---: |",
+            ]
+        )
+        for path in csv_paths:
+            rows = _read_rows(path)
+            pass_count = sum(1 for row in rows if row.get("pass") == "true")
+            error_count = sum(1 for row in rows if row.get("error"))
+            latencies = [_float(row.get("latency_ms")) for row in rows]
+            summary = latency_summary(latencies, error_count=error_count)
+            pass_rate = pass_count / len(rows) if rows else 0.0
+            lines.append(
+                f"| `{path.name}` | {len(rows)} | {pass_rate:.2%} | "
+                f"{error_count} | {summary['p95_latency_ms']:.3f} |"
+            )
+
+    lines.extend(["", "## Category Metrics", ""])
+    category_rows = _category_rows(csv_paths)
+    if category_rows:
+        lines.extend(["| Category | Cases | Pass Rate |", "| --- | ---: | ---: |"])
+        for category, values in sorted(category_rows.items()):
+            total = values["total"]
+            pass_rate = values["passed"] / total if total else 0.0
+            lines.append(f"| {category} | {total} | {pass_rate:.2%} |")
+    else:
+        lines.append("No category metrics are available yet.")
+
+    lines.extend(
+        [
+            "",
+            "## Baseline Comparison",
+            "",
+            "Baseline hooks are present for `no_memory`, `recency_only`, "
+            "`naive_vector_rag`, `summary_memory`, and `db_memory`. "
+            "Only `no_memory` and `--dry-run` execute in Phase E1.",
+            "",
+            "## Failed Cases",
+            "",
+        ]
+    )
+    failed = _failed_rows(csv_paths)
+    if failed:
+        lines.extend(["| Case | Category | Mode | Error |", "| --- | --- | --- | --- |"])
+        for row in failed[:20]:
+            lines.append(
+                f"| {row.get('case_id', '')} | {row.get('category', '')} | "
+                f"{row.get('mode', '')} | {row.get('error', '')} |"
+            )
+    else:
+        lines.append("No failed cases were recorded.")
+
+    lines.extend(
+        [
+            "",
+            "## Current Limitations",
+            "",
+            "- Phase E1 does not call the real MemoryBase API.",
+            "- `db_memory` is reserved but not implemented yet.",
+            "- External benchmark adapters are skeleton work for the next phase.",
+            "- LLM-as-judge, groundedness, and token cost are not implemented yet.",
+            "",
+        ]
+    )
+    report_path.write_text("\n".join(lines), encoding="utf-8")
+    return report_path
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate MemoryBase benchmark report.")
+    parser.add_argument("--outputs-dir", type=Path, default=DEFAULT_OUTPUTS)
+    args = parser.parse_args()
+    path = generate_report(outputs_dir=args.outputs_dir)
+    print(f"wrote benchmark report to {path}")
+
+
+def _read_rows(path: Path) -> list[dict[str, str]]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def _category_rows(csv_paths: list[Path]) -> dict[str, Counter]:
+    categories: dict[str, Counter] = defaultdict(Counter)
+    for path in csv_paths:
+        for row in _read_rows(path):
+            category = row.get("category") or "uncategorized"
+            categories[category]["total"] += 1
+            if row.get("pass") == "true":
+                categories[category]["passed"] += 1
+    return categories
+
+
+def _failed_rows(csv_paths: list[Path]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for path in csv_paths:
+        for row in _read_rows(path):
+            if row.get("pass") != "true" or row.get("error"):
+                rows.append(row)
+    return rows
+
+
+def _float(value: str | None) -> float:
+    try:
+        return float(value or 0)
+    except ValueError:
+        return 0.0
+
+
+if __name__ == "__main__":
+    main()
