@@ -19,9 +19,9 @@ responsible for conversion.
 
 | Benchmark | Status | Notes |
 | --- | --- | --- |
-| LongMemEval | TODO | Primary long-term memory benchmark target. |
-| LoCoMo | TODO | Multi-session dialogue memory target. |
-| MemoryAgentBench | TODO | Memory-agent task benchmark target. |
+| LongMemEval | Partially supported | Converts common JSON/JSONL records with question, answer, and session/message fields. |
+| LoCoMo | Partially supported | Converts common conversation + qa records into one case per QA item. |
+| MemoryAgentBench | Partially supported | Converts common interaction/message records into EvaluationCase JSONL. |
 | BEIR | TODO | Retriever-only supplemental benchmark. |
 | BEAM | TODO | Optional ultra-long context retention benchmark. |
 
