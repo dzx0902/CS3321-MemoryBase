@@ -7,6 +7,7 @@ from .api.embeddings import router as embeddings_router
 from .api.governance import router as governance_router
 from .api.health import router as health_router
 from .api.memories import router as memories_router
+from .api.memory_extraction import router as memory_extraction_router
 from .api.observe import router as observe_router
 from .api.recall import router as recall_router
 from .api.search import router as search_router
@@ -24,6 +25,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix="/api")
     app.include_router(sources_router, prefix="/api")
     app.include_router(memories_router, prefix="/api")
+    app.include_router(memory_extraction_router, prefix="/api")
     app.include_router(sessions_router, prefix="/api")
     app.include_router(observe_router, prefix="/api")
     app.include_router(recall_router, prefix="/api")

@@ -12,6 +12,7 @@ from ..services.embedding_service import (
     PostgresEmbeddingRepository,
 )
 from ..services.governance_service import GovernanceService, PostgresGovernanceRepository
+from ..services.memory_extraction_service import MemoryExtractionService
 from ..services.memory_service import MemoryService, PostgresMemoryRepository
 from ..services.recall_service import PostgresRecallRepository, RecallService
 from ..services.search_service import PostgresSearchRepository, SearchService
@@ -40,6 +41,13 @@ def get_source_service() -> SourceService:
 def get_memory_service() -> MemoryService:
     repository = PostgresMemoryRepository(get_database())
     return MemoryService(repository=repository)
+
+
+def get_memory_extraction_service() -> MemoryExtractionService:
+    return MemoryExtractionService(
+        database=get_database(),
+        memory_service=get_memory_service(),
+    )
 
 
 def get_recall_service() -> RecallService:

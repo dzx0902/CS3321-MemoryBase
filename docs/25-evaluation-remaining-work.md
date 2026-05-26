@@ -78,6 +78,8 @@ Current `db_memory` behavior:
 /api/sessions
 /api/observe
 /api/memories
+/api/memory-extraction/from-chunks
+/api/memory-candidates
 /api/recall
 DELETE /api/memories/{memory_id} for injected deletion cases
 ```
@@ -86,6 +88,15 @@ Limitation:
 
 ```text
 It uses direct memory API injection. It does not yet test automatic memory extraction or full agent answer generation.
+```
+
+Current extraction support:
+
+```text
+- rule-based chunk -> candidate memory extraction exists
+- candidate approve/reject workflow exists
+- extraction from full documents and sessions is not implemented yet
+- evaluation does not yet use extraction mode by default
 ```
 
 ## Current Backend Unlocks

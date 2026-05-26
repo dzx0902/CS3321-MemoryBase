@@ -105,6 +105,32 @@ page_size
 
 软删除 memory。
 
+## 3.1 Memory Extraction API
+
+### POST /api/memory-extraction/from-chunks
+
+使用 rule-based extractor 从已有 source chunks 生成 `candidate` memory，并自动绑定 source evidence。候选记忆不会进入默认 recall，必须 approve 后才会转为 `active`。
+
+```json
+{
+  "workspace_id": "uuid",
+  "chunk_ids": ["uuid"],
+  "max_candidates": 10
+}
+```
+
+### GET /api/memory-candidates
+
+查询 `status = candidate` 的 memory，支持 `workspace_id`、`memory_type`、`keyword`、`page`、`page_size`。
+
+### POST /api/memory-candidates/{id}/approve
+
+将候选记忆从 `candidate` 转为 `active`。该状态变化走 memory lifecycle 校验，并写入 revision / audit。
+
+### POST /api/memory-candidates/{id}/reject
+
+将候选记忆从 `candidate` 转为 `rejected`。rejected memory 不进入默认 recall。
+
 ## 4. Recall API
 
 ### POST /api/recall

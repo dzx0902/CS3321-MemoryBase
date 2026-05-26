@@ -676,6 +676,77 @@ def test_candidate_memory_requires_approval_before_default_retrieval(
     assert "memory.update" in audit_actions
 
 
+def test_memory_extraction_from_chunks_creates_approvable_candidate(
+    integration_client,
+    integration_db: str,
+) -> None:
+    response = integration_client.post(
+        "/api/memory-extraction/from-chunks",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "chunk_ids": ["00000000-0000-0000-0000-000000000602"],
+            "max_candidates": 1,
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["created_count"] == 1
+    candidate = payload["candidates"][0]
+    assert candidate["status"] == "candidate"
+    assert candidate["memory_type"] in {
+        "fact",
+        "decision",
+        "constraint",
+        "policy",
+        "risk",
+        "task",
+        "preference",
+    }
+
+    default_recall = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": candidate["canonical_text"],
+            "limit": 5,
+        },
+    )
+    assert default_recall.status_code == 200
+    assert all(
+        item["memory_id"] != candidate["memory_id"] for item in default_recall.json()["memories"]
+    )
+
+    candidate_list = integration_client.get(
+        "/api/memory-candidates",
+        params={"workspace_id": WORKSPACE_ID, "keyword": candidate["summary"]},
+    )
+    assert candidate_list.status_code == 200
+    assert any(
+        item["memory_id"] == candidate["memory_id"] for item in candidate_list.json()["items"]
+    )
+
+    approve = integration_client.post(
+        f"/api/memory-candidates/{candidate['memory_id']}/approve",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert approve.status_code == 200
+    assert approve.json()["memory"]["status"] == "active"
+
+    visible_recall = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": candidate["canonical_text"],
+            "limit": 5,
+        },
+    )
+    assert visible_recall.status_code == 200
+    assert any(
+        item["memory_id"] == candidate["memory_id"] for item in visible_recall.json()["memories"]
+    )
+
+
 def test_memory_update_rejects_illegal_status_transition(
     integration_client,
     integration_db: str,
