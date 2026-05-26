@@ -153,6 +153,26 @@ page_size
 
 `retrieval_mode` 支持 `keyword`、`vector`、`hybrid`，默认 `hybrid`。返回 memory + evidence + source chunk，并写入 `recall_log`。
 
+### POST /api/recall/context-pack
+
+Runs recall and formats an agent-ready context package under `max_tokens`. The response includes Markdown plus structured selection metadata, evidence citations, conflict/risk warnings, and excluded-memory reasons.
+
+```json
+{
+  "markdown": "# MemoryBase Context\n...",
+  "recall_id": "uuid",
+  "result_count": 3,
+  "citation_map": {},
+  "token_count": 900,
+  "token_budget": 1200,
+  "selected_memories": [],
+  "supporting_evidence": [],
+  "conflict_warnings": [],
+  "risk_notes": [],
+  "excluded_memories": []
+}
+```
+
 ## 5. Search API
 
 ### POST /api/search

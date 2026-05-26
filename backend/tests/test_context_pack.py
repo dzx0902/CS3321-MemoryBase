@@ -68,7 +68,12 @@ def test_format_context_pack_renders_agent_ready_markdown_with_citations() -> No
     assert "## Do Not Assume" in result.markdown
     assert "[M1]" in result.markdown
     assert "[E1]" in result.markdown
+    assert "reason=ranked by score, importance, and confidence" in result.markdown
+    assert result.token_budget == 800
+    assert result.selected_memories[0]["selection_reason"]
+    assert result.supporting_evidence[0]["memory_ref"] == "M1"
     assert result.citation_map["memories"]["M1"]["memory_type"] == "decision"
+    assert result.citation_map["memories"]["M1"]["selection_reason"]
     assert result.citation_map["evidence"]["E1"]["source_title"] == "Discussion 01: Project Pivot"
 
 
@@ -80,3 +85,4 @@ def test_format_context_pack_respects_token_budget() -> None:
 
     assert result.token_count <= 120
     assert "[Truncated to fit token budget]" in result.markdown
+    assert result.token_budget == 120

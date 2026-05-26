@@ -71,3 +71,9 @@ class RecallContextPackResponse(BaseModel):
     result_count: int
     citation_map: dict[str, Any]
     token_count: int
+    token_budget: int
+    selected_memories: list[dict[str, Any]] = Field(default_factory=list)
+    supporting_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    conflict_warnings: list[dict[str, Any]] = Field(default_factory=list)
+    risk_notes: list[dict[str, Any]] = Field(default_factory=list)
+    excluded_memories: list[dict[str, Any]] = Field(default_factory=list)
