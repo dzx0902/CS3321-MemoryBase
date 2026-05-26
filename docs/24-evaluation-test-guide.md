@@ -128,7 +128,7 @@ no_memory       implemented
 recency_only    implemented
 summary_memory  implemented
 db_memory       implemented against live API
-naive_vector_rag reserved until embeddings/vector search exist
+naive_vector_rag implemented against live API with local embedding backfill and vector-mode recall
 ```
 
 ## Step 5: Performance Runner
@@ -345,4 +345,4 @@ Still not fully implemented:
 - long history 1K / 10K / 50K / 100K / 500K retention curves
 ```
 
-These require either backend embedding/vector work, a running API with seed data, external benchmark files, or an LLM judge configuration.
+These require either a running API with seed data, external benchmark files, or an LLM judge configuration.

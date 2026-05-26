@@ -99,8 +99,9 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
             "",
             "## Baseline Comparison",
             "",
-            "`no_memory`, `recency_only`, `summary_memory`, and `db_memory` execute. "
-            "`naive_vector_rag` remains reserved until embeddings/vector search exist.",
+            "`no_memory`, `recency_only`, `summary_memory`, `db_memory`, and "
+            "`naive_vector_rag` execute. `naive_vector_rag` uses the live API, "
+            "runs local embedding backfill, and then calls vector-mode recall.",
             "",
             "## Failed Cases",
             "",
@@ -124,6 +125,8 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
             "",
             "- `recency_only` and `summary_memory` use case sessions directly.",
             "- `db_memory` uses memory create and recall APIs, not automatic extraction.",
+            "- `naive_vector_rag` depends on backend embedding tables and "
+            "the local hashing provider.",
             "- External benchmark adapters support common JSON/JSONL shapes only.",
             "- LLM-as-judge, groundedness, and token cost are not implemented yet.",
             "",

@@ -119,12 +119,13 @@ page_size
   "memory_type": "decision",
   "access_level": "project",
   "status": "active",
+  "retrieval_mode": "hybrid",
   "as_of": "2026-05-16T12:00:00Z",
   "limit": 10
 }
 ```
 
-返回 memory + evidence + source chunk，并写入 `recall_log`。
+`retrieval_mode` 支持 `keyword`、`vector`、`hybrid`，默认 `hybrid`。返回 memory + evidence + source chunk，并写入 `recall_log`。
 
 ## 5. Search API
 

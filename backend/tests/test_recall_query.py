@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+from app.models.recall import RecallRequest
 from app.services._search_query import build_websearch_query
 from app.services.recall_service import (
     _embedding_json_to_vector,
@@ -22,3 +23,14 @@ def test_recall_vector_helpers_parse_and_score_rows() -> None:
     assert _rank_reason(0.15, 0.7, 0.1, 0.2) == (
         "semantic match + keyword match + recent memory + weighted evidence"
     )
+
+
+def test_recall_request_accepts_explicit_retrieval_modes() -> None:
+    payload = {
+        "workspace_id": "00000000-0000-0000-0000-000000000201",
+        "query_text": "project memory",
+    }
+
+    assert RecallRequest(**payload).retrieval_mode == "hybrid"
+    assert RecallRequest(**{**payload, "retrieval_mode": "keyword"}).retrieval_mode == "keyword"
+    assert RecallRequest(**{**payload, "retrieval_mode": "vector"}).retrieval_mode == "vector"

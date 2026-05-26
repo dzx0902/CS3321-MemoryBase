@@ -114,6 +114,7 @@ class PostgresRecallRepository:
                 "memory_type": payload.memory_type,
                 "access_level": payload.access_level,
                 "status": payload.status,
+                "retrieval_mode": payload.retrieval_mode,
                 "agent_id": str(payload.agent_id) if payload.agent_id else None,
                 "as_of": payload.as_of.isoformat() if payload.as_of else None,
             },
@@ -123,38 +124,75 @@ class PostgresRecallRepository:
 
         with self._database.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    f"""
-                    WITH matched_chunks AS (
-                        SELECT
-                            sc.chunk_id,
-                            sc.doc_id,
-                            sd.title AS source_title,
-                            sc.chunk_no,
-                            sc.chunk_text,
-                            sc.start_line,
-                            sc.end_line,
-                            GREATEST(
-                                ts_rank(
-                                    sc.search_vector,
-                                    websearch_to_tsquery('simple', %(websearch_query)s)
-                                ),
-                                CASE
-                                    WHEN sc.chunk_text ILIKE ANY(%(keyword_patterns)s::text[])
-                                    THEN 0.25
-                                    ELSE 0
-                                END
-                            ) AS chunk_rank
-                        FROM source_chunk sc
-                        JOIN source_document sd ON sd.doc_id = sc.doc_id
-                        WHERE sd.workspace_id = %(workspace_id)s
-                          AND sd.status = 'active'
-                          AND (
-                            sc.search_vector @@ websearch_to_tsquery('simple', %(websearch_query)s)
-                            OR sc.chunk_text ILIKE ANY(%(keyword_patterns)s::text[])
-                          )
-                    ),
-                    matched_memories AS (
+                memory_rows = []
+                if payload.retrieval_mode in {"keyword", "hybrid"}:
+                    cur.execute(
+                        f"""
+                        WITH matched_chunks AS (
+                            SELECT
+                                sc.chunk_id,
+                                sc.doc_id,
+                                sd.title AS source_title,
+                                sc.chunk_no,
+                                sc.chunk_text,
+                                sc.start_line,
+                                sc.end_line,
+                                GREATEST(
+                                    ts_rank(
+                                        sc.search_vector,
+                                        websearch_to_tsquery('simple', %(websearch_query)s)
+                                    ),
+                                    CASE
+                                        WHEN sc.chunk_text ILIKE ANY(%(keyword_patterns)s::text[])
+                                        THEN 0.25
+                                        ELSE 0
+                                    END
+                                ) AS chunk_rank
+                            FROM source_chunk sc
+                            JOIN source_document sd ON sd.doc_id = sc.doc_id
+                            WHERE sd.workspace_id = %(workspace_id)s
+                              AND sd.status = 'active'
+                              AND (
+                                sc.search_vector
+                                  @@ websearch_to_tsquery('simple', %(websearch_query)s)
+                                OR sc.chunk_text ILIKE ANY(%(keyword_patterns)s::text[])
+                              )
+                        ),
+                        matched_memories AS (
+                            SELECT
+                                mi.memory_id,
+                                mi.memory_type,
+                                mi.canonical_text,
+                                mi.summary,
+                                mi.confidence,
+                                mi.importance,
+                                mi.status,
+                                mi.access_level,
+                                MAX(mc.chunk_rank) AS keyword_score,
+                                0::double precision AS vector_score,
+                                0::double precision AS recency_score,
+                                AVG(me.weight) * 0.2 AS evidence_score,
+                                MAX(mc.chunk_rank)
+                                    + (AVG(me.weight) * 0.2)
+                                    + (mi.importance * 0.1) AS score,
+                                'keyword/evidence match + importance boost' AS rank_reason
+                            FROM matched_chunks mc
+                            JOIN memory_evidence me ON me.chunk_id = mc.chunk_id
+                            JOIN memory_item mi ON mi.memory_id = me.memory_id
+                            WHERE {where_clause}
+                            GROUP BY
+                                mi.memory_id,
+                                mi.memory_type,
+                                mi.canonical_text,
+                                mi.summary,
+                                mi.confidence,
+                                mi.importance,
+                                mi.status,
+                                mi.access_level
+                        )
+                        SELECT *
+                        FROM matched_memories
+                        UNION
                         SELECT
                             mi.memory_id,
                             mi.memory_type,
@@ -164,65 +202,32 @@ class PostgresRecallRepository:
                             mi.importance,
                             mi.status,
                             mi.access_level,
-                            MAX(mc.chunk_rank) AS keyword_score,
+                            0.15 AS keyword_score,
                             0::double precision AS vector_score,
                             0::double precision AS recency_score,
-                            AVG(me.weight) * 0.2 AS evidence_score,
-                            MAX(mc.chunk_rank)
-                                + (AVG(me.weight) * 0.2)
-                                + (mi.importance * 0.1) AS score,
-                            'keyword/evidence match + importance boost' AS rank_reason
-                        FROM matched_chunks mc
-                        JOIN memory_evidence me ON me.chunk_id = mc.chunk_id
-                        JOIN memory_item mi ON mi.memory_id = me.memory_id
+                            0::double precision AS evidence_score,
+                            0.15 + (mi.importance * 0.1) AS score,
+                            'keyword match on memory text + importance boost' AS rank_reason
+                        FROM memory_item mi
                         WHERE {where_clause}
-                        GROUP BY
-                            mi.memory_id,
-                            mi.memory_type,
-                            mi.canonical_text,
-                            mi.summary,
-                            mi.confidence,
-                            mi.importance,
-                            mi.status,
-                            mi.access_level
+                          AND (
+                            mi.canonical_text ILIKE ANY(%(keyword_patterns)s::text[])
+                            OR COALESCE(mi.summary, '') ILIKE ANY(%(keyword_patterns)s::text[])
+                          )
+                        ORDER BY score DESC, importance DESC, confidence DESC
+                        LIMIT %(limit)s
+                        """,
+                        params,
                     )
-                    SELECT *
-                    FROM matched_memories
-                    UNION
-                    SELECT
-                        mi.memory_id,
-                        mi.memory_type,
-                        mi.canonical_text,
-                        mi.summary,
-                        mi.confidence,
-                        mi.importance,
-                        mi.status,
-                        mi.access_level,
-                        0.15 AS keyword_score,
-                        0::double precision AS vector_score,
-                        0::double precision AS recency_score,
-                        0::double precision AS evidence_score,
-                        0.15 + (mi.importance * 0.1) AS score,
-                        'keyword match on memory text + importance boost' AS rank_reason
-                    FROM memory_item mi
-                    WHERE {where_clause}
-                      AND (
-                        mi.canonical_text ILIKE ANY(%(keyword_patterns)s::text[])
-                        OR COALESCE(mi.summary, '') ILIKE ANY(%(keyword_patterns)s::text[])
-                      )
-                    ORDER BY score DESC, importance DESC, confidence DESC
-                    LIMIT %(limit)s
-                    """,
-                    params,
-                )
-                memory_rows = cur.fetchall()
-                memory_rows = self._merge_vector_rows(
-                    cur=cur,
-                    payload=payload,
-                    where_clause=where_clause,
-                    params=params,
-                    keyword_rows=memory_rows,
-                )
+                    memory_rows = cur.fetchall()
+                if payload.retrieval_mode in {"vector", "hybrid"}:
+                    memory_rows = self._merge_vector_rows(
+                        cur=cur,
+                        payload=payload,
+                        where_clause=where_clause,
+                        params=params,
+                        keyword_rows=memory_rows,
+                    )
 
                 for row in memory_rows:
                     if row["memory_id"] in memory_ids:
@@ -379,9 +384,13 @@ class PostgresRecallRepository:
             vector_score = max(0.0, cosine_similarity(query_embedding, vector))
             if vector_score <= 0:
                 continue
-            keyword_score = _text_keyword_score(
-                text=f"{row['canonical_text']} {row['summary'] or ''}",
-                terms=terms,
+            keyword_score = (
+                0.0
+                if payload.retrieval_mode == "vector"
+                else _text_keyword_score(
+                    text=f"{row['canonical_text']} {row['summary'] or ''}",
+                    terms=terms,
+                )
             )
             recency_score = _recency_score(row["updated_at"])
             evidence_score = float(row["evidence_score"] or 0)

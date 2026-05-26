@@ -1016,6 +1016,56 @@ def test_recall_without_agent_id_does_not_return_private_memory(
     assert response.json()["result_count"] == 0
 
 
+def test_recall_retrieval_mode_controls_keyword_and_vector_routes(
+    integration_client,
+    integration_db: str,
+) -> None:
+    backfill = integration_client.post(
+        "/api/embeddings/backfill",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "target": "memories",
+            "provider": "local",
+            "model": "hashing-v1",
+            "dimension": 128,
+            "limit": 50,
+        },
+    )
+    assert backfill.status_code == 200
+    assert backfill.json()["memory_count"] > 0
+
+    keyword_response = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "cafeteria",
+            "retrieval_mode": "keyword",
+            "limit": 5,
+        },
+    )
+    assert keyword_response.status_code == 200
+    keyword_payload = keyword_response.json()
+    assert keyword_payload["context_pack"]["filters"]["retrieval_mode"] == "keyword"
+    assert keyword_payload["result_count"] > 0
+    assert all(item["vector_score"] == 0 for item in keyword_payload["memories"])
+
+    vector_response = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "cafeteria",
+            "retrieval_mode": "vector",
+            "limit": 5,
+        },
+    )
+    assert vector_response.status_code == 200
+    vector_payload = vector_response.json()
+    assert vector_payload["context_pack"]["filters"]["retrieval_mode"] == "vector"
+    assert vector_payload["result_count"] > 0
+    assert any(item["vector_score"] > 0 for item in vector_payload["memories"])
+    assert all(item["keyword_score"] == 0 for item in vector_payload["memories"])
+
+
 def test_recall_as_of_filters_validity_and_records_filter_json(
     integration_client, integration_db: str
 ) -> None:

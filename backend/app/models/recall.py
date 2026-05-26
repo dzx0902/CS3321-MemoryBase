@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+RetrievalMode = Literal["hybrid", "keyword", "vector"]
 
 
 class RecallRequest(BaseModel):
@@ -15,6 +17,7 @@ class RecallRequest(BaseModel):
     access_level: str | None = None
     status: str | None = "active"
     as_of: datetime | None = None
+    retrieval_mode: RetrievalMode = "hybrid"
     limit: int = Field(default=10, ge=1, le=50)
 
 

@@ -7,10 +7,9 @@ This document records evaluation-route items that are intentionally not complete
 ## Backend-Dependent Items
 
 ```text
-- naive_vector_rag baseline
-- embedding similarity scoring
-- vector retrieval against memory and source chunks
-- keyword-only vs vector vs hybrid baseline comparison
+- embedding similarity scoring beyond backend recall scores
+- vector retrieval against source chunks
+- keyword-only vs vector vs hybrid baseline comparison report
 - real write/query/update/delete P50/P95/P99/QPS performance suite
 - real context leakage and answer leakage split
 - long history 1K / 10K / 50K / 100K / 500K retention curves
@@ -19,11 +18,7 @@ This document records evaluation-route items that are intentionally not complete
 Required backend support:
 
 ```text
-- memory embedding storage
-- source chunk embedding storage
-- embedding generation service boundary
-- vector or vector-like search repository
-- hybrid scoring with score breakdown
+- source chunk vector retrieval path
 - context package leakage inspection
 - agent answer or answer-generation endpoint
 ```
@@ -94,14 +89,25 @@ Limitation:
 It uses direct memory API injection. It does not yet test automatic memory extraction or full agent answer generation.
 ```
 
-## Next Backend Route
-
-Start with backend B1 because it unlocks the largest number of remaining evaluation items:
+## Current Backend Unlocks
 
 ```text
-1. Add memory and chunk embedding storage.
-2. Add embedding service boundary.
-3. Add vector-like repository interface.
-4. Add hybrid retrieval score breakdown.
-5. Connect evaluation naive_vector_rag / hybrid baselines.
+- memory and source chunk embedding storage exists
+- local hashing embedding provider exists
+- /api/embeddings/backfill exists
+- recall returns keyword/vector/recency/evidence score fields when embeddings are present
+- recall supports explicit keyword, vector, and hybrid retrieval modes
+- evaluation naive_vector_rag can now backfill embeddings and call live recall
+```
+
+## Next Backend Route
+
+Continue backend B1 by expanding vector coverage and reporting comparisons:
+
+```text
+1. Add source chunk vector retrieval.
+2. Add benchmark report comparison for keyword-only / vector-only / hybrid.
+3. Add embedding similarity scoring beyond backend recall scores.
+4. Add real context leakage and answer leakage inspection.
+5. Keep naive_vector_rag as the live API vector-backed baseline.
 ```

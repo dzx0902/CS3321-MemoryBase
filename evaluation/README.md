@@ -133,10 +133,13 @@ summary_memory
 db_memory
 ```
 
-`no_memory`, `recency_only`, `summary_memory`, `--dry-run`, and `db_memory` execute.
+`no_memory`, `recency_only`, `summary_memory`, `--dry-run`, `db_memory`, and `naive_vector_rag` execute.
 `recency_only` and `summary_memory` use only the case sessions and do not call the
 backend. `db_memory` requires a running API, workspace, and optionally an agent.
-`naive_vector_rag` remains reserved until embeddings/vector search are available.
+`naive_vector_rag` also requires a running API. It writes evaluation memories through
+the memory API, calls `/api/embeddings/backfill` with the local hashing provider, and
+then calls `/api/recall` with `retrieval_mode=vector` so the result records backend
+vector scoring fields.
 
 ## Adding Cases
 
@@ -179,7 +182,7 @@ Manual download instructions and license notes should be added in
 
 ## Current Limitations
 
-- The real MemoryBase API is not called in Phase E1.
-- `db_memory` mode is reserved but not implemented.
-- External adapters are skeleton-only in the next phase.
+- `recency_only` and `summary_memory` are local baselines and do not call the backend.
+- `db_memory` and `naive_vector_rag` use explicit memory API injection; they do not yet test automatic memory extraction or full agent answer generation.
+- External adapters support common JSON/JSONL shapes but still need official dataset download and license documentation.
 - No API keys, database URLs, or real user data should be stored in benchmark files.

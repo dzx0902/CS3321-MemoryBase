@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from evaluation.baselines import build_baseline_with_config
 from evaluation.cases import EvaluationCase, EvaluationSession, EvaluationTurn
 
@@ -62,3 +64,90 @@ def test_summary_memory_clears_local_memory_after_forget_turn() -> None:
 
     assert "123456" not in result.generated_answer
     assert result.retrieved_memory_texts == []
+
+
+class FakeResponse:
+    def __init__(self, payload: dict[str, Any], status_code: int = 200) -> None:
+        self._payload = payload
+        self.status_code = status_code
+        self.text = str(payload)
+
+    def json(self) -> dict[str, Any]:
+        return self._payload
+
+
+def test_naive_vector_rag_backfills_embeddings_before_recall(monkeypatch) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def fake_request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        calls.append((method, url))
+        if url.endswith("/api/health/detail"):
+            return FakeResponse(
+                {
+                    "workspace": {
+                        "found": True,
+                        "workspace_id": "00000000-0000-0000-0000-000000000201",
+                    }
+                }
+            )
+        if url.endswith("/api/sessions"):
+            return FakeResponse({"session_id": "session-1"})
+        if url.endswith("/api/observe"):
+            return FakeResponse({"message_id": "message-1"})
+        if url.endswith("/api/memories"):
+            return FakeResponse({"memory_id": "memory-1"})
+        if url.endswith("/api/embeddings/backfill"):
+            return FakeResponse({"memory_count": 1, "chunk_count": 1})
+        if url.endswith("/api/recall"):
+            assert kwargs["json"]["retrieval_mode"] == "vector"
+            return FakeResponse(
+                {
+                    "memories": [
+                        {
+                            "memory_id": "memory-1",
+                            "canonical_text": "Please remember that Rust is my favorite language.",
+                            "score": 0.9,
+                            "vector_score": 0.7,
+                            "rank_reason": "semantic match",
+                        }
+                    ]
+                }
+            )
+        raise AssertionError(f"unexpected request {method} {url}")
+
+    monkeypatch.setattr("evaluation.baselines.httpx.request", fake_request)
+    case = EvaluationCase(
+        case_id="single_fact_001",
+        source="synthetic",
+        category="single_fact",
+        sessions=[
+            EvaluationSession(
+                session_id="s1",
+                turns=[
+                    EvaluationTurn(
+                        role="user",
+                        content="Please remember that Rust is my favorite language.",
+                    )
+                ],
+            )
+        ],
+        query="What is my favorite language?",
+        expected_answer="Rust",
+    )
+
+    result = build_baseline_with_config(
+        mode="naive_vector_rag",
+        run_id="test",
+        api_base_url="http://testserver",
+        workspace="demo",
+    ).run_case(case)
+
+    assert result.error == ""
+    assert result.mode == "naive_vector_rag"
+    assert result.retrieved_memory_ids == ["memory-1"]
+    assert result.metadata["retrieval_mode"] == "vector_backfilled"
+    assert result.metadata["vector_scores"] == [0.7]
+    assert ("POST", "http://testserver/api/embeddings/backfill") in calls
+    assert calls.index(("POST", "http://testserver/api/embeddings/backfill")) < calls.index(
+        ("POST", "http://testserver/api/recall")
+    )

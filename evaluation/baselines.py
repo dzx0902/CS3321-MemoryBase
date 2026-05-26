@@ -99,6 +99,25 @@ class UnsupportedBaseline:
         )
 
 
+class LiveMemoryBaselineConfig:
+    def __init__(
+        self,
+        *,
+        mode: str,
+        run_id: str,
+        api_base_url: str,
+        workspace: str | None,
+        agent: str | None,
+        backfill_embeddings: bool,
+    ) -> None:
+        self.mode = mode
+        self.run_id = run_id
+        self.api_base_url = api_base_url.rstrip("/")
+        self.workspace = workspace or os.getenv("MEMORYBASE_WORKSPACE")
+        self.agent = agent or os.getenv("MEMORYBASE_AGENT")
+        self.backfill_embeddings = backfill_embeddings
+
+
 class LocalMemoryBaseline:
     def __init__(self, *, mode: str, run_id: str) -> None:
         self._mode = mode
@@ -156,40 +175,35 @@ def build_baseline_with_config(
         return NoMemoryBaseline(mode=mode, run_id=run_id, dry_run=dry_run)
     if mode in {"recency_only", "summary_memory"}:
         return LocalMemoryBaseline(mode=mode, run_id=run_id)
-    if mode == "db_memory":
-        return DbMemoryBaseline(
-            run_id=run_id,
-            api_base_url=api_base_url or "http://localhost:8000",
-            workspace=workspace,
-            agent=agent,
+    if mode in {"db_memory", "naive_vector_rag"}:
+        return LiveMemoryBaseline(
+            config=LiveMemoryBaselineConfig(
+                mode=mode,
+                run_id=run_id,
+                api_base_url=api_base_url or "http://localhost:8000",
+                workspace=workspace,
+                agent=agent,
+                backfill_embeddings=mode == "naive_vector_rag",
+            )
         )
     return UnsupportedBaseline(mode=mode, run_id=run_id)
 
 
-class DbMemoryBaseline:
-    def __init__(
-        self,
-        *,
-        run_id: str,
-        api_base_url: str,
-        workspace: str | None,
-        agent: str | None,
-    ) -> None:
-        self._run_id = run_id
-        self._api_base_url = api_base_url.rstrip("/")
-        self._workspace = workspace or os.getenv("MEMORYBASE_WORKSPACE")
-        self._agent = agent or os.getenv("MEMORYBASE_AGENT")
+class LiveMemoryBaseline:
+    def __init__(self, *, config: LiveMemoryBaselineConfig) -> None:
+        self._config = config
 
     def run_case(self, case: EvaluationCase) -> EvaluationResult:
         started = time.perf_counter()
         created_memory_ids: list[str] = []
+        embedding_backfill: dict[str, Any] | None = None
         try:
             workspace_id, agent_id = self._resolve_workspace_and_agent()
             for session in case.sessions:
                 session_id = self._create_session(
                     workspace_id=workspace_id,
                     agent_id=agent_id,
-                    title=f"{self._run_id}:{case.case_id}:{session.session_id}",
+                    title=f"{self._config.run_id}:{case.case_id}:{session.session_id}",
                 )
                 for turn in session.turns:
                     self._observe_message(
@@ -215,6 +229,8 @@ class DbMemoryBaseline:
                         )
                     )
 
+            if self._config.backfill_embeddings:
+                embedding_backfill = self._backfill_embeddings(workspace_id)
             recall = self._recall(
                 workspace_id=workspace_id,
                 agent_id=agent_id,
@@ -233,13 +249,21 @@ class DbMemoryBaseline:
                 retrieved_memory_texts=[str(item.get("canonical_text", "")) for item in memories],
                 retrieved_scores=[_float(item.get("score")) for item in memories],
                 latency_ms=(time.perf_counter() - started) * 1000,
-                mode="db_memory",
-                run_id=self._run_id,
+                mode=self._config.mode,
+                run_id=self._config.run_id,
                 metadata={
                     "injection_mode": "memory_api",
+                    "retrieval_mode": (
+                        "vector_backfilled"
+                        if self._config.backfill_embeddings
+                        else "backend_hybrid_recall"
+                    ),
                     "workspace_id": workspace_id,
                     "agent_id": agent_id,
                     "created_memory_ids": created_memory_ids,
+                    "embedding_backfill": embedding_backfill,
+                    "rank_reasons": [str(item.get("rank_reason", "")) for item in memories],
+                    "vector_scores": [_float(item.get("vector_score")) for item in memories],
                     "limitation": (
                         "Uses existing memory create and recall APIs. "
                         "Automatic extraction and full agent answering are not implemented yet."
@@ -255,21 +279,23 @@ class DbMemoryBaseline:
                 expected_answer=case.expected_answer,
                 generated_answer="",
                 latency_ms=(time.perf_counter() - started) * 1000,
-                mode="db_memory",
-                run_id=self._run_id,
+                mode=self._config.mode,
+                run_id=self._config.run_id,
                 error=str(exc),
                 metadata={"injection_mode": "memory_api"},
             )
 
     def _resolve_workspace_and_agent(self) -> tuple[str, str | None]:
-        if not self._workspace:
-            raise ValueError("db_memory mode requires --workspace or MEMORYBASE_WORKSPACE.")
-        params = {"workspace": self._workspace}
-        if self._agent:
-            params["agent"] = self._agent
+        if not self._config.workspace:
+            raise ValueError(
+                f"{self._config.mode} mode requires --workspace or MEMORYBASE_WORKSPACE."
+            )
+        params = {"workspace": self._config.workspace}
+        if self._config.agent:
+            params["agent"] = self._config.agent
         payload = self._request("GET", "/api/health/detail", params=params)
         workspace = _checked_target(payload, "workspace")
-        agent = _checked_target(payload, "agent") if self._agent else None
+        agent = _checked_target(payload, "agent") if self._config.agent else None
         return str(workspace["workspace_id"]), str(agent["agent_id"]) if agent else None
 
     def _create_session(
@@ -327,7 +353,7 @@ class DbMemoryBaseline:
         }
         headers = {
             "X-Actor-Type": "agent",
-            "X-Revision-Reason": f"evaluation injection {self._run_id}",
+            "X-Revision-Reason": f"evaluation injection {self._config.run_id}",
         }
         if agent_id:
             headers["X-Actor-Id"] = agent_id
@@ -342,9 +368,20 @@ class DbMemoryBaseline:
                 params={"workspace_id": workspace_id},
                 headers={
                     "X-Actor-Type": "system",
-                    "X-Revision-Reason": f"evaluation forgetting {self._run_id}",
+                    "X-Revision-Reason": f"evaluation forgetting {self._config.run_id}",
                 },
             )
+
+    def _backfill_embeddings(self, workspace_id: str) -> dict[str, Any]:
+        payload = {
+            "workspace_id": workspace_id,
+            "target": "all",
+            "provider": "local",
+            "model": "hashing-v1",
+            "dimension": 128,
+            "limit": 500,
+        }
+        return self._request("POST", "/api/embeddings/backfill", json=payload)
 
     def _recall(self, *, workspace_id: str, agent_id: str | None, query: str) -> dict[str, Any]:
         payload = {
@@ -352,6 +389,7 @@ class DbMemoryBaseline:
             "agent_id": agent_id,
             "query_text": query,
             "status": "active",
+            "retrieval_mode": "vector" if self._config.backfill_embeddings else "hybrid",
             "limit": 10,
         }
         return self._request("POST", "/api/recall", json=payload)
@@ -360,7 +398,7 @@ class DbMemoryBaseline:
         try:
             response = httpx.request(
                 method,
-                f"{self._api_base_url}{path}",
+                f"{self._config.api_base_url}{path}",
                 timeout=10.0,
                 **kwargs,
             )
