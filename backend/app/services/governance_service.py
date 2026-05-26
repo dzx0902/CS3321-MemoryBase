@@ -15,6 +15,7 @@ from ..models.governance import (
     AuditStatisticResponse,
     AuditStatisticsResponse,
     ConflictCreateRequest,
+    ConflictDetectionResponse,
     ConflictListResponse,
     ConflictResponse,
     ConflictUpdateRequest,
@@ -143,6 +144,11 @@ class GovernanceRepository(Protocol):
         ...
 
     def create_conflict(self, payload: ConflictCreateRequest) -> ConflictResponse:
+        ...
+
+    def detect_memory_conflicts(
+        self, *, memory_id: UUID, workspace_id: UUID
+    ) -> ConflictDetectionResponse:
         ...
 
     def update_conflict(
@@ -295,6 +301,14 @@ class GovernanceService:
 
     def create_conflict(self, payload: ConflictCreateRequest) -> ConflictResponse:
         return self.repository.create_conflict(payload)
+
+    def detect_memory_conflicts(
+        self, *, memory_id: UUID, workspace_id: UUID
+    ) -> ConflictDetectionResponse:
+        return self.repository.detect_memory_conflicts(
+            memory_id=memory_id,
+            workspace_id=workspace_id,
+        )
 
     def update_conflict(
         self, conflict_id: UUID, workspace_id: UUID, payload: ConflictUpdateRequest
@@ -1010,6 +1024,57 @@ class PostgresGovernanceRepository:
             raise RuntimeError("created conflict cannot be loaded")
         return conflict
 
+    def detect_memory_conflicts(
+        self, *, memory_id: UUID, workspace_id: UUID
+    ) -> ConflictDetectionResponse:
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                target = self._fetch_memory_for_detection(cur, memory_id, workspace_id)
+                if target is None:
+                    raise TargetNotFoundError(f"memory {memory_id} not found")
+                cur.execute(
+                    """
+                    SELECT memory_id, canonical_text
+                    FROM memory_item
+                    WHERE workspace_id = %(workspace_id)s
+                      AND memory_id <> %(memory_id)s
+                      AND status IN ('active', 'candidate')
+                    ORDER BY updated_at DESC
+                    LIMIT 50
+                    """,
+                    {"workspace_id": workspace_id, "memory_id": memory_id},
+                )
+                candidate_rows = cur.fetchall()
+
+        conflicts: list[ConflictResponse] = []
+        for candidate in candidate_rows:
+            conflict_type = _detect_conflict_type(
+                str(target["canonical_text"]),
+                str(candidate["canonical_text"]),
+            )
+            if conflict_type is None:
+                continue
+            try:
+                conflicts.append(
+                    self.create_conflict(
+                        ConflictCreateRequest(
+                            workspace_id=workspace_id,
+                            left_memory_id=memory_id,
+                            right_memory_id=candidate["memory_id"],
+                            conflict_type=conflict_type,
+                            resolution_note=_suggest_conflict_resolution(conflict_type),
+                            actor_type="system",
+                        )
+                    )
+                )
+            except ConflictAlreadyExistsError:
+                continue
+        return ConflictDetectionResponse(
+            memory_id=memory_id,
+            detected_count=len(conflicts),
+            conflicts=conflicts,
+        )
+
     def update_conflict(
         self, conflict_id: UUID, workspace_id: UUID, payload: ConflictUpdateRequest
     ) -> ConflictResponse | None:
@@ -1602,6 +1667,20 @@ class PostgresGovernanceRepository:
         if cur.fetchone() is None:
             raise TargetNotFoundError(f"memory_item {memory_id} not found")
 
+    def _fetch_memory_for_detection(
+        self, cur, memory_id: UUID, workspace_id: UUID
+    ) -> dict[str, object] | None:
+        cur.execute(
+            """
+            SELECT memory_id, canonical_text
+            FROM memory_item
+            WHERE memory_id = %(memory_id)s
+              AND workspace_id = %(workspace_id)s
+            """,
+            {"memory_id": memory_id, "workspace_id": workspace_id},
+        )
+        return cur.fetchone()
+
     def _soft_forget_governed_target(
         self,
         cur,
@@ -1782,6 +1861,47 @@ def _normalize_memory_pair(left_memory_id: UUID, right_memory_id: UUID) -> tuple
     if left_memory_id.int < right_memory_id.int:
         return left_memory_id, right_memory_id
     return right_memory_id, left_memory_id
+
+
+def _detect_conflict_type(left_text: str, right_text: str) -> str | None:
+    left_normalized = _normalize_detection_text(left_text)
+    right_normalized = _normalize_detection_text(right_text)
+    if left_normalized == right_normalized:
+        return "duplicate"
+    overlap = _token_overlap(left_normalized, right_normalized)
+    if overlap < 0.45:
+        return None
+    temporal_terms = ("moved", "changed", "now", "instead", "改为", "现在", "搬到", "不再")
+    if any(term in left_normalized or term in right_normalized for term in temporal_terms):
+        return "supersession"
+    contradiction_terms = ("not ", "no longer", "不是", "不再", "取消")
+    if any(term in left_normalized or term in right_normalized for term in contradiction_terms):
+        return "contradiction"
+    return "semantic"
+
+
+def _suggest_conflict_resolution(conflict_type: str) -> str:
+    if conflict_type == "duplicate":
+        return "Suggested action: keep the higher-confidence memory and archive the duplicate."
+    if conflict_type == "supersession":
+        return (
+            "Suggested action: mark the older memory as superseded and keep the newer one active."
+        )
+    if conflict_type == "contradiction":
+        return "Suggested action: review evidence and resolve the contradictory memories."
+    return "Suggested action: review semantic overlap before activating both memories."
+
+
+def _normalize_detection_text(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _token_overlap(left_text: str, right_text: str) -> float:
+    left_tokens = set(left_text.split())
+    right_tokens = set(right_text.split())
+    if not left_tokens or not right_tokens:
+        return 0.0
+    return len(left_tokens & right_tokens) / min(len(left_tokens), len(right_tokens))
 
 
 def _json_diff(

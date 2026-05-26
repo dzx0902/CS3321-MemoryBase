@@ -326,6 +326,24 @@ page_size
 
 ## 8. Conflict API
 
+### POST /api/memories/{id}/detect-conflicts
+
+Detects duplicate or overlapping memories for one memory in a workspace and creates open conflict records for new matches. The database conflict triggers then mark active memory endpoints as `conflicted`.
+
+Query parameters:
+
+- `workspace_id`: required workspace UUID.
+
+Response:
+
+```json
+{
+  "memory_id": "uuid",
+  "detected_count": 1,
+  "conflicts": []
+}
+```
+
 ### POST /api/conflicts
 
 手动创建冲突记录。后端会规范化 memory 左右顺序，避免反向重复；数据库触发器会把 open conflict 两端的 active memory 自动标记为 `conflicted`。

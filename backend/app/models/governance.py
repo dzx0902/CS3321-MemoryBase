@@ -140,6 +140,12 @@ class ConflictListResponse(PageResponse[ConflictResponse]):
     pass
 
 
+class ConflictDetectionResponse(BaseModel):
+    memory_id: UUID
+    detected_count: int
+    conflicts: list[ConflictResponse]
+
+
 class ConflictCreateRequest(BaseModel):
     workspace_id: UUID
     left_memory_id: UUID

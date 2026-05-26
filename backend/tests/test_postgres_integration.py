@@ -1319,6 +1319,56 @@ def test_conflict_create_marks_memory_conflicted_and_resolve_restores_active(
     assert set(restored.values()) == {"active"}
 
 
+def test_memory_conflict_detection_creates_duplicate_conflict(
+    integration_client, integration_db: str
+) -> None:
+    payload = {
+        "workspace_id": WORKSPACE_ID,
+        "memory_type": "fact",
+        "canonical_text": "The conflict detection smoke marker is a stable project fact.",
+        "summary": "Conflict detection smoke marker.",
+        "confidence": 0.8,
+        "importance": 3,
+        "status": "active",
+        "access_level": "project",
+        "evidence": [],
+    }
+    first_response = integration_client.post("/api/memories", json=payload)
+    assert first_response.status_code == 201
+    second_response = integration_client.post("/api/memories", json=payload)
+    assert second_response.status_code == 201
+
+    first_id = first_response.json()["memory_id"]
+    second_id = second_response.json()["memory_id"]
+
+    detection_response = integration_client.post(
+        f"/api/memories/{second_id}/detect-conflicts",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+
+    assert detection_response.status_code == 200
+    body = detection_response.json()
+    assert body["memory_id"] == second_id
+    assert body["detected_count"] == 1
+    conflict = body["conflicts"][0]
+    assert conflict["conflict_type"] == "duplicate"
+    assert {conflict["left_memory_id"], conflict["right_memory_id"]} == {first_id, second_id}
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT memory_id, status
+                FROM memory_item
+                WHERE memory_id IN (%(first_id)s, %(second_id)s)
+                """,
+                {"first_id": first_id, "second_id": second_id},
+            )
+            statuses = {str(row[0]): row[1] for row in cur.fetchall()}
+
+    assert set(statuses.values()) == {"conflicted"}
+
+
 def test_conflict_resolution_keeps_memory_conflicted_when_another_open_conflict_exists(
     integration_client, integration_db: str
 ) -> None:
