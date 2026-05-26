@@ -1901,6 +1901,31 @@ def test_forget_request_approval_forgets_memory_and_excludes_recall(
             audit_count = cur.fetchone()[0]
     assert audit_count >= 2
 
+    verify_response = integration_client.post(
+        f"/api/forget-requests/{request_id}/verify",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert verify_response.status_code == 200
+    verification = verify_response.json()
+    assert verification["passed"] is True
+    check_names = {check["name"] for check in verification["checks"]}
+    assert {"target_soft_deleted", "retrieval_exclusion", "wiki_export_exclusion"} <= check_names
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM audit_log
+                WHERE workspace_id = %(workspace_id)s
+                  AND action_type = 'forget_request.verify'
+                  AND target_id = %(request_id)s
+                """,
+                {"workspace_id": WORKSPACE_ID, "request_id": request_id},
+            )
+            verify_audit_count = cur.fetchone()[0]
+    assert verify_audit_count == 1
+
     repeat_response = integration_client.patch(
         f"/api/forget-requests/{request_id}",
         params={"workspace_id": WORKSPACE_ID},

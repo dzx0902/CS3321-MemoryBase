@@ -409,6 +409,22 @@ Response:
 }
 ```
 
+### POST /api/forget-requests/{id}/verify
+
+Runs a forgetting verification report after approval. The report checks target soft deletion, memory retrieval exclusion, generated wiki-page exclusion for memory targets, and audit coverage. Each verification writes a `forget_request.verify` audit event.
+
+```json
+{
+  "request_id": "uuid",
+  "workspace_id": "uuid",
+  "target_type": "memory_item",
+  "target_id": "uuid",
+  "status": "approved",
+  "passed": true,
+  "checks": []
+}
+```
+
 ## 10. Timeline API
 
 ### GET /api/timeline

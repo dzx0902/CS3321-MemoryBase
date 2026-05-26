@@ -207,6 +207,22 @@ class ForgetRequestListResponse(PageResponse[ForgetRequestResponse]):
     pass
 
 
+class ForgetVerificationCheckResponse(BaseModel):
+    name: str
+    passed: bool
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class ForgetVerificationResponse(BaseModel):
+    request_id: UUID
+    workspace_id: UUID
+    target_type: ForgetTargetType
+    target_id: UUID
+    status: ForgetRequestStatus
+    passed: bool
+    checks: list[ForgetVerificationCheckResponse]
+
+
 class TimelineCreateRequest(BaseModel):
     workspace_id: UUID
     title: str = Field(min_length=1, max_length=240)
