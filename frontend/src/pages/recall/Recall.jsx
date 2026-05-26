@@ -197,7 +197,7 @@ export default function Recall() {
                       </div>
                       {m.evidence.map((ev, j) => (
                         <div key={j} style={{
-                          padding: '8px 12px', background: 'var(--bg-secondary)',
+                          padding: '8px 12px', background: 'var(--bg-elevated)',
                           borderRadius: 'var(--radius-sm)', marginBottom: 4, fontSize: '0.82rem',
                           border: '1px solid var(--border)',
                         }}>

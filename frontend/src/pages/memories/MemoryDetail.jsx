@@ -116,7 +116,7 @@ export default function MemoryDetail() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {memory.evidence.map((ev, i) => (
               <div key={ev.evidence_id || i} style={{
-                background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)',
                 padding: '12px 16px', border: '1px solid var(--border)',
               }}>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 4, alignItems: 'center' }}>
@@ -143,7 +143,7 @@ export default function MemoryDetail() {
             {memory.revisions.map((rev, i) => (
               <div key={rev.revision_id || i} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)',
+                padding: '8px 12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)',
               }}>
                 <div>
                   <span className="badge badge--info">v{rev.revision_no || rev.version || '?'}</span>
