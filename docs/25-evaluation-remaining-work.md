@@ -95,8 +95,8 @@ Current extraction support:
 ```text
 - rule-based chunk -> candidate memory extraction exists
 - candidate approve/reject workflow exists
+- evaluation db_extraction mode can exercise source import -> extraction -> approve -> recall
 - extraction from full documents and sessions is not implemented yet
-- evaluation does not yet use extraction mode by default
 ```
 
 ## Current Backend Unlocks

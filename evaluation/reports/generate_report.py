@@ -100,9 +100,10 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
             "",
             "## Baseline Comparison",
             "",
-            "`no_memory`, `recency_only`, `summary_memory`, `db_memory`, and "
-            "`naive_vector_rag` execute. `naive_vector_rag` uses the live API, "
-            "runs local embedding backfill, and then calls vector-mode recall.",
+            "`no_memory`, `recency_only`, `summary_memory`, `db_memory`, "
+            "`db_extraction`, and `naive_vector_rag` execute. `db_extraction` "
+            "uses rule-based candidate extraction before recall. `naive_vector_rag` "
+            "runs local embedding backfill and then calls vector-mode recall.",
             "",
             "Run multiple baselines with `run_all.py --modes "
             "summary_memory,db_memory,naive_vector_rag` to create per-mode result "
@@ -129,7 +130,9 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
             "## Current Limitations",
             "",
             "- `recency_only` and `summary_memory` use case sessions directly.",
-            "- `db_memory` uses memory create and recall APIs, not automatic extraction.",
+            "- `db_memory` uses memory create and recall APIs.",
+            "- `db_extraction` uses source import, chunk extraction, candidate approve, "
+            "and recall.",
             "- `naive_vector_rag` depends on backend embedding tables and "
             "the local hashing provider.",
             "- External benchmark adapters support common JSON/JSONL shapes only.",

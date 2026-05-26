@@ -24,7 +24,14 @@ def build_parser(description: str, *, default_output: str) -> argparse.ArgumentP
     parser.add_argument(
         "--mode",
         default="no_memory",
-        choices=["no_memory", "recency_only", "naive_vector_rag", "summary_memory", "db_memory"],
+        choices=[
+            "no_memory",
+            "recency_only",
+            "naive_vector_rag",
+            "summary_memory",
+            "db_memory",
+            "db_extraction",
+        ],
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUTS / default_output)

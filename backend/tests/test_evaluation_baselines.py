@@ -151,3 +151,78 @@ def test_naive_vector_rag_backfills_embeddings_before_recall(monkeypatch) -> Non
     assert calls.index(("POST", "http://testserver/api/embeddings/backfill")) < calls.index(
         ("POST", "http://testserver/api/recall")
     )
+
+
+def test_db_extraction_uses_candidate_workflow_before_recall(monkeypatch) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def fake_request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        calls.append((method, url))
+        if url.endswith("/api/health/detail"):
+            return FakeResponse(
+                {
+                    "workspace": {
+                        "found": True,
+                        "workspace_id": "00000000-0000-0000-0000-000000000201",
+                    }
+                }
+            )
+        if url.endswith("/api/sessions"):
+            return FakeResponse({"session_id": "session-1"})
+        if url.endswith("/api/observe"):
+            return FakeResponse({"message_id": "message-1"})
+        if url.endswith("/api/sources") and method == "POST":
+            return FakeResponse({"doc_id": "doc-1", "chunk_count": 1})
+        if url.endswith("/api/sources/doc-1"):
+            return FakeResponse({"chunks": [{"chunk_id": "chunk-1"}]})
+        if url.endswith("/api/memory-extraction/from-chunks"):
+            return FakeResponse({"candidates": [{"memory_id": "candidate-1"}]})
+        if url.endswith("/api/memory-candidates/candidate-1/approve"):
+            return FakeResponse({"memory": {"memory_id": "memory-1", "status": "active"}})
+        if url.endswith("/api/recall"):
+            return FakeResponse(
+                {
+                    "memories": [
+                        {
+                            "memory_id": "memory-1",
+                            "canonical_text": "Please remember that Rust is my favorite language.",
+                            "score": 0.8,
+                        }
+                    ]
+                }
+            )
+        raise AssertionError(f"unexpected request {method} {url}")
+
+    monkeypatch.setattr("evaluation.baselines.httpx.request", fake_request)
+    case = EvaluationCase(
+        case_id="single_fact_001",
+        source="synthetic",
+        category="single_fact",
+        sessions=[
+            EvaluationSession(
+                session_id="s1",
+                turns=[
+                    EvaluationTurn(
+                        role="user",
+                        content="Please remember that Rust is my favorite language.",
+                    )
+                ],
+            )
+        ],
+        query="What is my favorite language?",
+        expected_answer="Rust",
+    )
+
+    result = build_baseline_with_config(
+        mode="db_extraction",
+        run_id="test",
+        api_base_url="http://testserver",
+        workspace="demo",
+    ).run_case(case)
+
+    assert result.error == ""
+    assert result.mode == "db_extraction"
+    assert result.metadata["write_mode"] == "extraction_candidates"
+    assert result.retrieved_memory_ids == ["memory-1"]
+    assert ("POST", "http://testserver/api/memory-extraction/from-chunks") in calls
+    assert ("POST", "http://testserver/api/memory-candidates/candidate-1/approve") in calls

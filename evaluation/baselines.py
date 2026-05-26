@@ -15,6 +15,7 @@ SUPPORTED_MODES = {
     "naive_vector_rag",
     "summary_memory",
     "db_memory",
+    "db_extraction",
 }
 
 
@@ -109,6 +110,7 @@ class LiveMemoryBaselineConfig:
         workspace: str | None,
         agent: str | None,
         backfill_embeddings: bool,
+        use_extraction: bool,
     ) -> None:
         self.mode = mode
         self.run_id = run_id
@@ -116,6 +118,7 @@ class LiveMemoryBaselineConfig:
         self.workspace = workspace or os.getenv("MEMORYBASE_WORKSPACE")
         self.agent = agent or os.getenv("MEMORYBASE_AGENT")
         self.backfill_embeddings = backfill_embeddings
+        self.use_extraction = use_extraction
 
 
 class LocalMemoryBaseline:
@@ -175,7 +178,7 @@ def build_baseline_with_config(
         return NoMemoryBaseline(mode=mode, run_id=run_id, dry_run=dry_run)
     if mode in {"recency_only", "summary_memory"}:
         return LocalMemoryBaseline(mode=mode, run_id=run_id)
-    if mode in {"db_memory", "naive_vector_rag"}:
+    if mode in {"db_memory", "naive_vector_rag", "db_extraction"}:
         return LiveMemoryBaseline(
             config=LiveMemoryBaselineConfig(
                 mode=mode,
@@ -184,6 +187,7 @@ def build_baseline_with_config(
                 workspace=workspace,
                 agent=agent,
                 backfill_embeddings=mode == "naive_vector_rag",
+                use_extraction=mode == "db_extraction",
             )
         )
     return UnsupportedBaseline(mode=mode, run_id=run_id)
@@ -220,14 +224,23 @@ class LiveMemoryBaseline:
                         self._delete_created_memories(workspace_id, created_memory_ids)
                         created_memory_ids.clear()
                         continue
-                    created_memory_ids.append(
-                        self._create_memory(
-                            workspace_id=workspace_id,
-                            agent_id=agent_id,
-                            content=turn.content,
-                            case=case,
+                    if self._config.use_extraction:
+                        created_memory_ids.extend(
+                            self._extract_and_approve_memory(
+                                workspace_id=workspace_id,
+                                content=turn.content,
+                                case=case,
+                            )
                         )
-                    )
+                    else:
+                        created_memory_ids.append(
+                            self._create_memory(
+                                workspace_id=workspace_id,
+                                agent_id=agent_id,
+                                content=turn.content,
+                                case=case,
+                            )
+                        )
 
             if self._config.backfill_embeddings:
                 embedding_backfill = self._backfill_embeddings(workspace_id)
@@ -253,6 +266,9 @@ class LiveMemoryBaseline:
                 run_id=self._config.run_id,
                 metadata={
                     "injection_mode": "memory_api",
+                    "write_mode": "extraction_candidates"
+                    if self._config.use_extraction
+                    else "direct_memory_create",
                     "retrieval_mode": (
                         "vector_backfilled"
                         if self._config.backfill_embeddings
@@ -265,8 +281,8 @@ class LiveMemoryBaseline:
                     "rank_reasons": [str(item.get("rank_reason", "")) for item in memories],
                     "vector_scores": [_float(item.get("vector_score")) for item in memories],
                     "limitation": (
-                        "Uses existing memory create and recall APIs. "
-                        "Automatic extraction and full agent answering are not implemented yet."
+                        "Uses existing live APIs. Full agent answer generation is "
+                        "not implemented yet."
                     ),
                 },
             )
@@ -359,6 +375,61 @@ class LiveMemoryBaseline:
             headers["X-Actor-Id"] = agent_id
         response = self._request("POST", "/api/memories", json=payload, headers=headers)
         return str(response["memory_id"])
+
+    def _extract_and_approve_memory(
+        self,
+        *,
+        workspace_id: str,
+        content: str,
+        case: EvaluationCase,
+    ) -> list[str]:
+        source = self._request(
+            "POST",
+            "/api/sources",
+            json={
+                "workspace_id": workspace_id,
+                "title": f"Evaluation extraction {self._config.run_id} {case.case_id}"[:240],
+                "doc_type": "note",
+                "raw_text": content,
+                "source_path": (
+                    f"eval://{self._config.run_id}/{case.case_id}/{abs(hash(content))}"
+                ),
+            },
+        )
+        detail = self._request(
+            "GET",
+            f"/api/sources/{source['doc_id']}",
+            params={"workspace_id": workspace_id},
+        )
+        chunk_ids = [
+            str(chunk["chunk_id"])
+            for chunk in detail.get("chunks", [])
+            if isinstance(chunk, dict) and chunk.get("chunk_id")
+        ]
+        if not chunk_ids:
+            return []
+        extraction = self._request(
+            "POST",
+            "/api/memory-extraction/from-chunks",
+            json={
+                "workspace_id": workspace_id,
+                "chunk_ids": chunk_ids,
+                "max_candidates": 3,
+            },
+        )
+        approved_ids: list[str] = []
+        for candidate in extraction.get("candidates", []):
+            if not isinstance(candidate, dict) or not candidate.get("memory_id"):
+                continue
+            approved = self._request(
+                "POST",
+                f"/api/memory-candidates/{candidate['memory_id']}/approve",
+                params={"workspace_id": workspace_id},
+            )
+            memory = approved.get("memory", {})
+            if isinstance(memory, dict) and memory.get("memory_id"):
+                approved_ids.append(str(memory["memory_id"]))
+        return approved_ids
 
     def _delete_created_memories(self, workspace_id: str, memory_ids: list[str]) -> None:
         for memory_id in list(memory_ids):

@@ -71,7 +71,7 @@ Run several baselines into one combined report:
 
 ```bash
 python evaluation/runners/run_all.py \
-  --modes summary_memory,db_memory,naive_vector_rag \
+  --modes summary_memory,db_memory,db_extraction,naive_vector_rag \
   --api-base http://localhost:8000 \
   --workspace cs3321-demo \
   --agent codex \
@@ -146,11 +146,14 @@ recency_only
 naive_vector_rag
 summary_memory
 db_memory
+db_extraction
 ```
 
-`no_memory`, `recency_only`, `summary_memory`, `--dry-run`, `db_memory`, and `naive_vector_rag` execute.
+`no_memory`, `recency_only`, `summary_memory`, `--dry-run`, `db_memory`, `db_extraction`, and `naive_vector_rag` execute.
 `recency_only` and `summary_memory` use only the case sessions and do not call the
 backend. `db_memory` requires a running API, workspace, and optionally an agent.
+`db_extraction` imports each memory-bearing turn as a source, extracts candidate
+memories from chunks, approves them, and then recalls active memory.
 `naive_vector_rag` also requires a running API. It writes evaluation memories through
 the memory API, calls `/api/embeddings/backfill` with the local hashing provider, and
 then calls `/api/recall` with `retrieval_mode=vector` so the result records backend

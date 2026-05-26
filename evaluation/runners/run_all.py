@@ -26,7 +26,14 @@ def main() -> None:
     parser.add_argument(
         "--mode",
         default="no_memory",
-        choices=["no_memory", "recency_only", "naive_vector_rag", "summary_memory", "db_memory"],
+        choices=[
+            "no_memory",
+            "recency_only",
+            "naive_vector_rag",
+            "summary_memory",
+            "db_memory",
+            "db_extraction",
+        ],
     )
     parser.add_argument(
         "--modes",
@@ -80,7 +87,14 @@ def _resolve_modes(mode: str, modes: str | None) -> list[str]:
     if modes is None:
         return [mode]
     resolved = [item.strip() for item in modes.split(",") if item.strip()]
-    allowed = {"no_memory", "recency_only", "naive_vector_rag", "summary_memory", "db_memory"}
+    allowed = {
+        "no_memory",
+        "recency_only",
+        "naive_vector_rag",
+        "summary_memory",
+        "db_memory",
+        "db_extraction",
+    }
     invalid = sorted(set(resolved) - allowed)
     if invalid:
         raise SystemExit(f"unsupported modes: {', '.join(invalid)}")
