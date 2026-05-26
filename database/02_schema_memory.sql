@@ -59,7 +59,22 @@ CREATE TABLE IF NOT EXISTS memory_item (
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
   created_from_doc_id UUID REFERENCES source_document(doc_id) ON DELETE SET NULL,
   memory_type VARCHAR(30) NOT NULL
-    CHECK (memory_type IN ('episodic', 'semantic', 'profile', 'procedural', 'decision', 'preference', 'task', 'risk')),
+    CHECK (
+      memory_type IN (
+        'episodic',
+        'semantic',
+        'fact',
+        'profile',
+        'procedural',
+        'decision',
+        'preference',
+        'task',
+        'risk',
+        'constraint',
+        'policy',
+        'summary'
+      )
+    ),
   canonical_text TEXT NOT NULL,
   summary TEXT,
   search_text_zh TEXT,
@@ -69,7 +84,17 @@ CREATE TABLE IF NOT EXISTS memory_item (
   confidence NUMERIC(4,3) NOT NULL DEFAULT 0.700 CHECK (confidence >= 0 AND confidence <= 1),
   importance INT NOT NULL DEFAULT 3 CHECK (importance BETWEEN 1 AND 5),
   status VARCHAR(20) NOT NULL DEFAULT 'active'
-    CHECK (status IN ('active', 'archived', 'forgotten', 'superseded', 'conflicted')),
+    CHECK (
+      status IN (
+        'candidate',
+        'active',
+        'archived',
+        'forgotten',
+        'superseded',
+        'rejected',
+        'conflicted'
+      )
+    ),
   access_level VARCHAR(20) NOT NULL DEFAULT 'project'
     CHECK (access_level IN ('public', 'project', 'team', 'private')),
   owner_user_id UUID REFERENCES user_account(user_id) ON DELETE SET NULL,

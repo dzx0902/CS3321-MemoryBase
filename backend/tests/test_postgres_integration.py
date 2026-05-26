@@ -4,6 +4,7 @@ from pathlib import Path
 
 import psycopg
 import pytest
+
 from scripts.backfill_search_terms import backfill_search_terms
 
 WORKSPACE_ID = "00000000-0000-0000-0000-000000000201"
@@ -564,6 +565,129 @@ def test_memory_create_accepts_evidence_objects(integration_client, integration_
     assert evidence["evidence_role"] == "context"
     assert evidence["weight"] == 0.7
     assert evidence["note"] == "Custom evidence metadata."
+
+
+def test_candidate_memory_requires_approval_before_default_retrieval(
+    integration_client,
+    integration_db: str,
+) -> None:
+    response = integration_client.post(
+        "/api/memories",
+        headers={"X-Revision-Reason": "candidate extraction"},
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "created_from_doc_id": SOURCE_DOC_ID,
+            "memory_type": "fact",
+            "canonical_text": "Lifecycle candidate marker should stay hidden until approval.",
+            "summary": "Candidate lifecycle marker",
+            "confidence": 0.72,
+            "importance": 3,
+            "status": "candidate",
+            "access_level": "project",
+            "evidence": [
+                {
+                    "chunk_id": "00000000-0000-0000-0000-000000000602",
+                    "evidence_role": "supports",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 201
+    memory_id = response.json()["memory_id"]
+    assert response.json()["status"] == "candidate"
+
+    default_list = integration_client.get(
+        "/api/memories",
+        params={"workspace_id": WORKSPACE_ID, "keyword": "Lifecycle candidate marker"},
+    )
+    assert default_list.status_code == 200
+    assert all(item["memory_id"] != memory_id for item in default_list.json()["items"])
+
+    candidate_list = integration_client.get(
+        "/api/memories",
+        params={
+            "workspace_id": WORKSPACE_ID,
+            "keyword": "Lifecycle candidate marker",
+            "status": "candidate",
+        },
+    )
+    assert candidate_list.status_code == 200
+    assert any(item["memory_id"] == memory_id for item in candidate_list.json()["items"])
+
+    hidden_recall = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "Lifecycle candidate marker",
+            "limit": 5,
+        },
+    )
+    assert hidden_recall.status_code == 200
+    assert all(item["memory_id"] != memory_id for item in hidden_recall.json()["memories"])
+
+    approve = integration_client.patch(
+        f"/api/memories/{memory_id}",
+        params={"workspace_id": WORKSPACE_ID},
+        headers={"X-Revision-Reason": "approve candidate memory"},
+        json={"status": "active"},
+    )
+    assert approve.status_code == 200
+    assert approve.json()["status"] == "active"
+    assert approve.json()["current_revision_no"] == 2
+
+    visible_recall = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "Lifecycle candidate marker",
+            "limit": 5,
+        },
+    )
+    assert visible_recall.status_code == 200
+    assert any(item["memory_id"] == memory_id for item in visible_recall.json()["memories"])
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT revision_reason
+                FROM memory_revision
+                WHERE memory_id = %(memory_id)s
+                ORDER BY revision_no
+                """,
+                {"memory_id": memory_id},
+            )
+            revision_reasons = [row[0] for row in cur.fetchall()]
+            cur.execute(
+                """
+                SELECT action_type
+                FROM audit_log
+                WHERE target_type = 'memory_item'
+                  AND target_id = %(memory_id)s
+                ORDER BY created_at
+                """,
+                {"memory_id": memory_id},
+            )
+            audit_actions = [row[0] for row in cur.fetchall()]
+
+    assert revision_reasons == ["candidate extraction", "approve candidate memory"]
+    assert "memory.insert" in audit_actions
+    assert "memory.update" in audit_actions
+
+
+def test_memory_update_rejects_illegal_status_transition(
+    integration_client,
+    integration_db: str,
+) -> None:
+    response = integration_client.patch(
+        f"/api/memories/{MEMORY_ID}",
+        params={"workspace_id": WORKSPACE_ID},
+        json={"status": "candidate"},
+    )
+
+    assert response.status_code == 400
+    assert "illegal memory status transition: active -> candidate" in response.json()["detail"]
 
 
 def test_agent_memory_create_without_evidence_creates_inline_source_and_audit(

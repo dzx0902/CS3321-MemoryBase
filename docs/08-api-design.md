@@ -70,6 +70,13 @@
 
 Agent/CLI 写回可以提交空 `evidence`。当请求头 `X-Actor-Type: agent` 且没有提供 evidence 时，后端会自动创建一个 `inline_agent_note` source document 和 source chunk，再把该 chunk 作为 `source` evidence 绑定到新 memory，保证证据链不断裂。
 
+Lifecycle notes:
+
+- `memory_type` supports `episodic`, `semantic`, `fact`, `profile`, `procedural`, `decision`, `preference`, `task`, `risk`, `constraint`, `policy`, and `summary`.
+- New memory may start as `active` or `candidate`; automatic extraction should use `candidate`.
+- Allowed status transitions are `candidate -> active/rejected`, `active -> superseded/archived/conflicted/forgotten`, `conflicted -> active/superseded/forgotten`, and `archived -> forgotten`.
+- Status changes are rejected if they skip the lifecycle state machine. Database triggers still write memory revision and audit rows for accepted state changes.
+
 ### GET /api/memories
 
 查询 memory 列表。默认只返回 `status = active` 的 memory；如需审计或管理视角读取归档/遗忘记录，需要显式传入 `status`，其中 `status=all` 表示不做状态过滤。
