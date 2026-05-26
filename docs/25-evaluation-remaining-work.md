@@ -8,7 +8,6 @@ This document records evaluation-route items that are intentionally not complete
 
 ```text
 - embedding similarity scoring beyond backend recall scores
-- vector retrieval against source chunks
 - keyword-only vs vector vs hybrid baseline comparison report
 - real write/query/update/delete P50/P95/P99/QPS performance suite
 - real context leakage and answer leakage split
@@ -97,6 +96,7 @@ It uses direct memory API injection. It does not yet test automatic memory extra
 - /api/embeddings/backfill exists
 - recall returns keyword/vector/recency/evidence score fields when embeddings are present
 - recall supports explicit keyword, vector, and hybrid retrieval modes
+- recall vector mode can use both memory embeddings and source chunk embeddings through evidence
 - evaluation naive_vector_rag can now backfill embeddings and call live recall
 ```
 
@@ -105,9 +105,8 @@ It uses direct memory API injection. It does not yet test automatic memory extra
 Continue backend B1 by expanding vector coverage and reporting comparisons:
 
 ```text
-1. Add source chunk vector retrieval.
-2. Add benchmark report comparison for keyword-only / vector-only / hybrid.
-3. Add embedding similarity scoring beyond backend recall scores.
-4. Add real context leakage and answer leakage inspection.
-5. Keep naive_vector_rag as the live API vector-backed baseline.
+1. Add benchmark report comparison for keyword-only / vector-only / hybrid.
+2. Add embedding similarity scoring beyond backend recall scores.
+3. Add real context leakage and answer leakage inspection.
+4. Keep naive_vector_rag as the live API vector-backed baseline.
 ```

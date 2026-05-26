@@ -326,6 +326,13 @@ python evaluation/runners/run_all.py \
   --workspace <workspace> \
   --agent <agent> \
   --limit 6
+python evaluation/runners/run_all.py \
+  --dataset evaluation/datasets/synthetic_memory_cases.jsonl \
+  --modes summary_memory,db_memory,naive_vector_rag \
+  --api-base http://localhost:8000 \
+  --workspace <workspace> \
+  --agent <agent> \
+  --limit 6
 ```
 
 ## Remaining Work
@@ -333,7 +340,6 @@ python evaluation/runners/run_all.py \
 Still not fully implemented:
 
 ```text
-- naive_vector_rag baseline
 - embedding similarity scoring
 - official LongMemEval / LoCoMo / MemoryAgentBench full-format validation
 - LLM-as-judge

@@ -1066,6 +1066,40 @@ def test_recall_retrieval_mode_controls_keyword_and_vector_routes(
     assert all(item["keyword_score"] == 0 for item in vector_payload["memories"])
 
 
+def test_recall_vector_mode_can_use_source_chunk_embeddings(
+    integration_client,
+    integration_db: str,
+) -> None:
+    backfill = integration_client.post(
+        "/api/embeddings/backfill",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "target": "chunks",
+            "provider": "local",
+            "model": "hashing-v1",
+            "dimension": 128,
+            "limit": 50,
+        },
+    )
+    assert backfill.status_code == 200
+    assert backfill.json()["chunk_count"] > 0
+
+    response = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "cafeteria",
+            "retrieval_mode": "vector",
+            "limit": 5,
+        },
+    )
+
+    assert response.status_code == 200
+    memories = response.json()["memories"]
+    assert memories
+    assert any("via source chunk" in item["rank_reason"] for item in memories)
+
+
 def test_recall_as_of_filters_validity_and_records_filter_json(
     integration_client, integration_db: str
 ) -> None:

@@ -66,6 +66,21 @@ python evaluation/runners/run_all.py \
 ```
 
 `db_memory` can also read `MEMORYBASE_WORKSPACE` and `MEMORYBASE_AGENT`.
+
+Run several baselines into one combined report:
+
+```bash
+python evaluation/runners/run_all.py \
+  --modes summary_memory,db_memory,naive_vector_rag \
+  --api-base http://localhost:8000 \
+  --workspace cs3321-demo \
+  --agent codex \
+  --limit 5
+```
+
+When `--modes` is used, results are written under `evaluation/outputs/<mode>/`
+and `benchmark_report.md` summarizes all modes together.
+
 Phase E2 uses the current memory API directly:
 
 ```text

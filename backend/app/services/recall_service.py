@@ -380,66 +380,54 @@ class PostgresRecallRepository:
         }
         terms = _keyword_terms(payload.query_text)
         for row in cur.fetchall():
-            vector = _embedding_json_to_vector(row["embedding_json"])
-            vector_score = max(0.0, cosine_similarity(query_embedding, vector))
-            if vector_score <= 0:
-                continue
-            keyword_score = (
-                0.0
-                if payload.retrieval_mode == "vector"
-                else _text_keyword_score(
-                    text=f"{row['canonical_text']} {row['summary'] or ''}",
-                    terms=terms,
-                )
+            candidate = _build_vector_candidate(
+                row=row,
+                query_embedding=query_embedding,
+                terms=terms,
+                retrieval_mode=payload.retrieval_mode,
+                rank_suffix="",
             )
-            recency_score = _recency_score(row["updated_at"])
-            evidence_score = float(row["evidence_score"] or 0)
-            score = (
-                keyword_score
-                + (vector_score * 0.45)
-                + recency_score
-                + evidence_score
-                + (float(row["importance"]) * 0.1)
+            if candidate is not None:
+                _merge_scored_candidate(merged, candidate)
+
+        cur.execute(
+            f"""
+            SELECT
+                mi.memory_id,
+                mi.memory_type,
+                mi.canonical_text,
+                mi.summary,
+                mi.confidence,
+                mi.importance,
+                mi.status,
+                mi.access_level,
+                mi.updated_at,
+                sce.embedding_json,
+                me.weight * 0.2 AS evidence_score
+            FROM source_chunk_embedding sce
+            JOIN memory_evidence me ON me.chunk_id = sce.chunk_id
+            JOIN memory_item mi ON mi.memory_id = me.memory_id
+            JOIN source_document sd ON sd.doc_id = sce.doc_id
+            WHERE {where_clause}
+              AND sd.status = 'active'
+              AND sce.provider = %(embedding_provider)s
+              AND sce.model = %(embedding_model)s
+              AND sce.dimension = %(embedding_dimension)s
+            ORDER BY mi.updated_at DESC
+            LIMIT %(vector_candidate_limit)s
+            """,
+            vector_params,
+        )
+        for row in cur.fetchall():
+            candidate = _build_vector_candidate(
+                row=row,
+                query_embedding=query_embedding,
+                terms=terms,
+                retrieval_mode=payload.retrieval_mode,
+                rank_suffix=" via source chunk",
             )
-            candidate = {
-                "memory_id": row["memory_id"],
-                "memory_type": row["memory_type"],
-                "canonical_text": row["canonical_text"],
-                "summary": row["summary"],
-                "confidence": row["confidence"],
-                "importance": row["importance"],
-                "status": row["status"],
-                "access_level": row["access_level"],
-                "keyword_score": keyword_score,
-                "vector_score": vector_score,
-                "recency_score": recency_score,
-                "evidence_score": evidence_score,
-                "score": score,
-                "rank_reason": _rank_reason(
-                    keyword_score,
-                    vector_score,
-                    recency_score,
-                    evidence_score,
-                ),
-            }
-            existing = merged.get(row["memory_id"])
-            if existing is None or float(existing["score"]) < score:
-                merged[row["memory_id"]] = candidate
-            else:
-                existing["vector_score"] = max(
-                    float(existing.get("vector_score") or 0),
-                    vector_score,
-                )
-                existing["recency_score"] = max(
-                    float(existing.get("recency_score") or 0),
-                    recency_score,
-                )
-                existing["rank_reason"] = _rank_reason(
-                    float(existing.get("keyword_score") or 0),
-                    float(existing.get("vector_score") or 0),
-                    float(existing.get("recency_score") or 0),
-                    float(existing.get("evidence_score") or 0),
-                )
+            if candidate is not None:
+                _merge_scored_candidate(merged, candidate)
         return sorted(
             merged.values(),
             key=lambda row: (
@@ -453,6 +441,84 @@ class PostgresRecallRepository:
 
 def _json_dumps(payload: object) -> str:
     return json.dumps(payload, default=str)
+
+
+def _build_vector_candidate(
+    *,
+    row: dict[str, object],
+    query_embedding: list[float],
+    terms: list[str],
+    retrieval_mode: str,
+    rank_suffix: str,
+) -> dict[str, object] | None:
+    vector = _embedding_json_to_vector(row["embedding_json"])
+    vector_score = max(0.0, cosine_similarity(query_embedding, vector))
+    if vector_score <= 0:
+        return None
+    keyword_score = (
+        0.0
+        if retrieval_mode == "vector"
+        else _text_keyword_score(
+            text=f"{row['canonical_text']} {row['summary'] or ''}",
+            terms=terms,
+        )
+    )
+    recency_score = _recency_score(row["updated_at"])
+    evidence_score = float(row["evidence_score"] or 0)
+    score = (
+        keyword_score
+        + (vector_score * 0.45)
+        + recency_score
+        + evidence_score
+        + (float(row["importance"]) * 0.1)
+    )
+    return {
+        "memory_id": row["memory_id"],
+        "memory_type": row["memory_type"],
+        "canonical_text": row["canonical_text"],
+        "summary": row["summary"],
+        "confidence": row["confidence"],
+        "importance": row["importance"],
+        "status": row["status"],
+        "access_level": row["access_level"],
+        "keyword_score": keyword_score,
+        "vector_score": vector_score,
+        "recency_score": recency_score,
+        "evidence_score": evidence_score,
+        "score": score,
+        "rank_reason": _rank_reason(
+            keyword_score,
+            vector_score,
+            recency_score,
+            evidence_score,
+        )
+        + rank_suffix,
+    }
+
+
+def _merge_scored_candidate(
+    merged: dict[UUID, dict[str, object]],
+    candidate: dict[str, object],
+) -> None:
+    memory_id = candidate["memory_id"]
+    existing = merged.get(memory_id)
+    if existing is None or float(existing["score"]) < float(candidate["score"]):
+        merged[memory_id] = candidate
+        return
+    existing["vector_score"] = max(
+        float(existing.get("vector_score") or 0),
+        float(candidate["vector_score"]),
+    )
+    existing["recency_score"] = max(
+        float(existing.get("recency_score") or 0),
+        float(candidate["recency_score"]),
+    )
+    existing["rank_reason"] = _rank_reason(
+        float(existing.get("keyword_score") or 0),
+        float(existing.get("vector_score") or 0),
+        float(existing.get("recency_score") or 0),
+        float(existing.get("evidence_score") or 0),
+    )
 
 
 def _keyword_terms(query_text: str) -> list[str]:

@@ -28,6 +28,13 @@ def main() -> None:
         default="no_memory",
         choices=["no_memory", "recency_only", "naive_vector_rag", "summary_memory", "db_memory"],
     )
+    parser.add_argument(
+        "--modes",
+        help=(
+            "Comma-separated modes to run into per-mode output subdirectories. "
+            "Example: summary_memory,db_memory,naive_vector_rag."
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--outputs-dir", type=Path, default=DEFAULT_OUTPUTS)
     parser.add_argument("--run-id")
@@ -46,24 +53,40 @@ def main() -> None:
         ("forgetting_results.csv", "long_context_retention"),
         ("performance_results.csv", "performance"),
     ]
-    for filename, result_filter in jobs:
-        output = args.outputs_dir / filename
-        results = run_eval(
-            dataset=args.dataset,
-            output=output,
-            mode=args.mode,
-            category=args.category,
-            limit=args.limit,
-            dry_run=args.dry_run,
-            run_id=run_id,
-            result_filter=result_filter,
-            api_base_url=args.api_base,
-            workspace=args.workspace,
-            agent=args.agent,
-        )
-        print_summary(results, output)
+    modes = _resolve_modes(args.mode, args.modes)
+    for mode in modes:
+        mode_outputs_dir = args.outputs_dir / mode if len(modes) > 1 else args.outputs_dir
+        for filename, result_filter in jobs:
+            output = mode_outputs_dir / filename
+            results = run_eval(
+                dataset=args.dataset,
+                output=output,
+                mode=mode,
+                category=args.category,
+                limit=args.limit,
+                dry_run=args.dry_run,
+                run_id=run_id,
+                result_filter=result_filter,
+                api_base_url=args.api_base,
+                workspace=args.workspace,
+                agent=args.agent,
+            )
+            print_summary(results, output)
     report_path = generate_report(outputs_dir=args.outputs_dir)
     print(f"wrote benchmark report to {report_path}")
+
+
+def _resolve_modes(mode: str, modes: str | None) -> list[str]:
+    if modes is None:
+        return [mode]
+    resolved = [item.strip() for item in modes.split(",") if item.strip()]
+    allowed = {"no_memory", "recency_only", "naive_vector_rag", "summary_memory", "db_memory"}
+    invalid = sorted(set(resolved) - allowed)
+    if invalid:
+        raise SystemExit(f"unsupported modes: {', '.join(invalid)}")
+    if not resolved:
+        raise SystemExit("--modes must include at least one mode")
+    return resolved
 
 
 if __name__ == "__main__":

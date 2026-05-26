@@ -17,7 +17,7 @@ DEFAULT_OUTPUTS = PROJECT_ROOT / "evaluation" / "outputs"
 def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
     outputs_dir.mkdir(parents=True, exist_ok=True)
     report_path = outputs_dir / "benchmark_report.md"
-    csv_paths = sorted(path for path in outputs_dir.glob("*_results.csv") if path.is_file())
+    csv_paths = sorted(path for path in outputs_dir.rglob("*_results.csv") if path.is_file())
     lines = [
         "# MemoryBase Benchmark Report",
         "",
@@ -49,9 +49,10 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
             latencies = [_float(row.get("latency_ms")) for row in rows]
             summary = latency_summary(latencies, error_count=error_count)
             pass_rate = pass_count / len(rows) if rows else 0.0
+            label = path.relative_to(outputs_dir).as_posix()
             lines.append(
-                f"| `{path.name}` | {len(rows)} | {pass_rate:.2%} | "
-                f"{error_count} | {summary['p95_latency_ms']:.3f} |"
+                f"| `{label}` | {len(rows)} | {pass_rate:.2%} | {error_count} | "
+                f"{summary['p95_latency_ms']:.3f} |"
             )
 
     lines.extend(["", "## Category Metrics", ""])
@@ -102,6 +103,10 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
             "`no_memory`, `recency_only`, `summary_memory`, `db_memory`, and "
             "`naive_vector_rag` execute. `naive_vector_rag` uses the live API, "
             "runs local embedding backfill, and then calls vector-mode recall.",
+            "",
+            "Run multiple baselines with `run_all.py --modes "
+            "summary_memory,db_memory,naive_vector_rag` to create per-mode result "
+            "subdirectories and this combined report.",
             "",
             "## Failed Cases",
             "",

@@ -71,3 +71,68 @@ def test_generate_report_includes_baseline_and_category_metrics(tmp_path: Path) 
     assert "summary_memory" in report
     assert "## Category Detail Metrics" in report
     assert "deletion" in report
+
+
+def test_generate_report_reads_nested_mode_outputs(tmp_path: Path) -> None:
+    output_dir = tmp_path / "outputs"
+    nested_dir = output_dir / "summary_memory"
+    nested_dir.mkdir(parents=True)
+    with (nested_dir / "qa_results.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "case_id",
+                "source",
+                "category",
+                "query",
+                "expected_answer",
+                "generated_answer",
+                "retrieved_memory_ids",
+                "retrieved_memory_texts",
+                "retrieved_scores",
+                "latency_ms",
+                "token_usage",
+                "score",
+                "pass",
+                "exact_match",
+                "contains_match",
+                "simple_f1",
+                "forbidden_answer_violation",
+                "recall_at_1",
+                "recall_at_3",
+                "recall_at_5",
+                "recall_at_10",
+                "mrr",
+                "ndcg_at_10",
+                "deletion_success",
+                "privacy_leakage",
+                "stale_memory_error",
+                "preference_following",
+                "error",
+                "mode",
+                "run_id",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "case_id": "case_1",
+                "source": "synthetic",
+                "category": "single_fact",
+                "query": "q",
+                "expected_answer": "a",
+                "generated_answer": "a",
+                "latency_ms": "1.0",
+                "score": "1.0",
+                "pass": "true",
+                "simple_f1": "1.0",
+                "mode": "summary_memory",
+                "run_id": "test",
+            }
+        )
+
+    report_path = generate_report(outputs_dir=output_dir)
+
+    report = report_path.read_text(encoding="utf-8")
+    assert "`summary_memory/qa_results.csv`" in report
+    assert "Run multiple baselines" in report
