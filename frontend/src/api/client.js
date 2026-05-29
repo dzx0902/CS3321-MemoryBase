@@ -130,6 +130,13 @@ export const semanticApi = {
   scenes: (params) => request(`/scenes${qs(params)}`),
 };
 
+export const graphApi = {
+  health: () => request('/graph/health'),
+  workspace: (params) => request(`/graph/workspace${qs(params)}`),
+  preview: (params) => request(`/graph/workspace/preview${qs(params)}`),
+  sync: (params) => request(`/graph/workspace/sync${qs(params)}`, { method: 'POST' }),
+};
+
 // ===== Governance =====
 export const policiesApi = {
   list: (params) => request(`/policies${qs(params)}`),

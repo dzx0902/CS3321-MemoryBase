@@ -22,6 +22,11 @@ class Settings(BaseModel):
     backend_port: int = int(os.getenv("BACKEND_PORT", "8000"))
     chunk_max_chars: int = 800
     chunk_overlap_lines: int = 1
+    neo4j_enabled: bool = os.getenv("NEO4J_ENABLED", "false").lower() == "true"
+    neo4j_uri: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    neo4j_user: str = os.getenv("NEO4J_USER", "neo4j")
+    neo4j_password: str = os.getenv("NEO4J_PASSWORD", "memorybase")
+    neo4j_database: str = os.getenv("NEO4J_DATABASE", "neo4j")
 
 
 @lru_cache(maxsize=1)

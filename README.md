@@ -25,6 +25,7 @@ SourceDocument
 - Backend: FastAPI
 - Frontend: React + Vite
 - Database: PostgreSQL
+- Graph Database: Neo4j（可选，用于知识图谱同步与可视化）
 - Search: PostgreSQL Full Text Search
 - SQL: views, triggers, indexes
 - Deployment: Docker Compose
@@ -202,6 +203,26 @@ BACKEND_HOST=127.0.0.1
 BACKEND_PORT=8000
 FRONTEND_PORT=5173
 ```
+
+如果要启用 Neo4j 图谱同步与 Graph Explorer：
+
+```env
+NEO4J_ENABLED=true
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=memorybase
+NEO4J_DATABASE=neo4j
+```
+
+`docker compose up -d` 会同时启动 PostgreSQL 和 Neo4j。Neo4j Browser 默认地址是 `http://localhost:7474`，后端图谱接口在 `/api/graph/*`，前端入口是 `/graph`。
+
+如果希望 Graph Explorer 展示更清晰的分层图谱示例，可以在完成基础 seed 后额外执行：
+
+```bash
+npm run db:run -- database/09_graph_demo.sql
+```
+
+然后在 `/graph` 页面点击 `Use Graph Demo`，再点击 `Sync Neo4j`。这个示例专门围绕“选题转向 → 架构决策 → 治理演示”组织，节点更少、层次更清楚。
 
 常见需要修改的地方：
 

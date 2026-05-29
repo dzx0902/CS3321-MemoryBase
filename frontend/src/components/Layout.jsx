@@ -6,6 +6,7 @@ const NAV = [
   { to: '/sources', label: 'Sources', icon: '▤' },
   { to: '/memories', label: 'Memories', icon: '◈' },
   { to: '/recall', label: 'Recall', icon: '◎' },
+  { to: '/graph', label: 'Graph', icon: '⬡' },
   {
     label: 'Agent Runtime',
     icon: '⌁',
