@@ -7,7 +7,13 @@ from uuid import UUID
 
 from ..core.config import Settings
 from ..core.database import Database
-from ..models.graph import GraphEdge, GraphHealthResponse, GraphNode, GraphResponse, GraphSyncResponse
+from ..models.graph import (
+    GraphEdge,
+    GraphHealthResponse,
+    GraphNode,
+    GraphResponse,
+    GraphSyncResponse,
+)
 
 try:  # pragma: no cover - exercised only when neo4j is installed.
     from neo4j import GraphDatabase
@@ -51,7 +57,12 @@ class PostgresGraphRepository:
                 )
                 workspace = cur.fetchone()
                 if workspace is None:
-                    return GraphResponse(workspace_id=workspace_id, source="postgres-preview", nodes=[], edges=[])
+                    return GraphResponse(
+                        workspace_id=workspace_id,
+                        source="postgres-preview",
+                        nodes=[],
+                        edges=[],
+                    )
 
                 workspace_id_str = str(workspace_id)
                 add_node(
@@ -78,11 +89,24 @@ class PostgresGraphRepository:
                 for row in cur.fetchall():
                     node_id = f"source:{row['doc_id']}"
                     add_node(_node(node_id, "source", "Source", row["title"], row["doc_type"], row))
-                    add_edge(_edge(f"workspace-source:{row['doc_id']}", f"workspace:{workspace_id_str}", node_id, "CONTAINS"))
+                    add_edge(
+                        _edge(
+                            f"workspace-source:{row['doc_id']}",
+                            f"workspace:{workspace_id_str}",
+                            node_id,
+                            "CONTAINS",
+                        )
+                    )
 
                 cur.execute(
                     """
-                    SELECT sc.chunk_id, sc.doc_id, sc.chunk_no, sc.chunk_text, sc.start_line, sc.end_line, sc.token_count
+                    SELECT sc.chunk_id,
+                           sc.doc_id,
+                           sc.chunk_no,
+                           sc.chunk_text,
+                           sc.start_line,
+                           sc.end_line,
+                           sc.token_count
                     FROM source_chunk sc
                     JOIN source_document sd ON sd.doc_id = sc.doc_id
                     WHERE sd.workspace_id = %(workspace_id)s
@@ -94,8 +118,24 @@ class PostgresGraphRepository:
                 for row in cur.fetchall():
                     node_id = f"chunk:{row['chunk_id']}"
                     title = f"Chunk {row['chunk_no']}"
-                    add_node(_node(node_id, "chunk", "Chunk", title, _excerpt(row["chunk_text"]), row))
-                    add_edge(_edge(f"source-chunk:{row['doc_id']}:{row['chunk_id']}", f"source:{row['doc_id']}", node_id, "HAS_CHUNK"))
+                    add_node(
+                        _node(
+                            node_id,
+                            "chunk",
+                            "Chunk",
+                            title,
+                            _excerpt(row["chunk_text"]),
+                            row,
+                        )
+                    )
+                    add_edge(
+                        _edge(
+                            f"source-chunk:{row['doc_id']}:{row['chunk_id']}",
+                            f"source:{row['doc_id']}",
+                            node_id,
+                            "HAS_CHUNK",
+                        )
+                    )
 
                 cur.execute(
                     """
@@ -120,7 +160,14 @@ class PostgresGraphRepository:
                             row,
                         )
                     )
-                    add_edge(_edge(f"workspace-memory:{row['memory_id']}", f"workspace:{workspace_id_str}", node_id, "CONTAINS"))
+                    add_edge(
+                        _edge(
+                            f"workspace-memory:{row['memory_id']}",
+                            f"workspace:{workspace_id_str}",
+                            node_id,
+                            "CONTAINS",
+                        )
+                    )
                     if row["created_from_doc_id"]:
                         add_edge(
                             _edge(
@@ -164,8 +211,24 @@ class PostgresGraphRepository:
                 )
                 for row in cur.fetchall():
                     node_id = f"entity:{row['entity_id']}"
-                    add_node(_node(node_id, "entity", "Entity", row["canonical_name"], row["entity_type"], row))
-                    add_edge(_edge(f"workspace-entity:{row['entity_id']}", f"workspace:{workspace_id_str}", node_id, "CONTAINS"))
+                    add_node(
+                        _node(
+                            node_id,
+                            "entity",
+                            "Entity",
+                            row["canonical_name"],
+                            row["entity_type"],
+                            row,
+                        )
+                    )
+                    add_edge(
+                        _edge(
+                            f"workspace-entity:{row['entity_id']}",
+                            f"workspace:{workspace_id_str}",
+                            node_id,
+                            "CONTAINS",
+                        )
+                    )
 
                 cur.execute(
                     """
@@ -200,7 +263,14 @@ class PostgresGraphRepository:
                 for row in cur.fetchall():
                     node_id = f"scene:{row['scene_id']}"
                     add_node(_node(node_id, "scene", "Scene", row["title"], row["scene_slug"], row))
-                    add_edge(_edge(f"workspace-scene:{row['scene_id']}", f"workspace:{workspace_id_str}", node_id, "CONTAINS"))
+                    add_edge(
+                        _edge(
+                            f"workspace-scene:{row['scene_id']}",
+                            f"workspace:{workspace_id_str}",
+                            node_id,
+                            "CONTAINS",
+                        )
+                    )
 
                 cur.execute(
                     """
@@ -225,7 +295,11 @@ class PostgresGraphRepository:
                 cur.execute(
                     """
                     SELECT page_id, workspace_id, page_slug, page_type, title, current_revision_no,
-                           generated_from_scene_id, generated_from_memory_id, needs_rebuild, status, updated_at
+                           generated_from_scene_id,
+                           generated_from_memory_id,
+                           needs_rebuild,
+                           status,
+                           updated_at
                     FROM wiki_page
                     WHERE workspace_id = %(workspace_id)s
                     ORDER BY updated_at DESC
@@ -236,7 +310,14 @@ class PostgresGraphRepository:
                 for row in cur.fetchall():
                     node_id = f"wiki:{row['page_id']}"
                     add_node(_node(node_id, "wiki", "Wiki", row["title"], row["page_type"], row))
-                    add_edge(_edge(f"workspace-wiki:{row['page_id']}", f"workspace:{workspace_id_str}", node_id, "CONTAINS"))
+                    add_edge(
+                        _edge(
+                            f"workspace-wiki:{row['page_id']}",
+                            f"workspace:{workspace_id_str}",
+                            node_id,
+                            "CONTAINS",
+                        )
+                    )
                     if row["generated_from_memory_id"]:
                         add_edge(
                             _edge(
@@ -256,7 +337,12 @@ class PostgresGraphRepository:
                             )
                         )
 
-        return GraphResponse(workspace_id=workspace_id, source="postgres-preview", nodes=list(nodes.values()), edges=list(edges.values()))
+        return GraphResponse(
+            workspace_id=workspace_id,
+            source="postgres-preview",
+            nodes=list(nodes.values()),
+            edges=list(edges.values()),
+        )
 
 
 class Neo4jGraphStore:
@@ -369,7 +455,8 @@ class Neo4jGraphStore:
                 node_ids = {node.id for node in nodes}
                 edge_records = session.run(
                     """
-                    MATCH (a:MemoryBaseNode {workspace_id: $workspace_id})-[r]->(b:MemoryBaseNode {workspace_id: $workspace_id})
+                    MATCH (a:MemoryBaseNode {workspace_id: $workspace_id})
+                        -[r]->(b:MemoryBaseNode {workspace_id: $workspace_id})
                     RETURN a.id AS source, b.id AS target, type(r) AS type, r
                     LIMIT $limit
                     """,

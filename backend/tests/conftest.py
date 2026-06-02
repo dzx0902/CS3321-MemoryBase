@@ -10,6 +10,7 @@ import psycopg
 import pytest
 from app.main import create_app
 from fastapi.testclient import TestClient
+
 from scripts.backfill_search_terms import backfill_search_terms
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
