@@ -167,7 +167,7 @@ export default function Sessions() {
                   padding: '12px 14px',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
-                  background: 'var(--bg-secondary)',
+                  background: 'var(--bg-elevated)',
                 }}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
                     <span className="badge badge--accent">{message.role || message.sender_type}</span>

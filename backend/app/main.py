@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from .api.agents import router as agents_router
 from .api.governance import router as governance_router
+from .api.graph import router as graph_router
 from .api.health import router as health_router
 from .api.memories import router as memories_router
 from .api.observe import router as observe_router
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(stats_router, prefix="/api")
     app.include_router(governance_router, prefix="/api")
     app.include_router(agents_router, prefix="/api")
+    app.include_router(graph_router, prefix="/api")
     return app
 
 

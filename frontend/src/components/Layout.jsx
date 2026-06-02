@@ -6,6 +6,7 @@ const NAV = [
   { to: '/sources', label: 'Sources', icon: '▤' },
   { to: '/memories', label: 'Memories', icon: '◈' },
   { to: '/recall', label: 'Recall', icon: '◎' },
+  { to: '/graph', label: 'Graph', icon: '⬡' },
   {
     label: 'Agent Runtime',
     icon: '⌁',
@@ -118,10 +119,10 @@ export default function Layout() {
           color: var(--accent);
         }
         .sidebar__title {
-          font-family: 'Playfair Display', serif;
-          font-size: 1.2rem;
+          font-family: var(--serif);
+          font-size: 1.35rem;
           font-weight: 700;
-          letter-spacing: 0.02em;
+          letter-spacing: 0.01em;
         }
         .sidebar__nav {
           flex: 1;
@@ -138,9 +139,10 @@ export default function Layout() {
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 9px 14px;
+          padding: 10px 14px;
           border-radius: var(--radius-md);
-          font-size: 0.85rem;
+          font-size: 0.94rem;
+          font-weight: 500;
           color: var(--text-secondary);
           text-decoration: none;
           transition: all var(--transition);
@@ -150,6 +152,7 @@ export default function Layout() {
           width: 100%;
           text-align: left;
           font-family: inherit;
+          position: relative;
         }
         .nav-item:hover {
           background: var(--bg-hover);
@@ -158,16 +161,27 @@ export default function Layout() {
         .nav-item.active {
           background: var(--accent-dim);
           color: var(--accent);
+          font-weight: 600;
+        }
+        .nav-item.active::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 6px;
+          bottom: 6px;
+          width: 3px;
+          background: var(--accent);
+          border-radius: 0 2px 2px 0;
         }
         .nav-item--parent {
-          font-weight: 500;
+          font-weight: 600;
         }
         .nav-item--child {
           padding-left: 44px;
-          font-size: 0.82rem;
+          font-size: 0.88rem;
         }
         .nav-icon {
-          font-size: 0.85rem;
+          font-size: 0.95rem;
           width: 20px;
           text-align: center;
           flex-shrink: 0;

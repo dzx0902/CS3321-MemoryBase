@@ -21,10 +21,13 @@ export default function Dashboard() {
           conflicts: overview.conflict_count || 0,
           entities: overview.entity_count || 0,
           scenes: overview.scene_count || 0,
+          recalls: overview.recall_count || 0,
+          audits: overview.audit_count || 0,
+          forgetRequests: overview.forget_request_count || 0,
           latestActivityAt: overview.latest_activity_at,
         });
       } catch {
-        setStats({ sources: '—', chunks: '—', memories: '—', activeMemories: '—', wikiPages: '—', policies: '—', conflicts: '—', entities: '—', scenes: '—' });
+        setStats({ sources: '—', chunks: '—', memories: '—', activeMemories: '—', wikiPages: '—', policies: '—', conflicts: '—', entities: '—', scenes: '—', recalls: '—', audits: '—', forgetRequests: '—' });
       } finally {
         setLoading(false);
       }
@@ -47,8 +50,11 @@ export default function Dashboard() {
     { label: 'Active Memories', value: stats?.activeMemories, to: '/memories' },
     { label: 'Chunks', value: stats?.chunks, to: '/sources' },
     { label: 'Wiki Pages', value: stats?.wikiPages, to: '/wiki' },
+    { label: 'Recalls', value: stats?.recalls, to: '/recall' },
     { label: 'Policies', value: stats?.policies, to: '/governance/policies' },
     { label: 'Conflicts', value: stats?.conflicts, to: '/governance/conflicts' },
+    { label: 'Audit Events', value: stats?.audits, to: '/governance/audit' },
+    { label: 'Forget Requests', value: stats?.forgetRequests, to: '/governance/forget-requests' },
     { label: 'Entities', value: stats?.entities, to: '/memories' },
     { label: 'Scenes', value: stats?.scenes, to: '/wiki' },
   ];

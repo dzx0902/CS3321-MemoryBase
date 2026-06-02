@@ -141,6 +141,11 @@ export default function Recall() {
           <div className="card__header">
             <h3 className="card__title">Context Pack</h3>
             <span className="badge badge--info">{contextPack.token_count} tokens</span>
+            {contextPack.recall_id && (
+              <span className="text-mono text-muted" style={{ marginLeft: 8, fontSize: '0.72rem' }}>
+                {contextPack.recall_id}
+              </span>
+            )}
           </div>
           <pre className="markdown-body" style={{ whiteSpace: 'pre-wrap', fontSize: '0.86rem', maxHeight: 520, overflowY: 'auto' }}>
             {contextPack.markdown}
@@ -153,6 +158,11 @@ export default function Recall() {
           <div className="section-header" style={{ marginTop: 8 }}>
             <h3 style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
               {results.memories?.length || 0} results found
+              {results.recall_id && (
+                <span className="text-mono text-muted" style={{ marginLeft: 12, fontSize: '0.75rem' }}>
+                  recall_id: {results.recall_id}
+                </span>
+              )}
             </h3>
           </div>
 
@@ -187,7 +197,7 @@ export default function Recall() {
                       </div>
                       {m.evidence.map((ev, j) => (
                         <div key={j} style={{
-                          padding: '8px 12px', background: 'var(--bg-secondary)',
+                          padding: '8px 12px', background: 'var(--bg-elevated)',
                           borderRadius: 'var(--radius-sm)', marginBottom: 4, fontSize: '0.82rem',
                           border: '1px solid var(--border)',
                         }}>
