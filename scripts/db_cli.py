@@ -22,6 +22,9 @@ INIT_SQL_FILES = [
 SEED_SQL_FILES = [
     DATABASE_DIR / "07_seed.sql",
 ]
+GOVERNANCE_FIXTURE_SQL_FILES = [
+    DATABASE_DIR / "10_governance_demo_fixture.sql",
+]
 DEMO_QUERY_SQL_FILES = [
     DATABASE_DIR / "08_demo_queries.sql",
 ]
@@ -127,6 +130,8 @@ def run_seed(psql_path: str, database_url: str) -> None:
     for sql_file in existing_seed_files():
         run_sql_file(psql_path, database_url, sql_file)
     run_search_backfill(database_url)
+    for sql_file in existing_governance_fixture_files():
+        run_sql_file(psql_path, database_url, sql_file)
     for sql_file in existing_demo_query_files():
         run_sql_file(psql_path, database_url, sql_file)
     print("Database seed and demo query scripts completed.")
@@ -185,6 +190,10 @@ def run_single_sql_file(psql_path: str, database_url: str, sql_file_arg: str | N
 
 def existing_seed_files() -> list[Path]:
     return [path for path in SEED_SQL_FILES if path.exists()]
+
+
+def existing_governance_fixture_files() -> list[Path]:
+    return [path for path in GOVERNANCE_FIXTURE_SQL_FILES if path.exists()]
 
 
 def existing_demo_query_files() -> list[Path]:
