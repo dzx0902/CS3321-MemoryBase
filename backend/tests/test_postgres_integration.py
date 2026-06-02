@@ -4,7 +4,6 @@ from pathlib import Path
 
 import psycopg
 import pytest
-
 from scripts.backfill_search_terms import backfill_search_terms
 
 WORKSPACE_ID = "00000000-0000-0000-0000-000000000201"
