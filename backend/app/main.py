@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from .api.agents import router as agents_router
+from .api.deps import get_graph_service
 from .api.governance import router as governance_router
 from .api.graph import router as graph_router
 from .api.health import router as health_router
@@ -34,6 +35,11 @@ def create_app() -> FastAPI:
     app.include_router(governance_router, prefix="/api")
     app.include_router(agents_router, prefix="/api")
     app.include_router(graph_router, prefix="/api")
+
+    @app.on_event("shutdown")
+    def close_graph_resources() -> None:
+        get_graph_service().close()
+
     return app
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from uuid import UUID
 
 import psycopg
 import pytest
@@ -1771,3 +1772,151 @@ def test_memory_recall_statistics_view_aggregates_logged_results(
     assert row is not None
     assert row[0] >= 2
     assert row[1] is not None
+
+
+def test_graph_workspace_filters_private_memory_by_agent_visibility(
+    integration_client, integration_db: str
+) -> None:
+    hidden_response = integration_client.get(
+        "/api/graph/workspace",
+        params={"workspace_id": WORKSPACE_ID, "limit": 30},
+    )
+    assert hidden_response.status_code == 200
+    hidden_payload = hidden_response.json()
+    hidden_node_ids = {node["id"] for node in hidden_payload["nodes"]}
+    assert f"memory:{PRIVATE_MEMORY_ID}" not in hidden_node_ids
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO agent (
+                    agent_id, workspace_id, name, agent_type, status, owner_user_id
+                )
+                VALUES (
+                    '00000000-0000-0000-0000-000000000302',
+                    %(workspace_id)s,
+                    'graph-viewer',
+                    'retriever',
+                    'active',
+                    '00000000-0000-0000-0000-000000000104'
+                )
+                ON CONFLICT (agent_id) DO NOTHING
+                """,
+                {"workspace_id": WORKSPACE_ID},
+            )
+        conn.commit()
+
+    still_hidden = integration_client.get(
+        "/api/graph/workspace",
+        params={
+            "workspace_id": WORKSPACE_ID,
+            "agent_id": "00000000-0000-0000-0000-000000000302",
+            "limit": 30,
+        },
+    )
+    assert still_hidden.status_code == 200
+    still_hidden_ids = {node["id"] for node in still_hidden.json()["nodes"]}
+    assert f"memory:{PRIVATE_MEMORY_ID}" not in still_hidden_ids
+
+    policy_response = integration_client.post(
+        "/api/policies",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "principal_type": "agent",
+            "principal_id": "00000000-0000-0000-0000-000000000302",
+            "resource_type": "memory_item",
+            "resource_scope": "private",
+            "effect": "allow",
+            "predicate_json": {"reason": "graph visibility test"},
+        },
+    )
+    assert policy_response.status_code == 201
+
+    visible_response = integration_client.get(
+        "/api/graph/workspace",
+        params={
+            "workspace_id": WORKSPACE_ID,
+            "agent_id": "00000000-0000-0000-0000-000000000302",
+            "limit": 30,
+        },
+    )
+    assert visible_response.status_code == 200
+    visible_payload = visible_response.json()
+    visible_node_ids = {node["id"] for node in visible_payload["nodes"]}
+    assert f"memory:{PRIVATE_MEMORY_ID}" in visible_node_ids
+    assert any(
+        edge["source"] == f"memory:{PRIVATE_MEMORY_ID}"
+        or edge["target"] == f"memory:{PRIVATE_MEMORY_ID}"
+        for edge in visible_payload["edges"]
+    )
+
+
+def test_graph_sync_records_audit_attribution(
+    integration_client, integration_db: str, monkeypatch
+) -> None:
+    from app.api import deps as deps_module
+    from app.services.graph_service import Neo4jGraphStore
+
+    original_sync = Neo4jGraphStore.sync
+    original_health = Neo4jGraphStore.health
+
+    def fake_health(self):
+        from app.models.graph import GraphHealthResponse
+
+        return GraphHealthResponse(
+            enabled=True,
+            available=True,
+            uri=self.settings.neo4j_uri,
+            database=self.settings.neo4j_database,
+        )
+
+    def fake_sync(self, graph):
+        from app.models.graph import GraphSyncResponse
+
+        return GraphSyncResponse(
+            workspace_id=graph.workspace_id,
+            status="synced",
+            node_count=len(graph.nodes),
+            edge_count=len(graph.edges),
+        )
+
+    monkeypatch.setattr(Neo4jGraphStore, "health", fake_health)
+    monkeypatch.setattr(Neo4jGraphStore, "sync", fake_sync)
+    deps_module.get_graph_service.cache_clear()
+
+    try:
+        response = integration_client.post(
+            "/api/graph/workspace/sync",
+            params={
+                "workspace_id": WORKSPACE_ID,
+                "agent_id": AGENT_ID,
+                "limit": 25,
+            },
+        )
+        assert response.status_code == 200
+
+        with psycopg.connect(integration_db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT actor_type, actor_id, action_type, target_type, target_id
+                    FROM audit_log
+                    WHERE workspace_id = %(workspace_id)s
+                      AND action_type = 'graph.sync'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    {"workspace_id": WORKSPACE_ID},
+                )
+                row = cur.fetchone()
+        assert row is not None
+        assert row[0] == "agent"
+        assert row[1] == UUID(AGENT_ID)
+        assert row[2] == "graph.sync"
+        assert row[3] == "workspace"
+        assert row[4] == UUID(WORKSPACE_ID)
+    finally:
+        monkeypatch.setattr(Neo4jGraphStore, "health", original_health)
+        monkeypatch.setattr(Neo4jGraphStore, "sync", original_sync)
+        deps_module.get_graph_service.cache_clear()

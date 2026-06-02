@@ -19,6 +19,7 @@ def get_graph_health(service: GraphService = Depends(get_graph_service)) -> Grap
 @router.get("/workspace", response_model=GraphResponse)
 def get_workspace_graph(
     workspace_id: UUID = Query(...),
+    agent_id: UUID | None = Query(default=None),
     limit: int = Query(default=30, ge=1, le=100),
     fallback: bool = Query(default=True),
     service: GraphService = Depends(get_graph_service),
@@ -26,6 +27,7 @@ def get_workspace_graph(
     try:
         return service.load_workspace_graph(
             workspace_id=workspace_id,
+            agent_id=agent_id,
             limit=limit,
             fallback=fallback,
         )
@@ -48,11 +50,16 @@ def preview_workspace_graph(
 @router.post("/workspace/sync", response_model=GraphSyncResponse)
 def sync_workspace_graph(
     workspace_id: UUID = Query(...),
+    agent_id: UUID | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     service: GraphService = Depends(get_graph_service),
 ) -> GraphSyncResponse:
     try:
-        return service.sync_workspace(workspace_id=workspace_id, limit=limit)
+        return service.sync_workspace(
+            workspace_id=workspace_id,
+            agent_id=agent_id,
+            limit=limit,
+        )
     except GraphUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Protocol
@@ -8,6 +10,7 @@ from uuid import UUID
 from ..core.config import Settings
 from ..core.database import Database
 from ..models.graph import (
+    GraphActorContext,
     GraphEdge,
     GraphHealthResponse,
     GraphNode,
@@ -27,6 +30,25 @@ class GraphUnavailableError(Exception):
 
 class GraphRepository(Protocol):
     def build_workspace_graph(self, workspace_id: UUID, limit: int) -> GraphResponse:
+        ...
+
+
+class GraphVisibilityRepository(Protocol):
+    def list_visible_memory_ids(
+        self,
+        workspace_id: UUID,
+        agent_id: UUID | None,
+    ) -> set[str]:
+        ...
+
+    def insert_graph_sync_audit(
+        self,
+        *,
+        workspace_id: UUID,
+        actor: GraphActorContext,
+        node_count: int,
+        edge_count: int,
+    ) -> None:
         ...
 
 
@@ -117,13 +139,12 @@ class PostgresGraphRepository:
                 )
                 for row in cur.fetchall():
                     node_id = f"chunk:{row['chunk_id']}"
-                    title = f"Chunk {row['chunk_no']}"
                     add_node(
                         _node(
                             node_id,
                             "chunk",
                             "Chunk",
-                            title,
+                            f"Chunk {row['chunk_no']}",
                             _excerpt(row["chunk_text"]),
                             row,
                         )
@@ -345,9 +366,96 @@ class PostgresGraphRepository:
         )
 
 
+class PostgresGraphVisibilityRepository:
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def list_visible_memory_ids(
+        self,
+        workspace_id: UUID,
+        agent_id: UUID | None,
+    ) -> set[str]:
+        with self.db.connection() as conn:
+            with conn.cursor() as cur:
+                if agent_id is None:
+                    cur.execute(
+                        """
+                        SELECT memory_id
+                        FROM memory_item
+                        WHERE workspace_id = %(workspace_id)s
+                          AND status = 'active'
+                          AND access_level IN ('public', 'project')
+                          AND valid_from <= now()
+                          AND (valid_to IS NULL OR valid_to > now())
+                        """,
+                        {"workspace_id": workspace_id},
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT memory_id
+                        FROM v_agent_visible_memory
+                        WHERE workspace_id = %(workspace_id)s
+                          AND agent_id = %(agent_id)s
+                        """,
+                        {"workspace_id": workspace_id, "agent_id": agent_id},
+                    )
+                return {str(row["memory_id"]) for row in cur.fetchall()}
+
+    def insert_graph_sync_audit(
+        self,
+        *,
+        workspace_id: UUID,
+        actor: GraphActorContext,
+        node_count: int,
+        edge_count: int,
+    ) -> None:
+        with self.db.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO audit_log (
+                        workspace_id,
+                        actor_type,
+                        actor_id,
+                        action_type,
+                        target_type,
+                        target_id,
+                        after_json
+                    )
+                    VALUES (
+                        %(workspace_id)s,
+                        %(actor_type)s,
+                        %(actor_id)s,
+                        'graph.sync',
+                        'workspace',
+                        %(workspace_id)s,
+                        %(after_json)s::jsonb
+                    )
+                    """,
+                    {
+                        "workspace_id": workspace_id,
+                        "actor_type": actor.actor_type,
+                        "actor_id": actor.actor_id,
+                        "after_json": json.dumps(
+                            {
+                                "workspace_id": str(workspace_id),
+                                "node_count": node_count,
+                                "edge_count": edge_count,
+                                "actor_type": actor.actor_type,
+                                "actor_id": str(actor.actor_id) if actor.actor_id else None,
+                                "revision_reason": actor.revision_reason,
+                            }
+                        ),
+                    },
+                )
+            conn.commit()
+
+
 class Neo4jGraphStore:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self._driver_instance = None
 
     def health(self) -> GraphHealthResponse:
         if not self.settings.neo4j_enabled:
@@ -367,9 +475,8 @@ class Neo4jGraphStore:
                 error="neo4j Python package is not installed",
             )
         try:
-            driver = self._driver()
-            with driver:
-                driver.verify_connectivity()
+            driver = self._get_driver()
+            driver.verify_connectivity()
             return GraphHealthResponse(
                 enabled=True,
                 available=True,
@@ -387,49 +494,61 @@ class Neo4jGraphStore:
 
     def sync(self, graph: GraphResponse) -> GraphSyncResponse:
         self._ensure_available()
-        driver = self._driver()
+        driver = self._get_driver()
         workspace_id = str(graph.workspace_id)
-        with driver:
-            with driver.session(database=self.settings.neo4j_database) as session:
+        edge_groups = _group_edges_by_relation_type(graph.edges)
+
+        with driver.session(database=self.settings.neo4j_database) as session:
+            session.run(
+                "MATCH (n:MemoryBaseNode {workspace_id: $workspace_id}) DETACH DELETE n",
+                workspace_id=workspace_id,
+            )
+            session.run(
+                """
+                UNWIND $nodes AS node
+                MERGE (n:MemoryBaseNode {id: node.id})
+                SET n.workspace_id = $workspace_id,
+                    n.type = node.type,
+                    n.label = node.label,
+                    n.title = node.title,
+                    n.subtitle = node.subtitle,
+                    n.properties_json = node.properties_json
+                """,
+                workspace_id=workspace_id,
+                nodes=[
+                    {
+                        "id": node.id,
+                        "type": node.type,
+                        "label": node.label,
+                        "title": node.title,
+                        "subtitle": node.subtitle,
+                        "properties_json": _jsonish(node.properties),
+                    }
+                    for node in graph.nodes
+                ],
+            )
+            for relation_type, edges in edge_groups.items():
                 session.run(
-                    "MATCH (n:MemoryBaseNode {workspace_id: $workspace_id}) DETACH DELETE n",
-                    workspace_id=workspace_id,
+                    f"""
+                    UNWIND $edges AS edge
+                    MATCH (a:MemoryBaseNode {{id: edge.source}})
+                    MATCH (b:MemoryBaseNode {{id: edge.target}})
+                    MERGE (a)-[r:{relation_type} {{id: edge.id}}]->(b)
+                    SET r.label = edge.label,
+                        r.properties_json = edge.properties_json
+                    """,
+                    edges=[
+                        {
+                            "id": edge.id,
+                            "source": edge.source,
+                            "target": edge.target,
+                            "label": edge.label,
+                            "properties_json": _jsonish(edge.properties),
+                        }
+                        for edge in edges
+                    ],
                 )
-                for node in graph.nodes:
-                    session.run(
-                        """
-                        MERGE (n:MemoryBaseNode {id: $id})
-                        SET n.workspace_id = $workspace_id,
-                            n.type = $type,
-                            n.label = $label,
-                            n.title = $title,
-                            n.subtitle = $subtitle,
-                            n.properties_json = $properties_json
-                        """,
-                        id=node.id,
-                        workspace_id=workspace_id,
-                        type=node.type,
-                        label=node.label,
-                        title=node.title,
-                        subtitle=node.subtitle,
-                        properties_json=_jsonish(node.properties),
-                    )
-                for edge in graph.edges:
-                    rel_type = _safe_rel_type(edge.type)
-                    session.run(
-                        f"""
-                        MATCH (a:MemoryBaseNode {{id: $source}})
-                        MATCH (b:MemoryBaseNode {{id: $target}})
-                        MERGE (a)-[r:{rel_type} {{id: $id}}]->(b)
-                        SET r.label = $label,
-                            r.properties_json = $properties_json
-                        """,
-                        id=edge.id,
-                        source=edge.source,
-                        target=edge.target,
-                        label=edge.label,
-                        properties_json=_jsonish(edge.properties),
-                    )
+
         return GraphSyncResponse(
             workspace_id=graph.workspace_id,
             status="synced",
@@ -439,55 +558,70 @@ class Neo4jGraphStore:
 
     def load_workspace_graph(self, workspace_id: UUID, limit: int) -> GraphResponse:
         self._ensure_available()
-        driver = self._driver()
-        with driver:
-            with driver.session(database=self.settings.neo4j_database) as session:
-                node_records = session.run(
-                    """
-                    MATCH (n:MemoryBaseNode {workspace_id: $workspace_id})
-                    RETURN n
-                    LIMIT $limit
-                    """,
-                    workspace_id=str(workspace_id),
-                    limit=limit * 8,
-                )
-                nodes = [_neo4j_node(record["n"]) for record in node_records]
-                node_ids = {node.id for node in nodes}
-                edge_records = session.run(
-                    """
-                    MATCH (a:MemoryBaseNode {workspace_id: $workspace_id})
-                        -[r]->(b:MemoryBaseNode {workspace_id: $workspace_id})
-                    RETURN a.id AS source, b.id AS target, type(r) AS type, r
-                    LIMIT $limit
-                    """,
-                    workspace_id=str(workspace_id),
-                    limit=limit * 12,
-                )
-                edges = [
-                    _neo4j_edge(record["source"], record["target"], record["type"], record["r"])
-                    for record in edge_records
-                    if record["source"] in node_ids and record["target"] in node_ids
-                ]
+        driver = self._get_driver()
+
+        with driver.session(database=self.settings.neo4j_database) as session:
+            node_records = session.run(
+                """
+                MATCH (n:MemoryBaseNode {workspace_id: $workspace_id})
+                RETURN n
+                LIMIT $limit
+                """,
+                workspace_id=str(workspace_id),
+                limit=limit * 8,
+            )
+            nodes = [_neo4j_node(record["n"]) for record in node_records]
+            node_ids = {node.id for node in nodes}
+            edge_records = session.run(
+                """
+                MATCH (a:MemoryBaseNode {workspace_id: $workspace_id})
+                    -[r]->(b:MemoryBaseNode {workspace_id: $workspace_id})
+                RETURN a.id AS source, b.id AS target, type(r) AS type, r
+                LIMIT $limit
+                """,
+                workspace_id=str(workspace_id),
+                limit=limit * 12,
+            )
+            edges = [
+                _neo4j_edge(record["source"], record["target"], record["type"], record["r"])
+                for record in edge_records
+                if record["source"] in node_ids and record["target"] in node_ids
+            ]
+
         return GraphResponse(workspace_id=workspace_id, source="neo4j", nodes=nodes, edges=edges)
+
+    def close(self) -> None:
+        if self._driver_instance is not None:
+            self._driver_instance.close()
+            self._driver_instance = None
 
     def _ensure_available(self) -> None:
         health = self.health()
         if not health.available:
             raise GraphUnavailableError(health.error or "Neo4j is unavailable")
 
-    def _driver(self):
+    def _get_driver(self):
+        if self._driver_instance is not None:
+            return self._driver_instance
         if GraphDatabase is None:
             raise GraphUnavailableError("neo4j Python package is not installed")
-        return GraphDatabase.driver(
+        self._driver_instance = GraphDatabase.driver(
             self.settings.neo4j_uri,
             auth=(self.settings.neo4j_user, self.settings.neo4j_password),
         )
+        return self._driver_instance
 
 
 class GraphService:
-    def __init__(self, repository: GraphRepository, store: Neo4jGraphStore) -> None:
+    def __init__(
+        self,
+        repository: GraphRepository,
+        store: Neo4jGraphStore,
+        visibility_repository: GraphVisibilityRepository,
+    ) -> None:
         self.repository = repository
         self.store = store
+        self.visibility_repository = visibility_repository
 
     def health(self) -> GraphHealthResponse:
         return self.store.health()
@@ -495,19 +629,91 @@ class GraphService:
     def preview_workspace(self, workspace_id: UUID, limit: int) -> GraphResponse:
         return self.repository.build_workspace_graph(workspace_id, limit)
 
-    def sync_workspace(self, workspace_id: UUID, limit: int) -> GraphSyncResponse:
+    def sync_workspace(
+        self,
+        workspace_id: UUID,
+        limit: int,
+        agent_id: UUID | None,
+    ) -> GraphSyncResponse:
         graph = self.repository.build_workspace_graph(workspace_id, limit)
-        return self.store.sync(graph)
+        result = self.store.sync(graph)
+        actor = GraphActorContext(
+            actor_type="agent" if agent_id is not None else "system",
+            actor_id=agent_id,
+            revision_reason="graph sync",
+        )
+        self.visibility_repository.insert_graph_sync_audit(
+            workspace_id=workspace_id,
+            actor=actor,
+            node_count=result.node_count,
+            edge_count=result.edge_count,
+        )
+        return result
 
-    def load_workspace_graph(self, workspace_id: UUID, limit: int, fallback: bool) -> GraphResponse:
+    def load_workspace_graph(
+        self,
+        workspace_id: UUID,
+        limit: int,
+        fallback: bool,
+        agent_id: UUID | None,
+    ) -> GraphResponse:
         try:
             graph = self.store.load_workspace_graph(workspace_id, limit)
             if graph.nodes:
-                return graph
+                return self._filter_graph(graph, workspace_id=workspace_id, agent_id=agent_id)
         except GraphUnavailableError:
             if not fallback:
                 raise
-        return self.repository.build_workspace_graph(workspace_id, limit)
+        graph = self.repository.build_workspace_graph(workspace_id, limit)
+        return self._filter_graph(graph, workspace_id=workspace_id, agent_id=agent_id)
+
+    def close(self) -> None:
+        self.store.close()
+
+    def _filter_graph(
+        self,
+        graph: GraphResponse,
+        *,
+        workspace_id: UUID,
+        agent_id: UUID | None,
+    ) -> GraphResponse:
+        visible_memory_ids = self.visibility_repository.list_visible_memory_ids(
+            workspace_id,
+            agent_id,
+        )
+        allowed_node_ids: set[str] = set()
+        for node in graph.nodes:
+            if node.type != "memory":
+                allowed_node_ids.add(node.id)
+                continue
+            memory_uuid = _memory_uuid_from_node(node.id)
+            if memory_uuid is None:
+                continue
+            if memory_uuid in visible_memory_ids:
+                allowed_node_ids.add(node.id)
+
+        filtered_edges = [
+            edge
+            for edge in graph.edges
+            if edge.source in allowed_node_ids and edge.target in allowed_node_ids
+        ]
+        connected_node_ids = {
+            node_id
+            for edge in filtered_edges
+            for node_id in (edge.source, edge.target)
+        }
+        filtered_nodes = [
+            node
+            for node in graph.nodes
+            if node.id in allowed_node_ids
+            and (node.type == "workspace" or node.id in connected_node_ids)
+        ]
+        return GraphResponse(
+            workspace_id=graph.workspace_id,
+            source=graph.source,
+            nodes=filtered_nodes,
+            edges=filtered_edges,
+        )
 
 
 def _node(
@@ -566,14 +772,25 @@ def _excerpt(value: str | None, max_len: int = 120) -> str:
 
 
 def _jsonish(value: dict[str, Any]) -> str:
-    import json
-
     return json.dumps(value, ensure_ascii=False, default=str)
 
 
 def _safe_rel_type(value: str) -> str:
     cleaned = "".join(ch if ch.isalnum() else "_" for ch in value.upper())
     return cleaned or "RELATED_TO"
+
+
+def _group_edges_by_relation_type(edges: list[GraphEdge]) -> dict[str, list[GraphEdge]]:
+    grouped: dict[str, list[GraphEdge]] = defaultdict(list)
+    for edge in edges:
+        grouped[_safe_rel_type(edge.type)].append(edge)
+    return dict(grouped)
+
+
+def _memory_uuid_from_node(node_id: str) -> str | None:
+    if not node_id.startswith("memory:"):
+        return None
+    return node_id.split(":", 1)[1]
 
 
 def _neo4j_node(raw_node: Any) -> GraphNode:
@@ -607,8 +824,6 @@ def _parse_jsonish(value: Any) -> dict[str, Any]:
         return {}
     if isinstance(value, dict):
         return value
-    import json
-
     try:
         parsed = json.loads(value)
         return parsed if isinstance(parsed, dict) else {"value": parsed}

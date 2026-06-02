@@ -46,3 +46,9 @@ class GraphSyncResponse(BaseModel):
     status: Literal["synced"]
     node_count: int
     edge_count: int
+
+
+class GraphActorContext(BaseModel):
+    actor_type: Literal["agent", "system"] = "system"
+    actor_id: UUID | None = None
+    revision_reason: str = "graph sync"

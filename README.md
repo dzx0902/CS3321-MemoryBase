@@ -54,6 +54,12 @@ npm install
 npm run dev
 ```
 
+如果你只想跑 PostgreSQL，不需要同时启动 Neo4j：
+
+```bash
+docker compose up -d postgres
+```
+
 ## 部署指南
 
 ### 1. 推荐方式：Docker 启动 PostgreSQL
@@ -216,6 +222,14 @@ NEO4J_DATABASE=neo4j
 
 `docker compose up -d` 会同时启动 PostgreSQL 和 Neo4j。Neo4j Browser 默认地址是 `http://localhost:7474`，后端图谱接口在 `/api/graph/*`，前端入口是 `/graph`。
 
+图谱接口语义：
+
+- `GET /api/graph/workspace`：agent-aware 视图，`agent_id` 可选
+- 未传 `agent_id`：返回 human-friendly 视角，只包含 `public/project` memories
+- 传 `agent_id`：按 `v_agent_visible_memory` 过滤，和 recall/search 的 agent 可见性一致
+- `GET /api/graph/workspace/preview`：workspace 级预览图，不做 agent 可见性过滤
+- `POST /api/graph/workspace/sync`：把 PostgreSQL 快照同步到 Neo4j，`agent_id` 仅用于 audit attribution，不改变同步内容
+
 如果希望 Graph Explorer 展示更清晰的分层图谱示例，可以在完成基础 seed 后额外执行：
 
 ```bash
@@ -223,6 +237,8 @@ npm run db:run -- database/09_graph_demo.sql
 ```
 
 然后在 `/graph` 页面点击 `Use Graph Demo`，再点击 `Sync Neo4j`。这个示例专门围绕“选题转向 → 架构决策 → 治理演示”组织，节点更少、层次更清楚。
+
+`Use Graph Demo` 会切到图谱 demo workspace，并填入默认 demo agent；如果你清空 `Agent ID` 再加载图谱，则会回到 human-friendly 的 `public/project` 视角。
 
 常见需要修改的地方：
 

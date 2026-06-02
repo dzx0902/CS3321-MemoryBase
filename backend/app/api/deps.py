@@ -7,7 +7,12 @@ from ..core.database import Database
 from ..services.agent_service import AgentService, PostgresAgentRepository
 from ..services.conversation_service import ConversationService, PostgresConversationRepository
 from ..services.governance_service import GovernanceService, PostgresGovernanceRepository
-from ..services.graph_service import GraphService, Neo4jGraphStore, PostgresGraphRepository
+from ..services.graph_service import (
+    GraphService,
+    Neo4jGraphStore,
+    PostgresGraphRepository,
+    PostgresGraphVisibilityRepository,
+)
 from ..services.memory_service import MemoryService, PostgresMemoryRepository
 from ..services.recall_service import PostgresRecallRepository, RecallService
 from ..services.search_service import PostgresSearchRepository, SearchService
@@ -78,10 +83,16 @@ def get_stats_service() -> StatsService:
     return StatsService(repository=repository)
 
 
+@lru_cache(maxsize=1)
 def get_graph_service() -> GraphService:
     repository = PostgresGraphRepository(get_database())
+    visibility_repository = PostgresGraphVisibilityRepository(get_database())
     store = Neo4jGraphStore(get_settings())
-    return GraphService(repository=repository, store=store)
+    return GraphService(
+        repository=repository,
+        store=store,
+        visibility_repository=visibility_repository,
+    )
 
 
 def get_app_settings() -> Settings:
