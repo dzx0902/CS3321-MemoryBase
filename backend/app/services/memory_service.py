@@ -19,6 +19,14 @@ from ..models.memory import (
 from .chunking import _estimate_token_count
 from .tokenizer import build_search_text
 
+ALLOWED_STATUS_TRANSITIONS = {
+    "candidate": {"active", "rejected"},
+    "active": {"superseded", "archived", "conflicted", "forgotten"},
+    "conflicted": {"active", "superseded", "forgotten"},
+    "archived": {"forgotten"},
+}
+ALLOWED_INITIAL_STATUSES = {"active", "candidate"}
+
 
 class MemoryNotFoundError(Exception):
     pass
@@ -72,6 +80,7 @@ class MemoryService:
     def create_memory(
         self, payload: MemoryCreateRequest, actor: ActorContext | None = None
     ) -> MemorySummaryResponse:
+        _validate_initial_status(payload.status)
         return self.repository.create_memory(payload, actor)
 
     def list_memories(
@@ -159,6 +168,7 @@ class PostgresMemoryRepository:
                         search_text_zh,
                         confidence,
                         importance,
+                        status,
                         access_level,
                         owner_user_id,
                         owner_agent_id
@@ -172,6 +182,7 @@ class PostgresMemoryRepository:
                         %(search_text_zh)s,
                         %(confidence)s,
                         %(importance)s,
+                        %(status)s,
                         %(access_level)s,
                         %(owner_user_id)s,
                         %(owner_agent_id)s
@@ -190,6 +201,7 @@ class PostgresMemoryRepository:
                         ),
                         "confidence": payload.confidence,
                         "importance": payload.importance,
+                        "status": payload.status,
                         "access_level": payload.access_level,
                         "owner_user_id": payload.owner_user_id,
                         "owner_agent_id": payload.owner_agent_id,
@@ -485,6 +497,8 @@ class PostgresMemoryRepository:
 
         canonical_text = payload.canonical_text or existing["canonical_text"]
         summary = payload.summary if payload.summary is not None else existing["summary"]
+        if payload.status is not None:
+            _validate_status_transition(str(existing["status"]), payload.status)
 
         with self._database.connection() as conn:
             with conn.cursor() as cur:
@@ -813,9 +827,7 @@ class PostgresMemoryRepository:
         )
         return cur.fetchall()
 
-    def _get_memory_entities(
-        self, memory_id: UUID, workspace_id: UUID
-    ) -> list[dict[str, object]]:
+    def _get_memory_entities(self, memory_id: UUID, workspace_id: UUID) -> list[dict[str, object]]:
         with self._database.connection() as conn:
             with conn.cursor() as cur:
                 return self._fetch_memory_entities(cur, memory_id, workspace_id)
@@ -841,9 +853,7 @@ class PostgresMemoryRepository:
         )
         return cur.fetchall()
 
-    def _get_memory_scenes(
-        self, memory_id: UUID, workspace_id: UUID
-    ) -> list[dict[str, object]]:
+    def _get_memory_scenes(self, memory_id: UUID, workspace_id: UUID) -> list[dict[str, object]]:
         with self._database.connection() as conn:
             with conn.cursor() as cur:
                 return self._fetch_memory_scenes(cur, memory_id, workspace_id)
@@ -874,3 +884,20 @@ def _json_dumps(payload: dict[str, object]) -> str:
     import json
 
     return json.dumps(payload, default=str)
+
+
+def _validate_status_transition(current_status: str, next_status: str) -> None:
+    if current_status == next_status:
+        return
+    allowed = ALLOWED_STATUS_TRANSITIONS.get(current_status, set())
+    if next_status not in allowed:
+        raise MemoryValidationError(
+            f"illegal memory status transition: {current_status} -> {next_status}"
+        )
+
+
+def _validate_initial_status(status: str) -> None:
+    if status not in ALLOWED_INITIAL_STATUSES:
+        raise MemoryValidationError(
+            f"illegal initial memory status: {status}. Use active or candidate."
+        )

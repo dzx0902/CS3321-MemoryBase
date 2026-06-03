@@ -27,6 +27,23 @@ class Settings(BaseModel):
     neo4j_user: str = os.getenv("NEO4J_USER", "neo4j")
     neo4j_password: str = os.getenv("NEO4J_PASSWORD", "memorybase")
     neo4j_database: str = os.getenv("NEO4J_DATABASE", "neo4j")
+    embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "local")
+    siliconflow_api_key: str = os.getenv("SILICONFLOW_API_KEY", "")
+    siliconflow_base_url: str = os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
+    siliconflow_embedding_model: str = os.getenv(
+        "SILICONFLOW_EMBEDDING_MODEL",
+        "Qwen/Qwen3-Embedding-0.6B",
+    )
+    siliconflow_embedding_dimensions: int = int(
+        os.getenv("SILICONFLOW_EMBEDDING_DIMENSIONS", "1024")
+    )
+    llm_provider: str = os.getenv("LLM_PROVIDER", "")
+    llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.2"))
+    llm_max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "800"))
+    deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
+    deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
+    deepseek_chat_model: str = os.getenv("DEEPSEEK_CHAT_MODEL", "deepseek-chat")
+    siliconflow_chat_model: str = os.getenv("SILICONFLOW_CHAT_MODEL", "")
 
 
 @lru_cache(maxsize=1)

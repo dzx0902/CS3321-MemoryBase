@@ -200,12 +200,16 @@ def test_cli_remember_help_lists_supported_memory_types() -> None:
     for memory_type in (
         "episodic",
         "semantic",
+        "fact",
         "profile",
         "procedural",
         "decision",
         "preference",
         "task",
         "risk",
+        "constraint",
+        "policy",
+        "summary",
     ):
         assert memory_type in result.stdout
 

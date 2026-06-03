@@ -11,14 +11,26 @@ from .common import PageResponse
 MemoryType = Literal[
     "episodic",
     "semantic",
+    "fact",
     "profile",
     "procedural",
     "decision",
     "preference",
     "task",
     "risk",
+    "constraint",
+    "policy",
+    "summary",
 ]
-MemoryStatus = Literal["active", "archived", "forgotten", "superseded", "conflicted"]
+MemoryStatus = Literal[
+    "candidate",
+    "active",
+    "archived",
+    "forgotten",
+    "superseded",
+    "rejected",
+    "conflicted",
+]
 AccessLevel = Literal["public", "project", "team", "private"]
 EvidenceRole = Literal["supports", "refutes", "context", "source"]
 EditorType = Literal["user", "agent", "system"]
@@ -31,6 +43,7 @@ class MemoryCreateRequest(BaseModel):
     summary: str | None = None
     confidence: float = Field(default=0.7, ge=0, le=1)
     importance: int = Field(default=3, ge=1, le=5)
+    status: MemoryStatus = "active"
     access_level: AccessLevel = "project"
     created_from_doc_id: UUID | None = None
     owner_user_id: UUID | None = None

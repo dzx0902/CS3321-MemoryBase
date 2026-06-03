@@ -15,6 +15,7 @@ from ..models.governance import (
     AuditStatisticResponse,
     AuditStatisticsResponse,
     ConflictCreateRequest,
+    ConflictDetectionResponse,
     ConflictListResponse,
     ConflictResponse,
     ConflictUpdateRequest,
@@ -22,6 +23,8 @@ from ..models.governance import (
     ForgetRequestListResponse,
     ForgetRequestResponse,
     ForgetRequestUpdateRequest,
+    ForgetVerificationCheckResponse,
+    ForgetVerificationResponse,
     PolicyCreateRequest,
     PolicyDeleteResponse,
     PolicyListResponse,
@@ -145,6 +148,11 @@ class GovernanceRepository(Protocol):
     def create_conflict(self, payload: ConflictCreateRequest) -> ConflictResponse:
         ...
 
+    def detect_memory_conflicts(
+        self, *, memory_id: UUID, workspace_id: UUID
+    ) -> ConflictDetectionResponse:
+        ...
+
     def update_conflict(
         self, conflict_id: UUID, workspace_id: UUID, payload: ConflictUpdateRequest
     ) -> ConflictResponse | None:
@@ -172,6 +180,11 @@ class GovernanceRepository(Protocol):
     def update_forget_request(
         self, request_id: UUID, workspace_id: UUID, payload: ForgetRequestUpdateRequest
     ) -> ForgetRequestResponse | None:
+        ...
+
+    def verify_forget_request(
+        self, *, request_id: UUID, workspace_id: UUID
+    ) -> ForgetVerificationResponse:
         ...
 
     def list_timeline(
@@ -296,6 +309,14 @@ class GovernanceService:
     def create_conflict(self, payload: ConflictCreateRequest) -> ConflictResponse:
         return self.repository.create_conflict(payload)
 
+    def detect_memory_conflicts(
+        self, *, memory_id: UUID, workspace_id: UUID
+    ) -> ConflictDetectionResponse:
+        return self.repository.detect_memory_conflicts(
+            memory_id=memory_id,
+            workspace_id=workspace_id,
+        )
+
     def update_conflict(
         self, conflict_id: UUID, workspace_id: UUID, payload: ConflictUpdateRequest
     ) -> ConflictResponse:
@@ -341,6 +362,14 @@ class GovernanceService:
         if forget_request is None:
             raise ForgetRequestNotFoundError(f"forget request {request_id} not found")
         return forget_request
+
+    def verify_forget_request(
+        self, *, request_id: UUID, workspace_id: UUID
+    ) -> ForgetVerificationResponse:
+        return self.repository.verify_forget_request(
+            request_id=request_id,
+            workspace_id=workspace_id,
+        )
 
     def list_timeline(
         self, *, workspace_id: UUID | None, page: int, page_size: int
@@ -1010,6 +1039,57 @@ class PostgresGovernanceRepository:
             raise RuntimeError("created conflict cannot be loaded")
         return conflict
 
+    def detect_memory_conflicts(
+        self, *, memory_id: UUID, workspace_id: UUID
+    ) -> ConflictDetectionResponse:
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                target = self._fetch_memory_for_detection(cur, memory_id, workspace_id)
+                if target is None:
+                    raise TargetNotFoundError(f"memory {memory_id} not found")
+                cur.execute(
+                    """
+                    SELECT memory_id, canonical_text
+                    FROM memory_item
+                    WHERE workspace_id = %(workspace_id)s
+                      AND memory_id <> %(memory_id)s
+                      AND status IN ('active', 'candidate')
+                    ORDER BY updated_at DESC
+                    LIMIT 50
+                    """,
+                    {"workspace_id": workspace_id, "memory_id": memory_id},
+                )
+                candidate_rows = cur.fetchall()
+
+        conflicts: list[ConflictResponse] = []
+        for candidate in candidate_rows:
+            conflict_type = _detect_conflict_type(
+                str(target["canonical_text"]),
+                str(candidate["canonical_text"]),
+            )
+            if conflict_type is None:
+                continue
+            try:
+                conflicts.append(
+                    self.create_conflict(
+                        ConflictCreateRequest(
+                            workspace_id=workspace_id,
+                            left_memory_id=memory_id,
+                            right_memory_id=candidate["memory_id"],
+                            conflict_type=conflict_type,
+                            resolution_note=_suggest_conflict_resolution(conflict_type),
+                            actor_type="system",
+                        )
+                    )
+                )
+            except ConflictAlreadyExistsError:
+                continue
+        return ConflictDetectionResponse(
+            memory_id=memory_id,
+            detected_count=len(conflicts),
+            conflicts=conflicts,
+        )
+
     def update_conflict(
         self, conflict_id: UUID, workspace_id: UUID, payload: ConflictUpdateRequest
     ) -> ConflictResponse | None:
@@ -1348,6 +1428,21 @@ class PostgresGovernanceRepository:
                                 "workspace_id": workspace_id,
                             },
                         )
+                        cur.execute(
+                            """
+                            UPDATE wiki_page
+                            SET status = 'forgotten',
+                                forgotten_at = coalesce(forgotten_at, now()),
+                                needs_rebuild = FALSE
+                            WHERE workspace_id = %(workspace_id)s
+                              AND generated_from_memory_id = %(memory_id)s
+                              AND status <> 'forgotten'
+                            """,
+                            {
+                                "memory_id": before_row["target_id"],
+                                "workspace_id": workspace_id,
+                            },
+                        )
                     else:
                         self._soft_forget_governed_target(
                             cur,
@@ -1427,6 +1522,62 @@ class PostgresGovernanceRepository:
                 )
             conn.commit()
         return ForgetRequestResponse(**after_row)
+
+    def verify_forget_request(
+        self, *, request_id: UUID, workspace_id: UUID
+    ) -> ForgetVerificationResponse:
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT *
+                    FROM forget_request
+                    WHERE request_id = %(request_id)s
+                      AND workspace_id = %(workspace_id)s
+                    """,
+                    {"request_id": request_id, "workspace_id": workspace_id},
+                )
+                request_row = cur.fetchone()
+                if request_row is None:
+                    raise ForgetRequestNotFoundError(f"forget request {request_id} not found")
+
+                checks = self._build_forget_verification_checks(cur, request_row)
+                report = ForgetVerificationResponse(
+                    request_id=request_row["request_id"],
+                    workspace_id=request_row["workspace_id"],
+                    target_type=request_row["target_type"],
+                    target_id=request_row["target_id"],
+                    status=request_row["status"],
+                    passed=all(check.passed for check in checks),
+                    checks=checks,
+                )
+                cur.execute(
+                    """
+                    INSERT INTO audit_log (
+                        workspace_id,
+                        actor_type,
+                        action_type,
+                        target_type,
+                        target_id,
+                        after_json
+                    )
+                    VALUES (
+                        %(workspace_id)s,
+                        'system',
+                        'forget_request.verify',
+                        'forget_request',
+                        %(request_id)s,
+                        %(after_json)s::jsonb
+                    )
+                    """,
+                    {
+                        "workspace_id": workspace_id,
+                        "request_id": request_id,
+                        "after_json": report.model_dump_json(),
+                    },
+                )
+            conn.commit()
+        return report
 
     def list_timeline(
         self, *, workspace_id: UUID | None, page: int, page_size: int
@@ -1602,6 +1753,20 @@ class PostgresGovernanceRepository:
         if cur.fetchone() is None:
             raise TargetNotFoundError(f"memory_item {memory_id} not found")
 
+    def _fetch_memory_for_detection(
+        self, cur, memory_id: UUID, workspace_id: UUID
+    ) -> dict[str, object] | None:
+        cur.execute(
+            """
+            SELECT memory_id, canonical_text
+            FROM memory_item
+            WHERE memory_id = %(memory_id)s
+              AND workspace_id = %(workspace_id)s
+            """,
+            {"memory_id": memory_id, "workspace_id": workspace_id},
+        )
+        return cur.fetchone()
+
     def _soft_forget_governed_target(
         self,
         cur,
@@ -1686,6 +1851,118 @@ class PostgresGovernanceRepository:
                 "after_json": _json_dumps(after_row),
             },
         )
+
+    def _build_forget_verification_checks(
+        self, cur, request_row: dict[str, object]
+    ) -> list[ForgetVerificationCheckResponse]:
+        workspace_id = request_row["workspace_id"]
+        target_type = str(request_row["target_type"])
+        target_id = request_row["target_id"]
+        status_row = self._fetch_forget_target_status(cur, target_type, target_id, workspace_id)
+        checks = [
+            ForgetVerificationCheckResponse(
+                name="target_soft_deleted",
+                passed=status_row is not None and status_row["status"] == "forgotten",
+                details={
+                    "target_status": status_row["status"] if status_row is not None else None,
+                },
+            )
+        ]
+
+        if target_type == "memory_item":
+            cur.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM memory_item
+                WHERE workspace_id = %(workspace_id)s
+                  AND memory_id = %(target_id)s
+                  AND status = 'active'
+                """,
+                {"workspace_id": workspace_id, "target_id": target_id},
+            )
+            active_memory_count = cur.fetchone()["total"]
+            checks.append(
+                ForgetVerificationCheckResponse(
+                    name="retrieval_exclusion",
+                    passed=active_memory_count == 0,
+                    details={"active_memory_count": active_memory_count},
+                )
+            )
+
+            cur.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM wiki_page
+                WHERE workspace_id = %(workspace_id)s
+                  AND generated_from_memory_id = %(target_id)s
+                  AND status = 'active'
+                """,
+                {"workspace_id": workspace_id, "target_id": target_id},
+            )
+            active_wiki_count = cur.fetchone()["total"]
+            checks.append(
+                ForgetVerificationCheckResponse(
+                    name="wiki_export_exclusion",
+                    passed=active_wiki_count == 0,
+                    details={"active_generated_wiki_count": active_wiki_count},
+                )
+            )
+
+        action_type = "memory.forget" if target_type == "memory_item" else f"{target_type}.forget"
+        cur.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM audit_log
+            WHERE workspace_id = %(workspace_id)s
+              AND (
+                (target_type = 'forget_request'
+                  AND target_id = %(request_id)s
+                  AND action_type = 'forget_request.update')
+                OR (target_type = %(target_type)s
+                  AND target_id = %(target_id)s
+                  AND action_type = %(action_type)s)
+              )
+            """,
+            {
+                "workspace_id": workspace_id,
+                "request_id": request_row["request_id"],
+                "target_type": target_type,
+                "target_id": target_id,
+                "action_type": action_type,
+            },
+        )
+        audit_count = cur.fetchone()["total"]
+        checks.append(
+            ForgetVerificationCheckResponse(
+                name="audit_coverage",
+                passed=audit_count >= 2,
+                details={"audit_event_count": audit_count},
+            )
+        )
+        return checks
+
+    def _fetch_forget_target_status(
+        self, cur, target_type: str, target_id: UUID, workspace_id: UUID
+    ) -> dict[str, object] | None:
+        target_columns = {
+            "memory_item": ("memory_item", "memory_id"),
+            "source_document": ("source_document", "doc_id"),
+            "wiki_page": ("wiki_page", "page_id"),
+            "entity": ("entity", "entity_id"),
+        }
+        if target_type not in target_columns:
+            raise UnsupportedForgetTargetError(f"unsupported forget target type: {target_type}")
+        table_name, id_column = target_columns[target_type]
+        cur.execute(
+            f"""
+            SELECT status
+            FROM {table_name}
+            WHERE {id_column} = %(target_id)s
+              AND workspace_id = %(workspace_id)s
+            """,
+            {"target_id": target_id, "workspace_id": workspace_id},
+        )
+        return cur.fetchone()
 
     def _set_actor_context(
         self,
@@ -1782,6 +2059,47 @@ def _normalize_memory_pair(left_memory_id: UUID, right_memory_id: UUID) -> tuple
     if left_memory_id.int < right_memory_id.int:
         return left_memory_id, right_memory_id
     return right_memory_id, left_memory_id
+
+
+def _detect_conflict_type(left_text: str, right_text: str) -> str | None:
+    left_normalized = _normalize_detection_text(left_text)
+    right_normalized = _normalize_detection_text(right_text)
+    if left_normalized == right_normalized:
+        return "duplicate"
+    overlap = _token_overlap(left_normalized, right_normalized)
+    if overlap < 0.45:
+        return None
+    temporal_terms = ("moved", "changed", "now", "instead", "改为", "现在", "搬到", "不再")
+    if any(term in left_normalized or term in right_normalized for term in temporal_terms):
+        return "supersession"
+    contradiction_terms = ("not ", "no longer", "不是", "不再", "取消")
+    if any(term in left_normalized or term in right_normalized for term in contradiction_terms):
+        return "contradiction"
+    return "semantic"
+
+
+def _suggest_conflict_resolution(conflict_type: str) -> str:
+    if conflict_type == "duplicate":
+        return "Suggested action: keep the higher-confidence memory and archive the duplicate."
+    if conflict_type == "supersession":
+        return (
+            "Suggested action: mark the older memory as superseded and keep the newer one active."
+        )
+    if conflict_type == "contradiction":
+        return "Suggested action: review evidence and resolve the contradictory memories."
+    return "Suggested action: review semantic overlap before activating both memories."
+
+
+def _normalize_detection_text(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _token_overlap(left_text: str, right_text: str) -> float:
+    left_tokens = set(left_text.split())
+    right_tokens = set(right_text.split())
+    if not left_tokens or not right_tokens:
+        return 0.0
+    return len(left_tokens & right_tokens) / min(len(left_tokens), len(right_tokens))
 
 
 def _json_diff(

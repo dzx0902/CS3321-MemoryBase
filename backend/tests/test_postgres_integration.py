@@ -567,6 +567,230 @@ def test_memory_create_accepts_evidence_objects(integration_client, integration_
     assert evidence["note"] == "Custom evidence metadata."
 
 
+def test_candidate_memory_requires_approval_before_default_retrieval(
+    integration_client,
+    integration_db: str,
+) -> None:
+    response = integration_client.post(
+        "/api/memories",
+        headers={"X-Revision-Reason": "candidate extraction"},
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "created_from_doc_id": SOURCE_DOC_ID,
+            "memory_type": "fact",
+            "canonical_text": "Lifecycle candidate marker should stay hidden until approval.",
+            "summary": "Candidate lifecycle marker",
+            "confidence": 0.72,
+            "importance": 3,
+            "status": "candidate",
+            "access_level": "project",
+            "evidence": [
+                {
+                    "chunk_id": "00000000-0000-0000-0000-000000000602",
+                    "evidence_role": "supports",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 201
+    memory_id = response.json()["memory_id"]
+    assert response.json()["status"] == "candidate"
+
+    default_list = integration_client.get(
+        "/api/memories",
+        params={"workspace_id": WORKSPACE_ID, "keyword": "Lifecycle candidate marker"},
+    )
+    assert default_list.status_code == 200
+    assert all(item["memory_id"] != memory_id for item in default_list.json()["items"])
+
+    candidate_list = integration_client.get(
+        "/api/memories",
+        params={
+            "workspace_id": WORKSPACE_ID,
+            "keyword": "Lifecycle candidate marker",
+            "status": "candidate",
+        },
+    )
+    assert candidate_list.status_code == 200
+    assert any(item["memory_id"] == memory_id for item in candidate_list.json()["items"])
+
+    hidden_recall = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "Lifecycle candidate marker",
+            "limit": 5,
+        },
+    )
+    assert hidden_recall.status_code == 200
+    assert all(item["memory_id"] != memory_id for item in hidden_recall.json()["memories"])
+
+    approve = integration_client.patch(
+        f"/api/memories/{memory_id}",
+        params={"workspace_id": WORKSPACE_ID},
+        headers={"X-Revision-Reason": "approve candidate memory"},
+        json={"status": "active"},
+    )
+    assert approve.status_code == 200
+    assert approve.json()["status"] == "active"
+    assert approve.json()["current_revision_no"] == 2
+
+    visible_recall = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "Lifecycle candidate marker",
+            "limit": 5,
+        },
+    )
+    assert visible_recall.status_code == 200
+    assert any(item["memory_id"] == memory_id for item in visible_recall.json()["memories"])
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT revision_reason
+                FROM memory_revision
+                WHERE memory_id = %(memory_id)s
+                ORDER BY revision_no
+                """,
+                {"memory_id": memory_id},
+            )
+            revision_reasons = [row[0] for row in cur.fetchall()]
+            cur.execute(
+                """
+                SELECT action_type
+                FROM audit_log
+                WHERE target_type = 'memory_item'
+                  AND target_id = %(memory_id)s
+                ORDER BY created_at
+                """,
+                {"memory_id": memory_id},
+            )
+            audit_actions = [row[0] for row in cur.fetchall()]
+
+    assert revision_reasons == ["candidate extraction", "approve candidate memory"]
+    assert "memory.insert" in audit_actions
+    assert "memory.update" in audit_actions
+
+
+def test_memory_extraction_from_chunks_creates_approvable_candidate(
+    integration_client,
+    integration_db: str,
+) -> None:
+    response = integration_client.post(
+        "/api/memory-extraction/from-chunks",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "chunk_ids": ["00000000-0000-0000-0000-000000000602"],
+            "max_candidates": 1,
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["created_count"] == 1
+    candidate = payload["candidates"][0]
+    assert candidate["status"] == "candidate"
+    assert candidate["memory_type"] in {
+        "fact",
+        "decision",
+        "constraint",
+        "policy",
+        "risk",
+        "task",
+        "preference",
+    }
+
+    default_recall = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": candidate["canonical_text"],
+            "limit": 5,
+        },
+    )
+    assert default_recall.status_code == 200
+    assert all(
+        item["memory_id"] != candidate["memory_id"] for item in default_recall.json()["memories"]
+    )
+
+    candidate_list = integration_client.get(
+        "/api/memory-candidates",
+        params={"workspace_id": WORKSPACE_ID, "keyword": candidate["summary"]},
+    )
+    assert candidate_list.status_code == 200
+    assert any(
+        item["memory_id"] == candidate["memory_id"] for item in candidate_list.json()["items"]
+    )
+
+    approve = integration_client.post(
+        f"/api/memory-candidates/{candidate['memory_id']}/approve",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert approve.status_code == 200
+    assert approve.json()["memory"]["status"] == "active"
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT action_type, after_json
+                FROM audit_log
+                WHERE workspace_id = %(workspace_id)s
+                  AND action_type IN (
+                    'memory_extraction.run.start',
+                    'memory_extraction.run.complete'
+                  )
+                ORDER BY created_at DESC
+                LIMIT 2
+                """,
+                {"workspace_id": WORKSPACE_ID},
+            )
+            rows = cur.fetchall()
+
+    assert len(rows) == 2
+    events = {row[0]: row[1] for row in rows}
+    assert "memory_extraction.run.start" in events
+    assert "memory_extraction.run.complete" in events
+    start_payload = events["memory_extraction.run.start"]
+    complete_payload = events["memory_extraction.run.complete"]
+    assert start_payload["run_id"] == complete_payload["run_id"]
+    assert start_payload["method"] == "rule-based"
+    assert start_payload["requested_chunk_ids"] == ["00000000-0000-0000-0000-000000000602"]
+    assert complete_payload["candidate_count"] == 1
+    assert candidate["memory_id"] in complete_payload["candidate_memory_ids"]
+
+    visible_recall = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": candidate["canonical_text"],
+            "limit": 5,
+        },
+    )
+    assert visible_recall.status_code == 200
+    assert any(
+        item["memory_id"] == candidate["memory_id"] for item in visible_recall.json()["memories"]
+    )
+
+
+def test_memory_update_rejects_illegal_status_transition(
+    integration_client,
+    integration_db: str,
+) -> None:
+    response = integration_client.patch(
+        f"/api/memories/{MEMORY_ID}",
+        params={"workspace_id": WORKSPACE_ID},
+        json={"status": "candidate"},
+    )
+
+    assert response.status_code == 400
+    assert "illegal memory status transition: active -> candidate" in response.json()["detail"]
+
+
 def test_agent_memory_create_without_evidence_creates_inline_source_and_audit(
     integration_client,
     integration_db: str,
@@ -893,6 +1117,90 @@ def test_recall_without_agent_id_does_not_return_private_memory(
     assert response.json()["result_count"] == 0
 
 
+def test_recall_retrieval_mode_controls_keyword_and_vector_routes(
+    integration_client,
+    integration_db: str,
+) -> None:
+    backfill = integration_client.post(
+        "/api/embeddings/backfill",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "target": "memories",
+            "provider": "local",
+            "model": "hashing-v1",
+            "dimension": 128,
+            "limit": 50,
+        },
+    )
+    assert backfill.status_code == 200
+    assert backfill.json()["memory_count"] > 0
+
+    keyword_response = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "cafeteria",
+            "retrieval_mode": "keyword",
+            "limit": 5,
+        },
+    )
+    assert keyword_response.status_code == 200
+    keyword_payload = keyword_response.json()
+    assert keyword_payload["context_pack"]["filters"]["retrieval_mode"] == "keyword"
+    assert keyword_payload["result_count"] > 0
+    assert all(item["vector_score"] == 0 for item in keyword_payload["memories"])
+
+    vector_response = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "cafeteria",
+            "retrieval_mode": "vector",
+            "limit": 5,
+        },
+    )
+    assert vector_response.status_code == 200
+    vector_payload = vector_response.json()
+    assert vector_payload["context_pack"]["filters"]["retrieval_mode"] == "vector"
+    assert vector_payload["result_count"] > 0
+    assert any(item["vector_score"] > 0 for item in vector_payload["memories"])
+    assert all(item["keyword_score"] == 0 for item in vector_payload["memories"])
+
+
+def test_recall_vector_mode_can_use_source_chunk_embeddings(
+    integration_client,
+    integration_db: str,
+) -> None:
+    backfill = integration_client.post(
+        "/api/embeddings/backfill",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "target": "chunks",
+            "provider": "local",
+            "model": "hashing-v1",
+            "dimension": 128,
+            "limit": 50,
+        },
+    )
+    assert backfill.status_code == 200
+    assert backfill.json()["chunk_count"] > 0
+
+    response = integration_client.post(
+        "/api/recall",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "query_text": "cafeteria",
+            "retrieval_mode": "vector",
+            "limit": 5,
+        },
+    )
+
+    assert response.status_code == 200
+    memories = response.json()["memories"]
+    assert memories
+    assert any("via source chunk" in item["rank_reason"] for item in memories)
+
+
 def test_recall_as_of_filters_validity_and_records_filter_json(
     integration_client, integration_db: str
 ) -> None:
@@ -1039,6 +1347,56 @@ def test_conflict_create_marks_memory_conflicted_and_resolve_restores_active(
             restored = {str(row[0]): row[1] for row in cur.fetchall()}
 
     assert set(restored.values()) == {"active"}
+
+
+def test_memory_conflict_detection_creates_duplicate_conflict(
+    integration_client, integration_db: str
+) -> None:
+    payload = {
+        "workspace_id": WORKSPACE_ID,
+        "memory_type": "fact",
+        "canonical_text": "The conflict detection smoke marker is a stable project fact.",
+        "summary": "Conflict detection smoke marker.",
+        "confidence": 0.8,
+        "importance": 3,
+        "status": "active",
+        "access_level": "project",
+        "evidence": [],
+    }
+    first_response = integration_client.post("/api/memories", json=payload)
+    assert first_response.status_code == 201
+    second_response = integration_client.post("/api/memories", json=payload)
+    assert second_response.status_code == 201
+
+    first_id = first_response.json()["memory_id"]
+    second_id = second_response.json()["memory_id"]
+
+    detection_response = integration_client.post(
+        f"/api/memories/{second_id}/detect-conflicts",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+
+    assert detection_response.status_code == 200
+    body = detection_response.json()
+    assert body["memory_id"] == second_id
+    assert body["detected_count"] == 1
+    conflict = body["conflicts"][0]
+    assert conflict["conflict_type"] == "duplicate"
+    assert {conflict["left_memory_id"], conflict["right_memory_id"]} == {first_id, second_id}
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT memory_id, status
+                FROM memory_item
+                WHERE memory_id IN (%(first_id)s, %(second_id)s)
+                """,
+                {"first_id": first_id, "second_id": second_id},
+            )
+            statuses = {str(row[0]): row[1] for row in cur.fetchall()}
+
+    assert set(statuses.values()) == {"conflicted"}
 
 
 def test_conflict_resolution_keeps_memory_conflicted_when_another_open_conflict_exists(
@@ -1572,6 +1930,31 @@ def test_forget_request_approval_forgets_memory_and_excludes_recall(
             )
             audit_count = cur.fetchone()[0]
     assert audit_count >= 2
+
+    verify_response = integration_client.post(
+        f"/api/forget-requests/{request_id}/verify",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert verify_response.status_code == 200
+    verification = verify_response.json()
+    assert verification["passed"] is True
+    check_names = {check["name"] for check in verification["checks"]}
+    assert {"target_soft_deleted", "retrieval_exclusion", "wiki_export_exclusion"} <= check_names
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM audit_log
+                WHERE workspace_id = %(workspace_id)s
+                  AND action_type = 'forget_request.verify'
+                  AND target_id = %(request_id)s
+                """,
+                {"workspace_id": WORKSPACE_ID, "request_id": request_id},
+            )
+            verify_audit_count = cur.fetchone()[0]
+    assert verify_audit_count == 1
 
     repeat_response = integration_client.patch(
         f"/api/forget-requests/{request_id}",

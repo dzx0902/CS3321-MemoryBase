@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from app.api.deps import get_recall_service, get_wiki_service
 from app.main import create_app
-from app.models.recall import RecallRequest, RecallResponse
+from app.models.recall import RecallRequest, RecallResponse, RetrievalInfo
 from app.models.wiki import (
     WikiBatchExportPageResponse,
     WikiBatchExportRequest,
@@ -63,6 +63,16 @@ class FakeRecallService:
                     ],
                 }
             ],
+            retrieval_info=RetrievalInfo(
+                requested_mode=payload.retrieval_mode,
+                effective_mode=payload.retrieval_mode,
+                embedding_provider="local",
+                embedding_model="hashing-v1",
+                vector_memory_candidates=0,
+                vector_chunk_candidates=0,
+                vector_used=False,
+                fallback_reason=None,
+            ),
             context_pack={
                 "query_text": payload.query_text,
                 "filters": {
@@ -73,6 +83,16 @@ class FakeRecallService:
                 },
                 "top_memory_ids": [str(self.memory_id)],
                 "matched_source_ids": [str(self.doc_id)],
+                "retrieval_info": {
+                    "requested_mode": payload.retrieval_mode,
+                    "effective_mode": payload.retrieval_mode,
+                    "embedding_provider": "local",
+                    "embedding_model": "hashing-v1",
+                    "vector_memory_candidates": 0,
+                    "vector_chunk_candidates": 0,
+                    "vector_used": False,
+                    "fallback_reason": None,
+                },
             },
             created_at=datetime(2026, 5, 16, tzinfo=timezone.utc),
         )
@@ -267,6 +287,9 @@ def test_recall_context_pack_returns_markdown_and_citation_map() -> None:
     assert payload["recall_id"]
     assert payload["result_count"] == 1
     assert payload["token_count"] <= 500
+    assert payload["token_budget"] == 500
+    assert payload["selected_memories"][0]["selection_reason"]
+    assert payload["supporting_evidence"][0]["memory_ref"] == "M1"
     assert "## Relevant Memories" in payload["markdown"]
     assert payload["citation_map"]["memories"]["M1"]["memory_type"] == "decision"
 

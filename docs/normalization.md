@@ -71,6 +71,33 @@ memory_id → workspace_id, memory_type, canonical_text, summary, search_text_zh
 - **严格 3NF 视角**：见下方 ⚠，因 `search_vector` / `current_revision_no` 为派生属性，不严格满足。
 - **工程/物理设计视角**：除受控派生列外，其余业务属性均由 `memory_id` 直接决定；偏离部分由 GENERATED / trigger 自动维护。
 
+当前枚举设计（需与 API / 前端 /治理流程保持一致）：
+
+```text
+memory_type:
+- episodic
+- semantic
+- fact
+- profile
+- procedural
+- decision
+- preference
+- task
+- risk
+- constraint
+- policy
+- summary
+
+status:
+- candidate
+- active
+- archived
+- forgotten
+- superseded
+- rejected
+- conflicted
+```
+
 #### ⚠ 主动违反 3NF 的两处（已识别）：
 
 1. **`search_vector` 是 `search_text_zh` 的派生属性**：
@@ -131,7 +158,30 @@ evidence_id                            → memory_id, chunk_id, evidence_role, w
 - **BCNF**：满足。
 - **设计要点**：本表是 M:N 关联表。复合 UNIQUE `(memory_id, chunk_id, evidence_role)` 允许同一对 (memory, chunk) 有多种角色（supports / refutes / context / source），而不是默认 PK。
 
-### 1.8 `memory_entity` / `memory_scene_cell`（多 FK 复合表）
+### 1.8 `memory_embedding` / `source_chunk_embedding`（向量缓存表）
+
+`memory_embedding`：
+
+```
+embedding_id → memory_id, workspace_id, provider, model, dimension,
+               embedding_json, embedding_text_hash, created_at
+(memory_id, provider, model, embedding_text_hash) → embedding_id (UNIQUE)
+```
+
+`source_chunk_embedding`：
+
+```
+embedding_id → chunk_id, doc_id, workspace_id, provider, model, dimension,
+               embedding_json, embedding_text_hash, created_at
+(chunk_id, provider, model, embedding_text_hash) → embedding_id (UNIQUE)
+```
+
+- **候选键**：`{embedding_id}`，以及各自的 UNIQUE 组合。
+- **3NF / BCNF**：满足。`provider`、`model`、`embedding_text_hash` 与 `embedding_json` 一起描述一次特定文本在特定模型下的嵌入产物，不存在非键属性之间的业务传递依赖。
+- **JSONB 字段的范式定位**：`embedding_json` 存的是定长数值向量的整体序列化结果。这里不把每一维拆成单独列，是因为这些维度不作为关系型属性参与业务约束或 join；在 1NF 视角下，它是单个原子值。
+- **工程取舍**：项目当前用 JSONB 缓存 embedding，而不是 `pgvector` 扩展。这样做的收益是部署简单、课程演示成本低；代价是向量相似度更偏中小规模数据处理，不追求大规模 ANN 检索性能。
+
+### 1.9 `memory_entity` / `memory_scene_cell`（多 FK 复合表）
 
 ```
 (memory_id, entity_id, relation_role) → workspace_id, created_at         [memory_entity]
@@ -142,7 +192,7 @@ evidence_id                            → memory_id, chunk_id, evidence_role, w
 - **BCNF**：满足。
 - **特殊设计**：表内 `workspace_id` 是**为了支持复合 FK 而冗余存储**（详见 §3）。
 
-### 1.9 `wiki_page` + `wiki_page_revision`
+### 1.10 `wiki_page` + `wiki_page_revision`
 
 ```
 page_id              → workspace_id, page_slug, page_type, title, current_revision_no,
@@ -160,7 +210,7 @@ page_id              → workspace_id, page_slug, page_type, title, current_revi
 - **`needs_rebuild` 派生**：技术上是基于"是否有 memory/scene 自上次 build 后变更"的派生标志，但作为 dirty bit 缓存，由 `trg_memory_after_update` 维护。
 - **`frontmatter_json` 与 `body_markdown` 分两列**：前者是结构化元数据（JSONB），后者是非结构化正文（TEXT），属性各自原子，**未违反 1NF**。
 
-### 1.10 `access_policy`（访问策略）
+### 1.11 `access_policy`（访问策略）
 
 ```
 policy_id → workspace_id, principal_type, principal_id, resource_type, resource_scope, effect, predicate_json, created_at
@@ -171,7 +221,7 @@ policy_id → workspace_id, principal_type, principal_id, resource_type, resourc
 - **3NF / BCNF**：满足。
 - **特殊设计**：表级 UNIQUE 对 `principal_id IS NULL`（全局策略）失效，所以加了 partial UNIQUE index `WHERE principal_id IS NULL`（详见 `docs/index-rationale.md` §6）。**这本质是 SQL 标准下 UNIQUE 约束的语义补强，不是范式问题**。
 
-### 1.11 `audit_log` / `recall_log`（带 JSONB 的日志表）
+### 1.12 `audit_log` / `recall_log`（带 JSONB 的日志表）
 
 ```
 audit_id  → workspace_id, actor_type, actor_id, action_type, target_type, target_id,
@@ -184,7 +234,7 @@ recall_id → workspace_id, agent_id, user_id, query_text, filter_json, result_c
 - **BCNF**：所有 FD 左侧均为候选键 → 满足。
 - **JSONB 字段的范式定位**：详见 §4。
 
-### 1.12 `conflict_record`（冲突记录）
+### 1.13 `conflict_record`（冲突记录）
 
 ```
 conflict_id            → workspace_id, left_memory_id, right_memory_id, conflict_type, status,
@@ -213,6 +263,8 @@ conflict_id            → workspace_id, left_memory_id, right_memory_id, confli
 | **memory_item**         | ✅ | ✅ | ⚠ | ✅\* | search_vector + current_revision_no 派生 |
 | memory_revision         | ✅ | ✅ | ✅ | ✅ | 复合 PK |
 | memory_evidence         | ✅ | ✅ | ✅ | ✅ | M:N |
+| memory_embedding        | ✅ | ✅ | ✅ | ✅ | JSONB 向量缓存，避免 pgvector 依赖 |
+| source_chunk_embedding  | ✅ | ✅ | ✅ | ✅ | JSONB 向量缓存，避免 pgvector 依赖 |
 | entity / memory_entity  | ✅ | ✅ | ✅ | ✅ | 复合 PK + 复合 FK |
 | memory_scene / cell     | ✅ | ✅ | ✅ | ✅ | 复合 PK + 复合 FK |
 | timeline_entry          | ✅ | ✅ | ✅ | ✅ | |

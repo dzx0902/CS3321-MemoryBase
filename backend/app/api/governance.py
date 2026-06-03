@@ -17,6 +17,7 @@ from ..models.governance import (
     ForgetRequestListResponse,
     ForgetRequestResponse,
     ForgetRequestUpdateRequest,
+    ForgetVerificationResponse,
     PolicyCreateRequest,
     PolicyDeleteResponse,
     PolicyListResponse,
@@ -286,6 +287,18 @@ def update_forget_request(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
+
+
+@router.post("/forget-requests/{request_id}/verify", response_model=ForgetVerificationResponse)
+def verify_forget_request(
+    request_id: UUID,
+    workspace_id: UUID = Query(...),
+    service: GovernanceService = Depends(get_governance_service),
+) -> ForgetVerificationResponse:
+    try:
+        return service.verify_forget_request(request_id=request_id, workspace_id=workspace_id)
+    except ForgetRequestNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.get("/timeline", response_model=TimelineListResponse)

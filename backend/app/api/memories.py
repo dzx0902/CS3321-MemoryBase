@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
+from ..models.governance import ConflictDetectionResponse
 from ..models.memory import (
     ActorContext,
     EditorType,
@@ -14,8 +15,9 @@ from ..models.memory import (
     MemorySummaryResponse,
     MemoryUpdateRequest,
 )
+from ..services.governance_service import GovernanceService, TargetNotFoundError
 from ..services.memory_service import MemoryNotFoundError, MemoryService, MemoryValidationError
-from .deps import get_memory_service
+from .deps import get_governance_service, get_memory_service
 
 router = APIRouter(prefix="/memories", tags=["memories"])
 
@@ -70,6 +72,18 @@ def get_memory(
     try:
         return service.get_memory(memory_id, workspace_id)
     except MemoryNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post("/{memory_id}/detect-conflicts", response_model=ConflictDetectionResponse)
+def detect_memory_conflicts(
+    memory_id: UUID,
+    workspace_id: UUID = Query(...),
+    service: GovernanceService = Depends(get_governance_service),
+) -> ConflictDetectionResponse:
+    try:
+        return service.detect_memory_conflicts(memory_id=memory_id, workspace_id=workspace_id)
+    except TargetNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 

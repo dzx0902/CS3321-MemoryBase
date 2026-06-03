@@ -30,11 +30,12 @@ PostgreSQL 文档统一使用 "B-tree" 这个历史名称，但**真实实现是
 | 3. 排序索引（DESC）           | btree + `DESC`        | 索引内有序性消除 Sort 节点              | `idx_audit_workspace_time` |
 | 4. GIN 倒排索引（FTS）        | `USING GIN(tsvector)` | 倒排索引 / 全文检索                     | `idx_memory_fts`、`idx_source_chunk_fts` |
 | 5. GIN trigram                | `USING GIN(gin_trgm_ops)` | 子串 / 模糊匹配（任意位置）             | `idx_memory_canonical_text_trgm` 等 3 个 |
-| 6. Partial index              | `WHERE ...` 子句      | 条件索引，缩小索引规模 + 强约束         | `idx_policy_global_unique WHERE principal_id IS NULL` |
-| 7. **BRIN**                   | `USING BRIN(col)`     | 块级索引，append-only 时间数据的现代解  | `idx_audit_brin_time`（新增） |
-| 8. **Covering (INCLUDE)**     | `INCLUDE (...)`（PG 11+） | Index-only scan / 消除 heap fetch       | `idx_memory_active_ranking`（新增） |
+| 6. 向量缓存索引               | btree on metadata     | embedding provider/model 定位与去重      | `idx_memory_embedding_workspace_model` |
+| 7. Partial index              | `WHERE ...` 子句      | 条件索引，缩小索引规模 + 强约束         | `idx_policy_global_unique WHERE principal_id IS NULL` |
+| 8. **BRIN**                   | `USING BRIN(col)`     | 块级索引，append-only 时间数据的现代解  | `idx_audit_brin_time`（新增） |
+| 9. **Covering (INCLUDE)**     | `INCLUDE (...)`（PG 11+） | Index-only scan / 消除 heap fetch       | `idx_memory_active_ranking`（新增） |
 
-第 7、8 类是 §5 重点讨论的**"现代/先进"补强**。
+第 8、9 类是 §5 重点讨论的**"现代/先进"补强**。
 
 ---
 
@@ -213,7 +214,36 @@ CREATE UNIQUE INDEX idx_policy_global_unique
 
 ---
 
-## 7. 索引设计的工程取舍
+## 7. Embedding metadata indexes — 向量缓存的工程化最小闭环
+
+本轮 schema 新增了两张 embedding 缓存表：
+
+```sql
+memory_embedding
+source_chunk_embedding
+```
+
+对应索引：
+
+```sql
+idx_memory_embedding_memory
+idx_memory_embedding_workspace_model
+idx_source_chunk_embedding_chunk
+idx_source_chunk_embedding_workspace_model
+```
+
+它们不是 ANN 索引，而是**元数据定位索引**，解决的是：
+
+- 某个 workspace 下是否已经为某 provider/model 生成过 embedding；
+- 回填任务按 workspace + provider + model 扫描待处理记录；
+- 从 memory / chunk 反查其 embedding 缓存；
+- 去重约束之外，再给 backfill / health / debug 查询一条稳定路径。
+
+当前项目把 embedding 存在 JSONB 里而不是 `pgvector`，因此索引重点不在"近邻搜索"，而在"缓存命中、批量回填、审计可查"。这和课程项目的现实目标一致：先把 agent-native retrieval 的数据闭环讲清楚，再决定是否引入额外扩展。
+
+---
+
+## 8. 索引设计的工程取舍
 
 为了避免索引膨胀，本项目主动**不**做以下索引：
 
@@ -223,11 +253,11 @@ CREATE UNIQUE INDEX idx_policy_global_unique
 | `memory_item(memory_type)` 单列          | 与复合索引左前缀冲突；planner 不会主动用 |
 | `audit_log(action_type)`                  | action_type 基数较低（< 100 种）+ 几乎总是与 workspace 一起过滤，不值得单独索引 |
 | Hash index                                 | PG 上 hash index 历史上没有 WAL，10.0 才修复；大多场景 B-tree 已经够好 |
-| pgvector / IVFFlat                         | 本项目主线不使用 embedding，Tier 3 余力再说 |
+| pgvector / IVFFlat                         | 当前主线先用 JSONB embedding 缓存 + metadata btree，避免部署依赖；若后续数据规模上来，再考虑 ANN |
 
 ---
 
-## 8. 与课程内容的对照
+## 9. 与课程内容的对照
 
 | 课程概念                  | 本项目对应                                     |
 |---|---|
@@ -238,13 +268,14 @@ CREATE UNIQUE INDEX idx_policy_global_unique
 | 排序索引 / 消除 Sort      | DESC 索引 + INCLUDE，§2.3、§5.2.2              |
 | 倒排索引                  | GIN tsvector，§3                                |
 | 模糊匹配的索引            | GIN trigram，§4                                 |
+| 向量缓存的元数据索引       | embedding 表上的 btree，§7                      |
 | 块级索引（page-level）    | BRIN，§5.1（教科书外的"现代"主题）              |
 | Index-only scan / 覆盖索引 | INCLUDE + visibility map，§5.2.3              |
 | 约束与索引的关系          | partial unique index，§6                        |
 
 ---
 
-## 9. 参考
+## 10. 参考
 
 - PostgreSQL 文档：
   - Chapter 11 *Indexes* / Chapter 67 *B-Tree Indexes* / Chapter 70 *BRIN Indexes* / Chapter 71 *GIN Indexes*
