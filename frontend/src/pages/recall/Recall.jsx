@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { recallApi } from '../../api/client';
+import { qaApi, recallApi } from '../../api/client';
 import { DEMO_WORKSPACE_ID } from '../../api/constants';
 import { useToast } from '../../components/Toast';
 
@@ -16,10 +16,13 @@ export default function Recall() {
     status: 'active',
     limit: 10,
     max_tokens: 3000,
+    max_answer_tokens: 800,
   });
   const [searching, setSearching] = useState(false);
+  const [answering, setAnswering] = useState(false);
   const [results, setResults] = useState(null);
   const [contextPack, setContextPack] = useState(null);
+  const [answer, setAnswer] = useState(null);
 
   function updateField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -34,6 +37,7 @@ export default function Recall() {
     setSearching(true);
     setResults(null);
     setContextPack(null);
+    setAnswer(null);
     try {
       const data = await recallApi.search({
         workspace_id: form.workspace_id,
@@ -58,6 +62,7 @@ export default function Recall() {
     }
     setSearching(true);
     setContextPack(null);
+    setAnswer(null);
     try {
       const data = await recallApi.contextPack({
         workspace_id: form.workspace_id,
@@ -73,6 +78,33 @@ export default function Recall() {
       toast.error(err.message || 'Context pack failed');
     } finally {
       setSearching(false);
+    }
+  }
+
+  async function handleAnswer() {
+    if (!form.query_text.trim()) {
+      toast.error('Please enter a query');
+      return;
+    }
+    setAnswering(true);
+    setAnswer(null);
+    try {
+      const data = await qaApi.answer({
+        workspace_id: form.workspace_id,
+        query_text: form.query_text,
+        memory_type: form.memory_type || undefined,
+        access_level: form.access_level || undefined,
+        status: form.status || undefined,
+        retrieval_mode: 'hybrid',
+        limit: Number(form.limit),
+        max_context_tokens: Number(form.max_tokens),
+        max_answer_tokens: Number(form.max_answer_tokens),
+      });
+      setAnswer(data);
+    } catch (err) {
+      toast.error(err.message || 'Answer generation failed');
+    } finally {
+      setAnswering(false);
     }
   }
 
@@ -122,11 +154,19 @@ export default function Recall() {
             <input className="input" type="number" min="100" max="16000" value={form.max_tokens}
               onChange={(e) => updateField('max_tokens', e.target.value)} />
           </div>
+          <div className="form-group">
+            <label>Answer Tokens</label>
+            <input className="input" type="number" min="1" max="4096" value={form.max_answer_tokens}
+              onChange={(e) => updateField('max_answer_tokens', e.target.value)} />
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
           <button type="submit" className="btn btn--primary" disabled={searching}>
             {searching ? 'Searching...' : '◎ Search'}
+          </button>
+          <button type="button" className="btn btn--primary" disabled={answering} onClick={handleAnswer}>
+            {answering ? 'Answering...' : 'Ask'}
           </button>
           <button type="button" className="btn" disabled={searching} onClick={handleContextPack}>
             Context Pack
@@ -135,6 +175,37 @@ export default function Recall() {
       </form>
 
       {searching && <div className="loading"><div className="spinner" />Searching memories...</div>}
+      {answering && <div className="loading"><div className="spinner" />Generating answer...</div>}
+
+      {answer && !answering && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card__header">
+            <h3 className="card__title">Answer</h3>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <span className="badge badge--accent">{answer.provider}</span>
+              <span className="badge badge--default">{answer.model}</span>
+              <span className="badge badge--info">{answer.result_count} memories</span>
+            </div>
+          </div>
+          <div className="markdown-body" style={{ whiteSpace: 'pre-wrap', fontSize: '0.95rem' }}>
+            {answer.answer}
+          </div>
+          {answer.selected_memories?.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Used Memories
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {answer.selected_memories.map((memory) => (
+                  <span key={memory.ref} className="badge badge--default">
+                    {memory.ref}: {memory.memory_type}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {contextPack && !searching && (
         <div className="card" style={{ marginBottom: 20 }}>

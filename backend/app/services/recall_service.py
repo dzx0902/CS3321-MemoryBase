@@ -10,7 +10,7 @@ from ..core.database import Database
 from ..models.embedding import EmbeddingGenerateRequest
 from ..models.recall import RecallRequest, RecallResponse
 from ._search_query import build_websearch_query
-from .embedding_service import LocalHashingEmbeddingProvider, cosine_similarity
+from .embedding_service import EmbeddingProvider, LocalHashingEmbeddingProvider, cosine_similarity
 from .tokenizer import build_search_text
 
 QUERY_EXPANSION_FILE = (
@@ -55,9 +55,20 @@ class RecallService:
 
 
 class PostgresRecallRepository:
-    def __init__(self, database: Database) -> None:
+    def __init__(
+        self,
+        database: Database,
+        *,
+        embedding_provider: EmbeddingProvider | None = None,
+        embedding_provider_name: str = "local",
+        embedding_model: str = "hashing-v1",
+        embedding_dimension: int = 128,
+    ) -> None:
         self._database = database
-        self._embedding_provider = LocalHashingEmbeddingProvider()
+        self._embedding_provider = embedding_provider or LocalHashingEmbeddingProvider()
+        self._embedding_provider_name = embedding_provider_name
+        self._embedding_model = embedding_model
+        self._embedding_dimension = embedding_dimension
 
     def execute_recall(self, payload: RecallRequest) -> RecallResponse:
         search_text = _expand_query_text(payload.query_text)
@@ -326,16 +337,16 @@ class PostgresRecallRepository:
         query_embedding = self._embedding_provider.embed(
             EmbeddingGenerateRequest(
                 text=payload.query_text,
-                provider="local",
-                model="hashing-v1",
-                dimension=128,
+                provider=self._embedding_provider_name,
+                model=self._embedding_model,
+                dimension=self._embedding_dimension,
             )
         ).embedding
         vector_params = {
             **params,
-            "embedding_provider": "local",
-            "embedding_model": "hashing-v1",
-            "embedding_dimension": 128,
+            "embedding_provider": self._embedding_provider_name,
+            "embedding_model": self._embedding_model,
+            "embedding_dimension": len(query_embedding),
             "vector_candidate_limit": max(payload.limit * 5, payload.limit),
         }
         cur.execute(

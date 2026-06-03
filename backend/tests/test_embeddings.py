@@ -9,6 +9,7 @@ from app.models.embedding import (
 from app.services.embedding_service import (
     EmbeddingService,
     LocalHashingEmbeddingProvider,
+    SiliconFlowEmbeddingProvider,
     cosine_similarity,
 )
 from fastapi.testclient import TestClient
@@ -72,3 +73,53 @@ def test_embedding_service_delegates_backfill_to_repository() -> None:
 
     assert result.memory_count == 1
     assert result.chunk_count == 2
+
+
+def test_siliconflow_embedding_provider_maps_response(monkeypatch) -> None:
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"data": [{"embedding": [0.1, 0.2, 0.3]}]}
+
+    class FakeClient:
+        def __init__(self, *, timeout):
+            captured["timeout"] = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+        def post(self, url, *, headers, json):
+            captured["url"] = url
+            captured["headers"] = headers
+            captured["json"] = json
+            return FakeResponse()
+
+    monkeypatch.setattr("app.services.embedding_service.httpx.Client", FakeClient)
+    provider = SiliconFlowEmbeddingProvider(
+        api_key="test-key",
+        base_url="https://api.siliconflow.cn/v1/",
+    )
+
+    result = provider.embed(
+        EmbeddingGenerateRequest(
+            text="demo",
+            provider="siliconflow",
+            model="Qwen/Qwen3-Embedding-0.6B",
+            dimension=1024,
+        )
+    )
+
+    assert captured["url"] == "https://api.siliconflow.cn/v1/embeddings"
+    assert captured["headers"]["Authorization"] == "Bearer test-key"
+    assert captured["json"]["dimensions"] == 1024
+    assert result.provider == "siliconflow"
+    assert result.model == "Qwen/Qwen3-Embedding-0.6B"
+    assert result.dimension == 3
+    assert result.embedding == [0.1, 0.2, 0.3]

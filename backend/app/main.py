@@ -9,6 +9,7 @@ from .api.health import router as health_router
 from .api.memories import router as memories_router
 from .api.memory_extraction import router as memory_extraction_router
 from .api.observe import router as observe_router
+from .api.qa import router as qa_router
 from .api.recall import router as recall_router
 from .api.search import router as search_router
 from .api.semantic import router as semantic_router
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     app.include_router(memory_extraction_router, prefix="/api")
     app.include_router(sessions_router, prefix="/api")
     app.include_router(observe_router, prefix="/api")
+    app.include_router(qa_router, prefix="/api")
     app.include_router(recall_router, prefix="/api")
     app.include_router(search_router, prefix="/api")
     app.include_router(semantic_router, prefix="/api")

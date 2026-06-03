@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
+import httpx
+
 from ..core.database import Database
 from ..models.embedding import (
     ChunkEmbeddingRecord,
@@ -61,9 +63,12 @@ class EmbeddingRepository(Protocol):
 class EmbeddingService:
     provider: EmbeddingProvider
     repository: EmbeddingRepository | None = None
+    default_provider_name: str = "local"
+    default_model: str = "hashing-v1"
+    default_dimension: int = 128
 
     def embed(self, payload: EmbeddingGenerateRequest) -> EmbeddingGenerateResponse:
-        return self.provider.embed(payload)
+        return self.provider.embed(self._with_configured_defaults(payload))
 
     def embed_memory(
         self,
@@ -75,6 +80,11 @@ class EmbeddingService:
     ) -> MemoryEmbeddingRecord:
         if self.repository is None:
             raise RuntimeError("Embedding repository is not configured.")
+        provider_name, model, dimension = self._resolve_embedding_options(
+            provider_name=provider_name,
+            model=model,
+            dimension=dimension,
+        )
         return self.repository.embed_memory(
             memory_id=memory_id,
             provider=self.provider,
@@ -93,6 +103,11 @@ class EmbeddingService:
     ) -> ChunkEmbeddingRecord:
         if self.repository is None:
             raise RuntimeError("Embedding repository is not configured.")
+        provider_name, model, dimension = self._resolve_embedding_options(
+            provider_name=provider_name,
+            model=model,
+            dimension=dimension,
+        )
         return self.repository.embed_chunk(
             chunk_id=chunk_id,
             provider=self.provider,
@@ -104,7 +119,45 @@ class EmbeddingService:
     def backfill(self, payload: EmbeddingBackfillRequest) -> EmbeddingBackfillResponse:
         if self.repository is None:
             raise RuntimeError("Embedding repository is not configured.")
+        if payload.provider == "local" and payload.model == "hashing-v1":
+            payload = payload.model_copy(
+                update={
+                    "provider": self.default_provider_name,
+                    "model": self.default_model,
+                    "dimension": (
+                        self.default_dimension if payload.dimension == 128 else payload.dimension
+                    ),
+                }
+            )
         return self.repository.backfill(payload, self.provider)
+
+    def _with_configured_defaults(
+        self,
+        payload: EmbeddingGenerateRequest,
+    ) -> EmbeddingGenerateRequest:
+        if payload.provider == "local" and payload.model == "hashing-v1":
+            return payload.model_copy(
+                update={
+                    "provider": self.default_provider_name,
+                    "model": self.default_model,
+                    "dimension": (
+                        self.default_dimension if payload.dimension == 128 else payload.dimension
+                    ),
+                }
+            )
+        return payload
+
+    def _resolve_embedding_options(
+        self,
+        *,
+        provider_name: str,
+        model: str,
+        dimension: int,
+    ) -> tuple[str, str, int]:
+        if provider_name == "local" and model == "hashing-v1":
+            resolved_dimension = self.default_dimension if dimension == 128 else dimension
+            return self.default_provider_name, self.default_model, resolved_dimension
+        return provider_name, model, dimension
 
 
 class LocalHashingEmbeddingProvider:
@@ -121,6 +174,53 @@ class LocalHashingEmbeddingProvider:
             model=payload.model,
             dimension=payload.dimension,
             embedding=normalized,
+            text_hash=hashlib.sha256(payload.text.encode("utf-8")).hexdigest(),
+        )
+
+
+class SiliconFlowEmbeddingProvider:
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        base_url: str = "https://api.siliconflow.cn/v1",
+        timeout: float = 30.0,
+    ) -> None:
+        if not api_key:
+            raise ValueError("SILICONFLOW_API_KEY is required for SiliconFlow embeddings.")
+        self._api_key = api_key
+        self._base_url = base_url.rstrip("/")
+        self._timeout = timeout
+
+    def embed(self, payload: EmbeddingGenerateRequest) -> EmbeddingGenerateResponse:
+        request_body: dict[str, object] = {
+            "model": payload.model,
+            "input": payload.text,
+            "encoding_format": "float",
+        }
+        if payload.dimension > 0:
+            request_body["dimensions"] = payload.dimension
+
+        with httpx.Client(timeout=self._timeout) as client:
+            response = client.post(
+                f"{self._base_url}/embeddings",
+                headers={
+                    "Authorization": f"Bearer {self._api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=request_body,
+            )
+        response.raise_for_status()
+        data = response.json()
+        embedding = data.get("data", [{}])[0].get("embedding")
+        if not isinstance(embedding, list):
+            raise ValueError("SiliconFlow embedding response did not contain an embedding vector.")
+        vector = [float(value) for value in embedding]
+        return EmbeddingGenerateResponse(
+            provider=payload.provider,
+            model=payload.model,
+            dimension=len(vector),
+            embedding=vector,
             text_hash=hashlib.sha256(payload.text.encode("utf-8")).hexdigest(),
         )
 
