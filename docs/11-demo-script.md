@@ -1,5 +1,13 @@
 # 演示脚本
 
+## 数据库准备
+
+```bash
+npm run db:setup
+```
+
+该命令等价于 `python scripts/db_cli.py reset`，会 drop public schema、按顺序加载 00–07 + governance fixture (10) + 08 demo queries，**自动包含** Tier 1 #6 的 governance 演示数据（≥ 1 forgotten memory / ≥ 1 archived / superseded / ≥ 1 forgotten source / ≥ 1 resolved conflict）。**不需要单独运行 `psql -f database/10_governance_demo_fixture.sql`**。
+
 ## 演示目标
 
 用 5–8 分钟展示 MemoryBase 的数据库建模、检索、追溯、审计、版本和 Wiki 投影能力。

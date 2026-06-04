@@ -1,10 +1,23 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+RetrievalMode = Literal["hybrid", "keyword", "vector"]
+
+
+class RetrievalInfo(BaseModel):
+    requested_mode: RetrievalMode
+    effective_mode: RetrievalMode
+    embedding_provider: str
+    embedding_model: str
+    vector_memory_candidates: int = 0
+    vector_chunk_candidates: int = 0
+    vector_used: bool = False
+    fallback_reason: str | None = None
 
 
 class RecallRequest(BaseModel):
@@ -15,6 +28,7 @@ class RecallRequest(BaseModel):
     access_level: str | None = None
     status: str | None = "active"
     as_of: datetime | None = None
+    retrieval_mode: RetrievalMode = "hybrid"
     limit: int = Field(default=10, ge=1, le=50)
 
 
@@ -44,6 +58,11 @@ class RecallMemoryResponse(BaseModel):
     status: str
     access_level: str
     score: float
+    keyword_score: float = 0.0
+    vector_score: float = 0.0
+    recency_score: float = 0.0
+    evidence_score: float = 0.0
+    rank_reason: str | None = None
     evidence: list[RecallEvidenceResponse]
 
 
@@ -53,6 +72,7 @@ class RecallResponse(BaseModel):
     query_text: str
     result_count: int
     memories: list[RecallMemoryResponse]
+    retrieval_info: RetrievalInfo
     context_pack: dict[str, Any]
     created_at: datetime | None = None
 
@@ -63,3 +83,9 @@ class RecallContextPackResponse(BaseModel):
     result_count: int
     citation_map: dict[str, Any]
     token_count: int
+    token_budget: int
+    selected_memories: list[dict[str, Any]] = Field(default_factory=list)
+    supporting_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    conflict_warnings: list[dict[str, Any]] = Field(default_factory=list)
+    risk_notes: list[dict[str, Any]] = Field(default_factory=list)
+    excluded_memories: list[dict[str, Any]] = Field(default_factory=list)

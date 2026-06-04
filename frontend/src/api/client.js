@@ -92,6 +92,10 @@ export const recallApi = {
   contextPack: (body) => request('/recall/context-pack', { method: 'POST', body }),
 };
 
+export const qaApi = {
+  answer: (body) => request('/qa/answer', { method: 'POST', body }),
+};
+
 export const searchApi = {
   search: (body) => request('/search', { method: 'POST', body }),
 };

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.models.recall import RecallResponse
+from app.models.recall import RecallResponse, RetrievalInfo
 from app.services.context_pack_service import format_context_pack
 
 
@@ -11,6 +11,10 @@ def build_recall_response(*, repeated_text: str = "") -> RecallResponse:
     workspace_id = uuid4()
     memory_id = uuid4()
     doc_id = uuid4()
+    fallback_reason = (
+        "No matching embedding records were available; "
+        "hybrid recall fell back to keyword ranking."
+    )
     return RecallResponse(
         recall_id=uuid4(),
         workspace_id=workspace_id,
@@ -48,11 +52,31 @@ def build_recall_response(*, repeated_text: str = "") -> RecallResponse:
                 ],
             }
         ],
+        retrieval_info=RetrievalInfo(
+            requested_mode="hybrid",
+            effective_mode="keyword",
+            embedding_provider="local",
+            embedding_model="hashing-v1",
+            vector_memory_candidates=0,
+            vector_chunk_candidates=0,
+            vector_used=False,
+            fallback_reason=fallback_reason,
+        ),
         context_pack={
             "query_text": "为什么放弃校园食堂方向",
             "filters": {"status": "active"},
             "top_memory_ids": [str(memory_id)],
             "matched_source_ids": [str(doc_id)],
+            "retrieval_info": {
+                "requested_mode": "hybrid",
+                "effective_mode": "keyword",
+                "embedding_provider": "local",
+                "embedding_model": "hashing-v1",
+                "vector_memory_candidates": 0,
+                "vector_chunk_candidates": 0,
+                "vector_used": False,
+                "fallback_reason": fallback_reason,
+            },
         },
         created_at=datetime(2026, 5, 22, tzinfo=timezone.utc),
     )
@@ -68,7 +92,12 @@ def test_format_context_pack_renders_agent_ready_markdown_with_citations() -> No
     assert "## Do Not Assume" in result.markdown
     assert "[M1]" in result.markdown
     assert "[E1]" in result.markdown
+    assert "reason=ranked by score, importance, and confidence" in result.markdown
+    assert result.token_budget == 800
+    assert result.selected_memories[0]["selection_reason"]
+    assert result.supporting_evidence[0]["memory_ref"] == "M1"
     assert result.citation_map["memories"]["M1"]["memory_type"] == "decision"
+    assert result.citation_map["memories"]["M1"]["selection_reason"]
     assert result.citation_map["evidence"]["E1"]["source_title"] == "Discussion 01: Project Pivot"
 
 
@@ -80,3 +109,4 @@ def test_format_context_pack_respects_token_budget() -> None:
 
     assert result.token_count <= 120
     assert "[Truncated to fit token budget]" in result.markdown
+    assert result.token_budget == 120

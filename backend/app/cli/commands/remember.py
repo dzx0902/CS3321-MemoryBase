@@ -21,12 +21,16 @@ from ..runtime import resolve_workspace_and_agent
 MEMORY_TYPES = (
     "episodic",
     "semantic",
+    "fact",
     "profile",
     "procedural",
     "decision",
     "preference",
     "task",
     "risk",
+    "constraint",
+    "policy",
+    "summary",
 )
 MEMORY_TYPE_HELP = f"Allowed: {', '.join(MEMORY_TYPES)}."
 
@@ -57,10 +61,7 @@ def remember(
         error("--reason is required for mb remember.")
         raise typer.Exit(EXIT_CLIENT_ERROR)
     if memory_type not in MEMORY_TYPES:
-        error(
-            "Unsupported memory type: "
-            f"{memory_type}. Use {'|'.join(MEMORY_TYPES)}."
-        )
+        error("Unsupported memory type: " f"{memory_type}. Use {'|'.join(MEMORY_TYPES)}.")
         raise typer.Exit(EXIT_CLIENT_ERROR)
 
     config = load_config(config_path).with_overrides(
