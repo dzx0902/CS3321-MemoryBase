@@ -70,6 +70,13 @@
 
 Agent/CLI 写回可以提交空 `evidence`。当请求头 `X-Actor-Type: agent` 且没有提供 evidence 时，后端会自动创建一个 `inline_agent_note` source document 和 source chunk，再把该 chunk 作为 `source` evidence 绑定到新 memory，保证证据链不断裂。
 
+Lifecycle notes:
+
+- `memory_type` supports `episodic`, `semantic`, `fact`, `profile`, `procedural`, `decision`, `preference`, `task`, `risk`, `constraint`, `policy`, and `summary`.
+- New memory may start as `active` or `candidate`; automatic extraction should use `candidate`.
+- Allowed status transitions are `candidate -> active/rejected`, `active -> superseded/archived/conflicted/forgotten`, `conflicted -> active/superseded/forgotten`, and `archived -> forgotten`.
+- Status changes are rejected if they skip the lifecycle state machine. Database triggers still write memory revision and audit rows for accepted state changes.
+
 ### GET /api/memories
 
 查询 memory 列表。默认只返回 `status = active` 的 memory；如需审计或管理视角读取归档/遗忘记录，需要显式传入 `status`，其中 `status=all` 表示不做状态过滤。
@@ -98,6 +105,32 @@ page_size
 
 软删除 memory。
 
+## 3.1 Memory Extraction API
+
+### POST /api/memory-extraction/from-chunks
+
+使用 rule-based extractor 从已有 source chunks 生成 `candidate` memory，并自动绑定 source evidence。候选记忆不会进入默认 recall，必须 approve 后才会转为 `active`。
+
+```json
+{
+  "workspace_id": "uuid",
+  "chunk_ids": ["uuid"],
+  "max_candidates": 10
+}
+```
+
+### GET /api/memory-candidates
+
+查询 `status = candidate` 的 memory，支持 `workspace_id`、`memory_type`、`keyword`、`page`、`page_size`。
+
+### POST /api/memory-candidates/{id}/approve
+
+将候选记忆从 `candidate` 转为 `active`。该状态变化走 memory lifecycle 校验，并写入 revision / audit。
+
+### POST /api/memory-candidates/{id}/reject
+
+将候选记忆从 `candidate` 转为 `rejected`。rejected memory 不进入默认 recall。
+
 ## 4. Recall API
 
 ### POST /api/recall
@@ -112,12 +145,33 @@ page_size
   "memory_type": "decision",
   "access_level": "project",
   "status": "active",
+  "retrieval_mode": "hybrid",
   "as_of": "2026-05-16T12:00:00Z",
   "limit": 10
 }
 ```
 
-返回 memory + evidence + source chunk，并写入 `recall_log`。
+`retrieval_mode` 支持 `keyword`、`vector`、`hybrid`，默认 `hybrid`。返回 memory + evidence + source chunk，并写入 `recall_log`。
+
+### POST /api/recall/context-pack
+
+Runs recall and formats an agent-ready context package under `max_tokens`. The response includes Markdown plus structured selection metadata, evidence citations, conflict/risk warnings, and excluded-memory reasons.
+
+```json
+{
+  "markdown": "# MemoryBase Context\n...",
+  "recall_id": "uuid",
+  "result_count": 3,
+  "citation_map": {},
+  "token_count": 900,
+  "token_budget": 1200,
+  "selected_memories": [],
+  "supporting_evidence": [],
+  "conflict_warnings": [],
+  "risk_notes": [],
+  "excluded_memories": []
+}
+```
 
 ## 5. Search API
 
@@ -292,6 +346,24 @@ page_size
 
 ## 8. Conflict API
 
+### POST /api/memories/{id}/detect-conflicts
+
+Detects duplicate or overlapping memories for one memory in a workspace and creates open conflict records for new matches. The database conflict triggers then mark active memory endpoints as `conflicted`.
+
+Query parameters:
+
+- `workspace_id`: required workspace UUID.
+
+Response:
+
+```json
+{
+  "memory_id": "uuid",
+  "detected_count": 1,
+  "conflicts": []
+}
+```
+
 ### POST /api/conflicts
 
 手动创建冲突记录。后端会规范化 memory 左右顺序，避免反向重复；数据库触发器会把 open conflict 两端的 active memory 自动标记为 `conflicted`。
@@ -354,6 +426,22 @@ page_size
 {
   "status": "approved",
   "reviewed_by_user_id": "uuid"
+}
+```
+
+### POST /api/forget-requests/{id}/verify
+
+Runs a forgetting verification report after approval. The report checks target soft deletion, memory retrieval exclusion, generated wiki-page exclusion for memory targets, and audit coverage. Each verification writes a `forget_request.verify` audit event.
+
+```json
+{
+  "request_id": "uuid",
+  "workspace_id": "uuid",
+  "target_type": "memory_item",
+  "target_id": "uuid",
+  "status": "approved",
+  "passed": true,
+  "checks": []
 }
 ```
 

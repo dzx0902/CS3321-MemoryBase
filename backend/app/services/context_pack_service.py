@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from ..models.recall import RecallEvidenceResponse, RecallMemoryResponse, RecallResponse
@@ -17,6 +17,12 @@ class ContextPackMarkdown:
     markdown: str
     citation_map: dict[str, Any]
     token_count: int
+    token_budget: int = 0
+    selected_memories: list[dict[str, Any]] = field(default_factory=list)
+    supporting_evidence: list[dict[str, Any]] = field(default_factory=list)
+    conflict_warnings: list[dict[str, Any]] = field(default_factory=list)
+    risk_notes: list[dict[str, Any]] = field(default_factory=list)
+    excluded_memories: list[dict[str, Any]] = field(default_factory=list)
 
 
 def format_context_pack(recall: RecallResponse, *, max_tokens: int = 3000) -> ContextPackMarkdown:
@@ -35,6 +41,12 @@ def format_context_pack(recall: RecallResponse, *, max_tokens: int = 3000) -> Co
                 markdown=candidate.markdown,
                 citation_map=candidate.citation_map,
                 token_count=token_count,
+                token_budget=max_tokens,
+                selected_memories=candidate.selected_memories,
+                supporting_evidence=candidate.supporting_evidence,
+                conflict_warnings=candidate.conflict_warnings,
+                risk_notes=candidate.risk_notes,
+                excluded_memories=candidate.excluded_memories,
             )
         included_count -= 1
 
@@ -44,6 +56,12 @@ def format_context_pack(recall: RecallResponse, *, max_tokens: int = 3000) -> Co
         markdown=markdown,
         citation_map=candidate.citation_map,
         token_count=count_tokens(markdown),
+        token_budget=max_tokens,
+        selected_memories=candidate.selected_memories,
+        supporting_evidence=candidate.supporting_evidence,
+        conflict_warnings=candidate.conflict_warnings,
+        risk_notes=candidate.risk_notes,
+        excluded_memories=candidate.excluded_memories,
     )
 
 
@@ -66,23 +84,57 @@ def build_markdown(
     evidence_lines: list[str] = []
     risk_lines: list[str] = []
     do_not_assume_lines: list[str] = []
+    selected_memories: list[dict[str, Any]] = []
+    supporting_evidence: list[dict[str, Any]] = []
+    conflict_warnings: list[dict[str, Any]] = []
+    risk_notes: list[dict[str, Any]] = []
     evidence_index = 1
 
     for memory_index, memory in enumerate(memories, start=1):
         memory_ref = f"M{memory_index}"
         canonical_text = compact_text(memory.canonical_text, 600 if not truncated else 220)
+        selection_reason = memory.rank_reason or "ranked by score, importance, and confidence"
         lines.append(
             "- "
             f"[{memory_ref}] [{memory.memory_type}] {canonical_text} "
             f"(score={memory.score:.3f}, confidence={memory.confidence:.3f}, "
-            f"importance={memory.importance}, access={memory.access_level})"
+            f"importance={memory.importance}, access={memory.access_level}, "
+            f"reason={selection_reason})"
+        )
+        selected_memories.append(
+            {
+                "ref": memory_ref,
+                "memory_id": str(memory.memory_id),
+                "memory_type": memory.memory_type,
+                "score": memory.score,
+                "selection_reason": selection_reason,
+                "status": memory.status,
+                "access_level": memory.access_level,
+            }
         )
         citation_map["memories"][memory_ref] = {
             "memory_id": str(memory.memory_id),
             "memory_type": memory.memory_type,
             "status": memory.status,
             "access_level": memory.access_level,
+            "selection_reason": selection_reason,
         }
+        if memory.status == "conflicted":
+            conflict_warnings.append(
+                {
+                    "memory_ref": memory_ref,
+                    "memory_id": str(memory.memory_id),
+                    "summary": canonical_text,
+                }
+            )
+        if memory.memory_type == "risk":
+            risk_notes.append(
+                {
+                    "memory_ref": memory_ref,
+                    "memory_id": str(memory.memory_id),
+                    "summary": canonical_text,
+                }
+            )
         if memory.memory_type == "risk" or memory.status == "conflicted":
             risk_lines.append(f"- [{memory_ref}] {canonical_text}")
         if memory.status in {"forgotten", "superseded", "archived"}:
@@ -92,6 +144,18 @@ def build_markdown(
             evidence_ref = f"E{evidence_index}"
             evidence_lines.append(
                 format_evidence_line(evidence_ref, memory_ref, evidence, truncated)
+            )
+            supporting_evidence.append(
+                {
+                    "ref": evidence_ref,
+                    "memory_ref": memory_ref,
+                    "chunk_id": str(evidence.chunk_id),
+                    "doc_id": str(evidence.doc_id),
+                    "source_title": evidence.source_title,
+                    "chunk_no": evidence.chunk_no,
+                    "evidence_role": evidence.evidence_role,
+                    "weight": evidence.weight,
+                }
             )
             citation_map["evidence"][evidence_ref] = {
                 "memory_ref": memory_ref,
@@ -132,11 +196,26 @@ def build_markdown(
     if truncated:
         lines.extend(["", "[Truncated to fit token budget]"])
 
+    included_ids = {memory.memory_id for memory in memories}
+    excluded_memories = [
+        {
+            "memory_id": str(memory.memory_id),
+            "reason": _excluded_memory_reason(memory, truncated=truncated),
+        }
+        for memory in recall.memories
+        if memory.memory_id not in included_ids
+    ]
+
     markdown = "\n".join(lines).rstrip() + "\n"
     return ContextPackMarkdown(
         markdown=markdown,
         citation_map=citation_map,
         token_count=count_tokens(markdown),
+        selected_memories=selected_memories,
+        supporting_evidence=supporting_evidence,
+        conflict_warnings=conflict_warnings,
+        risk_notes=risk_notes,
+        excluded_memories=excluded_memories,
     )
 
 
@@ -162,7 +241,17 @@ def compact_text(text: str, max_chars: int) -> str:
     normalized = " ".join(text.split())
     if len(normalized) <= max_chars:
         return normalized
-    return normalized[: max(0, max_chars - 1)].rstrip() + "…"
+    return normalized[: max(0, max_chars - 3)].rstrip() + "..."
+
+
+def _excluded_memory_reason(memory: RecallMemoryResponse, *, truncated: bool) -> str:
+    if memory.status in {"archived", "forgotten", "superseded"}:
+        return memory.status
+    if memory.status == "conflicted":
+        return "conflicted"
+    if truncated:
+        return "token_budget"
+    return "low_score"
 
 
 def trim_to_token_budget(markdown: str, max_tokens: int) -> str:

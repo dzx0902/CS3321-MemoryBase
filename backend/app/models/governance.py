@@ -140,6 +140,12 @@ class ConflictListResponse(PageResponse[ConflictResponse]):
     pass
 
 
+class ConflictDetectionResponse(BaseModel):
+    memory_id: UUID
+    detected_count: int
+    conflicts: list[ConflictResponse]
+
+
 class ConflictCreateRequest(BaseModel):
     workspace_id: UUID
     left_memory_id: UUID
@@ -199,6 +205,22 @@ class ForgetRequestResponse(BaseModel):
 
 class ForgetRequestListResponse(PageResponse[ForgetRequestResponse]):
     pass
+
+
+class ForgetVerificationCheckResponse(BaseModel):
+    name: str
+    passed: bool
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class ForgetVerificationResponse(BaseModel):
+    request_id: UUID
+    workspace_id: UUID
+    target_type: ForgetTargetType
+    target_id: UUID
+    status: ForgetRequestStatus
+    passed: bool
+    checks: list[ForgetVerificationCheckResponse]
 
 
 class TimelineCreateRequest(BaseModel):

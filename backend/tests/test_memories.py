@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
+import pytest
 from app.api.deps import get_memory_service
 from app.main import create_app
 from app.models.memory import (
@@ -15,7 +16,12 @@ from app.models.memory import (
     MemorySummaryResponse,
     MemoryUpdateRequest,
 )
-from app.services.memory_service import MemoryNotFoundError
+from app.services.memory_service import (
+    MemoryNotFoundError,
+    MemoryValidationError,
+    _validate_initial_status,
+    _validate_status_transition,
+)
 from fastapi.testclient import TestClient
 
 
@@ -105,6 +111,7 @@ class FakeMemoryService:
                 "summary": payload.summary,
                 "confidence": payload.confidence,
                 "importance": payload.importance,
+                "status": payload.status,
                 "access_level": payload.access_level,
                 "evidence_count": len(payload.evidence),
             }
@@ -199,6 +206,25 @@ def test_create_memory_returns_summary() -> None:
     assert response.json()["evidence_count"] == 1
 
 
+def test_create_memory_accepts_candidate_status_and_new_memory_type() -> None:
+    client, fake_service = build_client()
+
+    response = client.post(
+        "/api/memories",
+        json={
+            "workspace_id": str(fake_service.workspace_id),
+            "memory_type": "fact",
+            "canonical_text": "Candidates can be created before approval.",
+            "summary": "Candidate lifecycle",
+            "status": "candidate",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["memory_type"] == "fact"
+    assert response.json()["status"] == "candidate"
+
+
 def test_list_memories_returns_collection() -> None:
     client, fake_service = build_client()
 
@@ -278,3 +304,28 @@ def test_memory_endpoints_return_404_for_unknown_record() -> None:
     response = client.get(f"/api/memories/{uuid4()}", params={"workspace_id": str(uuid4())})
 
     assert response.status_code == 404
+
+
+def test_memory_status_transition_validator_rejects_illegal_transition() -> None:
+    with pytest.raises(MemoryValidationError):
+        _validate_status_transition("rejected", "active")
+
+
+def test_memory_initial_status_validator_rejects_terminal_status() -> None:
+    with pytest.raises(MemoryValidationError):
+        _validate_initial_status("forgotten")
+
+
+def test_memory_status_transition_validator_accepts_lifecycle_paths() -> None:
+    for current_status, next_status in (
+        ("candidate", "active"),
+        ("candidate", "rejected"),
+        ("active", "superseded"),
+        ("active", "archived"),
+        ("active", "conflicted"),
+        ("active", "forgotten"),
+        ("conflicted", "active"),
+        ("conflicted", "superseded"),
+        ("archived", "forgotten"),
+    ):
+        _validate_status_transition(current_status, next_status)

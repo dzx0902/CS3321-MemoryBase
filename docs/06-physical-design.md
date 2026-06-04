@@ -61,12 +61,15 @@ project-root/
 | workspace 下查询 memory | memory_item(workspace_id, status) |
 | 按类型筛选 | memory_item(workspace_id, memory_type, status) |
 | temporal recall | memory_item(workspace_id, status, valid_from, valid_to) |
+| active memory ranking | memory_item(workspace_id, importance DESC, updated_at DESC) INCLUDE (memory_id, memory_type, confidence, access_level) WHERE status='active' |
 | 时间线 | timeline_entry(workspace_id, event_time DESC) |
 | 全文检索 | source_chunk USING GIN(search_vector)、memory_item USING GIN(search_vector) |
 | 模糊检索 | source_chunk(chunk_text gin_trgm_ops)、memory_item(canonical_text gin_trgm_ops)、source_document(title gin_trgm_ops) |
+| embedding cache lookup | memory_embedding(memory_id)、memory_embedding(workspace_id, provider, model)、source_chunk_embedding(chunk_id)、source_chunk_embedding(workspace_id, provider, model) |
 | 实体召回 | entity(workspace_id, entity_type)、entity(workspace_id, status, canonical_name)、memory_entity(entity_id)、memory_entity(workspace_id) |
 | 场景聚合 | memory_scene(workspace_id, created_at DESC)、memory_scene_cell(scene_id, sort_order)、memory_scene_cell(memory_id) |
 | 审计回放 | audit_log(workspace_id, created_at DESC)、audit_log(workspace_id, actor_type, actor_id, created_at DESC)、audit_log(workspace_id, target_type, target_id, created_at DESC) |
+| 全库时间窗分析 | audit_log USING BRIN(created_at) |
 | 权限过滤 | access_policy(workspace_id, principal_type, principal_id, resource_type, effect) |
 | role/global 权限去重 | access_policy 表级 UNIQUE 防止非 NULL principal 重复；partial UNIQUE index 防止 NULL principal 重复 |
 | 冲突列表 | conflict_record(workspace_id, status, created_at DESC)、conflict_record(left_memory_id, status)、conflict_record(right_memory_id, status) |
@@ -105,11 +108,28 @@ project-root/
 | workspace 删除 | 子表使用 ON DELETE CASCADE，清理该工作区数据 |
 | owner / reviewer 删除 | 使用 ON DELETE SET NULL，保留业务记录 |
 | memory 与 evidence / revision | evidence、revision 随 memory 删除级联 |
+| memory / chunk embedding cache | embedding 缓存随 memory 或 source_chunk 删除级联，workspace_id 复合 FK 保证租户一致性 |
 | Entity / MemoryScene M:N | 复合 FK 保证 memory、entity、scene 属于同一 workspace |
 | WikiPage generated_from_scene_id | ON DELETE SET NULL，场景删除后保留 Wiki 历史 |
 | ForgetRequest 软治理 | `source_document`、`wiki_page`、`entity` 使用 status/forgotten_at 标记遗忘，保留原始记录用于审计 |
 
-## 9. 备份与恢复
+## 9. 新增 schema 口径补充
+
+当前 memory / retrieval 主线的物理设计新增了两类需要在答辩时讲清楚的对象：
+
+1. `memory_item` 枚举扩展
+   - `memory_type` 新增：`fact`、`constraint`、`policy`、`summary`
+   - `status` 新增：`candidate`、`rejected`
+
+   作用：把自动抽取出来、尚未人工确认的候选记忆直接纳入主表生命周期，而不是另起一套孤立草稿表。这样治理、审计、召回过滤都可以沿用一套主线逻辑。
+
+2. embedding 缓存表
+   - `memory_embedding`
+   - `source_chunk_embedding`
+
+   作用：为 hybrid recall 提供可选的向量缓存层，同时避免把课程项目的默认部署绑死到 `pgvector` 扩展。当前设计更偏"可用、可演示、可审计"；若后续做大规模向量检索，再演进到专门的 ANN 索引路线。
+
+## 10. 备份与恢复
 
 | 对象 | 备份方式 | 恢复方式 |
 |---|---|---|

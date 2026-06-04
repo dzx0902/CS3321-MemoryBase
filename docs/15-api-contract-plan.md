@@ -345,7 +345,8 @@ Request:
 
 Rules:
 
-- `memory_type`: `episodic`, `semantic`, `profile`, `procedural`, `decision`, `preference`, `task`, `risk`。
+- `memory_type`: `episodic`, `semantic`, `fact`, `profile`, `procedural`, `decision`, `preference`, `task`, `risk`, `constraint`, `policy`, `summary`。
+- `status`: new records may start as `active` or `candidate`. Later changes must follow the lifecycle transitions documented in `docs/22-backend-memory-roadmap.md`.
 - `access_level`: `public`, `project`, `team`, `private`。
 - `confidence` between 0 and 1.
 - `importance` between 1 and 5.

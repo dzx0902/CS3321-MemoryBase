@@ -36,4 +36,10 @@ def execute_context_pack(
         result_count=recall.result_count,
         citation_map=context.citation_map,
         token_count=context.token_count,
+        token_budget=context.token_budget,
+        selected_memories=context.selected_memories,
+        supporting_evidence=context.supporting_evidence,
+        conflict_warnings=context.conflict_warnings,
+        risk_notes=context.risk_notes,
+        excluded_memories=context.excluded_memories,
     )
