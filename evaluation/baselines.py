@@ -3,19 +3,29 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlparse
 
 import httpx
+import psycopg
+from dotenv import load_dotenv
 
 from evaluation.cases import EvaluationCase
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(PROJECT_ROOT / ".env")
+
 SUPPORTED_MODES = {
+    "db_extraction_qa",
     "no_memory",
     "recency_only",
     "naive_vector_rag",
     "summary_memory",
     "db_memory",
     "db_extraction",
+    "db_qa",
+    "vector_qa",
 }
 
 
@@ -111,6 +121,9 @@ class LiveMemoryBaselineConfig:
         agent: str | None,
         backfill_embeddings: bool,
         use_extraction: bool,
+        generate_answer: bool,
+        cleanup: bool,
+        isolate: bool,
     ) -> None:
         self.mode = mode
         self.run_id = run_id
@@ -119,6 +132,9 @@ class LiveMemoryBaselineConfig:
         self.agent = agent or os.getenv("MEMORYBASE_AGENT")
         self.backfill_embeddings = backfill_embeddings
         self.use_extraction = use_extraction
+        self.generate_answer = generate_answer
+        self.cleanup = cleanup
+        self.isolate = isolate
 
 
 class LocalMemoryBaseline:
@@ -171,6 +187,8 @@ def build_baseline_with_config(
     api_base_url: str | None = None,
     workspace: str | None = None,
     agent: str | None = None,
+    cleanup: bool = True,
+    isolate: bool = False,
 ) -> BaselineRunner:
     if mode not in SUPPORTED_MODES:
         raise ValueError(f"unsupported mode {mode!r}; expected one of {sorted(SUPPORTED_MODES)}")
@@ -178,7 +196,14 @@ def build_baseline_with_config(
         return NoMemoryBaseline(mode=mode, run_id=run_id, dry_run=dry_run)
     if mode in {"recency_only", "summary_memory"}:
         return LocalMemoryBaseline(mode=mode, run_id=run_id)
-    if mode in {"db_memory", "naive_vector_rag", "db_extraction"}:
+    if mode in {
+        "db_memory",
+        "naive_vector_rag",
+        "db_extraction",
+        "db_qa",
+        "vector_qa",
+        "db_extraction_qa",
+    }:
         return LiveMemoryBaseline(
             config=LiveMemoryBaselineConfig(
                 mode=mode,
@@ -186,8 +211,11 @@ def build_baseline_with_config(
                 api_base_url=api_base_url or "http://localhost:8000",
                 workspace=workspace,
                 agent=agent,
-                backfill_embeddings=mode == "naive_vector_rag",
-                use_extraction=mode == "db_extraction",
+                backfill_embeddings=mode in {"naive_vector_rag", "vector_qa"},
+                use_extraction=mode in {"db_extraction", "db_extraction_qa"},
+                generate_answer=mode in {"db_qa", "vector_qa", "db_extraction_qa"},
+                cleanup=cleanup,
+                isolate=isolate,
             )
         )
     return UnsupportedBaseline(mode=mode, run_id=run_id)
@@ -201,8 +229,14 @@ class LiveMemoryBaseline:
         started = time.perf_counter()
         created_memory_ids: list[str] = []
         embedding_backfill: dict[str, Any] | None = None
+        workspace_id: str | None = None
+        isolated_workspace = False
         try:
-            workspace_id, agent_id = self._resolve_workspace_and_agent()
+            if self._config.isolate:
+                workspace_id, agent_id = self._create_isolated_workspace(case)
+                isolated_workspace = True
+            else:
+                workspace_id, agent_id = self._resolve_workspace_and_agent()
             for session in case.sessions:
                 session_id = self._create_session(
                     workspace_id=workspace_id,
@@ -244,13 +278,40 @@ class LiveMemoryBaseline:
 
             if self._config.backfill_embeddings:
                 embedding_backfill = self._backfill_embeddings(workspace_id)
-            recall = self._recall(
-                workspace_id=workspace_id,
-                agent_id=agent_id,
-                query=case.query,
-            )
-            memories = [item for item in recall.get("memories", []) if isinstance(item, dict)]
-            generated_answer = "\n".join(str(item.get("canonical_text", "")) for item in memories)
+            if self._config.generate_answer:
+                answer = self._answer(
+                    workspace_id=workspace_id,
+                    agent_id=agent_id,
+                    query=case.query,
+                )
+                memories = [
+                    item for item in answer.get("selected_memories", []) if isinstance(item, dict)
+                ]
+                generated_answer = str(answer.get("answer", ""))
+                token_usage = _optional_int(answer.get("total_tokens"))
+                response_metadata = {
+                    "provider": answer.get("provider"),
+                    "model": answer.get("model"),
+                    "prompt_tokens": answer.get("prompt_tokens"),
+                    "completion_tokens": answer.get("completion_tokens"),
+                    "total_tokens": answer.get("total_tokens"),
+                    "context_tokens": answer.get("token_count"),
+                    "token_budget": answer.get("token_budget"),
+                    "citation_map": answer.get("citation_map", {}),
+                    "supporting_evidence": answer.get("supporting_evidence", []),
+                }
+            else:
+                recall = self._recall(
+                    workspace_id=workspace_id,
+                    agent_id=agent_id,
+                    query=case.query,
+                )
+                memories = [item for item in recall.get("memories", []) if isinstance(item, dict)]
+                generated_answer = "\n".join(
+                    str(item.get("canonical_text", "")) for item in memories
+                )
+                token_usage = None
+                response_metadata = {}
             return EvaluationResult(
                 case_id=case.case_id,
                 source=case.source,
@@ -262,6 +323,7 @@ class LiveMemoryBaseline:
                 retrieved_memory_texts=[str(item.get("canonical_text", "")) for item in memories],
                 retrieved_scores=[_float(item.get("score")) for item in memories],
                 latency_ms=(time.perf_counter() - started) * 1000,
+                token_usage=token_usage,
                 mode=self._config.mode,
                 run_id=self._config.run_id,
                 metadata={
@@ -280,9 +342,13 @@ class LiveMemoryBaseline:
                     "embedding_backfill": embedding_backfill,
                     "rank_reasons": [str(item.get("rank_reason", "")) for item in memories],
                     "vector_scores": [_float(item.get("vector_score")) for item in memories],
+                    "answer_generation": self._config.generate_answer,
+                    "cleanup_requested": self._config.cleanup,
+                    "isolated_workspace": isolated_workspace,
+                    **response_metadata,
                     "limitation": (
-                        "Uses existing live APIs. Full agent answer generation is "
-                        "not implemented yet."
+                        "Evaluation-created sessions and extraction source documents cannot "
+                        "be deleted through the current public API."
                     ),
                 },
             )
@@ -300,6 +366,18 @@ class LiveMemoryBaseline:
                 error=str(exc),
                 metadata={"injection_mode": "memory_api"},
             )
+        finally:
+            if isolated_workspace and workspace_id and self._config.cleanup:
+                try:
+                    self._delete_isolated_workspace(workspace_id)
+                except Exception:
+                    pass
+            elif self._config.cleanup and workspace_id and created_memory_ids:
+                try:
+                    self._delete_created_memories(workspace_id, created_memory_ids)
+                except Exception:
+                    # Cleanup must not replace the benchmark result or original failure.
+                    pass
 
     def _resolve_workspace_and_agent(self) -> tuple[str, str | None]:
         if not self._config.workspace:
@@ -313,6 +391,47 @@ class LiveMemoryBaseline:
         workspace = _checked_target(payload, "workspace")
         agent = _checked_target(payload, "agent") if self._config.agent else None
         return str(workspace["workspace_id"]), str(agent["agent_id"]) if agent else None
+
+    def _create_isolated_workspace(self, case: EvaluationCase) -> tuple[str, str]:
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            raise ValueError("isolated live evaluation requires DATABASE_URL")
+        slug = _evaluation_slug(self._config.run_id, case.case_id)
+        with psycopg.connect(database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO workspace (slug, name, description, scope_type)
+                    VALUES (%s, %s, %s, 'project')
+                    RETURNING workspace_id
+                    """,
+                    (
+                        slug,
+                        f"Evaluation {case.case_id}"[:120],
+                        f"Isolated evaluation workspace for {self._config.run_id}",
+                    ),
+                )
+                workspace_id = str(cur.fetchone()[0])
+                cur.execute(
+                    """
+                    INSERT INTO agent (workspace_id, name, agent_type, status)
+                    VALUES (%s, %s, 'retriever', 'active')
+                    RETURNING agent_id
+                    """,
+                    (workspace_id, "evaluation-agent"),
+                )
+                agent_id = str(cur.fetchone()[0])
+            conn.commit()
+        return workspace_id, agent_id
+
+    def _delete_isolated_workspace(self, workspace_id: str) -> None:
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            return
+        with psycopg.connect(database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM workspace WHERE workspace_id = %s", (workspace_id,))
+            conn.commit()
 
     def _create_session(
         self,
@@ -465,14 +584,33 @@ class LiveMemoryBaseline:
         }
         return self._request("POST", "/api/recall", json=payload)
 
+    def _answer(self, *, workspace_id: str, agent_id: str | None, query: str) -> dict[str, Any]:
+        payload = {
+            "workspace_id": workspace_id,
+            "agent_id": agent_id,
+            "query_text": query,
+            "status": "active",
+            "retrieval_mode": "vector" if self._config.backfill_embeddings else "hybrid",
+            "limit": 10,
+        }
+        return self._request("POST", "/api/qa/answer", json=payload)
+
     def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         try:
-            response = httpx.request(
-                method,
-                f"{self._config.api_base_url}{path}",
-                timeout=10.0,
-                **kwargs,
-            )
+            if _is_loopback_url(self._config.api_base_url):
+                with httpx.Client(timeout=10.0, trust_env=False) as client:
+                    response = client.request(
+                        method,
+                        f"{self._config.api_base_url}{path}",
+                        **kwargs,
+                    )
+            else:
+                response = httpx.request(
+                    method,
+                    f"{self._config.api_base_url}{path}",
+                    timeout=10.0,
+                    **kwargs,
+                )
         except httpx.RequestError as exc:
             raise RuntimeError(f"MemoryBase API request failed: {exc}") from exc
         if response.status_code >= 400:
@@ -517,6 +655,26 @@ def _float(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _optional_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return None
+
+
+def _is_loopback_url(value: str) -> bool:
+    return (urlparse(value).hostname or "").lower() in {"127.0.0.1", "localhost", "::1"}
+
+
+def _evaluation_slug(run_id: str, case_id: str) -> str:
+    raw = f"{run_id}-{case_id}".lower()
+    normalized = "".join(char if char.isalnum() else "-" for char in raw)
+    return normalized.strip("-")[:55] + "-" + str(time.time_ns())[-8:]
 
 
 def _local_case_memories(case: EvaluationCase) -> list[str]:

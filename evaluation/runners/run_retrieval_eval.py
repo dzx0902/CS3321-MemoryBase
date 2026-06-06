@@ -22,6 +22,8 @@ def main() -> None:
         api_base_url=args.api_base,
         workspace=args.workspace,
         agent=args.agent,
+        cleanup=not args.preserve_eval_data,
+        isolate=not args.shared_workspace,
     )
     print_summary(results, args.output)
 

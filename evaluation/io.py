@@ -18,6 +18,12 @@ RESULT_FIELDS = [
     "retrieved_scores",
     "latency_ms",
     "token_usage",
+    "prompt_tokens",
+    "completion_tokens",
+    "context_tokens",
+    "provider",
+    "model",
+    "history_length_tokens",
     "score",
     "pass",
     "exact_match",
@@ -32,6 +38,10 @@ RESULT_FIELDS = [
     "ndcg_at_10",
     "deletion_success",
     "privacy_leakage",
+    "retrieval_leakage",
+    "answer_leakage",
+    "citation_valid",
+    "groundedness",
     "stale_memory_error",
     "preference_following",
     "error",
@@ -63,6 +73,12 @@ def result_to_row(result: EvaluationResult) -> dict[str, object]:
         "retrieved_scores": "|".join(f"{score:.6f}" for score in result.retrieved_scores),
         "latency_ms": f"{result.latency_ms:.3f}",
         "token_usage": result.token_usage if result.token_usage is not None else "",
+        "prompt_tokens": _metadata(result, "prompt_tokens"),
+        "completion_tokens": _metadata(result, "completion_tokens"),
+        "context_tokens": _metadata(result, "context_tokens"),
+        "provider": _metadata(result, "provider"),
+        "model": _metadata(result, "model"),
+        "history_length_tokens": _metadata(result, "history_length_tokens"),
         "score": f"{result.score:.6f}",
         "pass": "true" if result.passed else "false",
         "exact_match": _metric(metrics, "exact_match"),
@@ -77,6 +93,10 @@ def result_to_row(result: EvaluationResult) -> dict[str, object]:
         "ndcg_at_10": _metric(metrics, "ndcg_at_10"),
         "deletion_success": _metric(metrics, "deletion_success"),
         "privacy_leakage": _metric(metrics, "privacy_leakage"),
+        "retrieval_leakage": _metric(metrics, "retrieval_leakage"),
+        "answer_leakage": _metric(metrics, "answer_leakage"),
+        "citation_valid": _metric(metrics, "citation_valid"),
+        "groundedness": _metric(metrics, "groundedness"),
         "stale_memory_error": _metric(metrics, "stale_memory_error"),
         "preference_following": _metric(metrics, "preference_following"),
         "error": result.error,
@@ -94,3 +114,8 @@ def _metric(metrics: dict[str, object], key: str) -> str:
     if isinstance(value, float):
         return f"{value:.6f}"
     return str(value)
+
+
+def _metadata(result: EvaluationResult, key: str) -> object:
+    value = result.metadata.get(key)
+    return "" if value is None else value

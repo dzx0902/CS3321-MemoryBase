@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import secrets
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,7 +32,20 @@ def build_parser(description: str, *, default_output: str) -> argparse.ArgumentP
             "summary_memory",
             "db_memory",
             "db_extraction",
+            "db_qa",
+            "vector_qa",
+            "db_extraction_qa",
         ],
+    )
+    parser.add_argument(
+        "--preserve-eval-data",
+        action="store_true",
+        help="Do not soft-delete memories created by live evaluation cases.",
+    )
+    parser.add_argument(
+        "--shared-workspace",
+        action="store_true",
+        help="Reuse --workspace instead of creating an isolated per-case workspace.",
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUTS / default_output)
@@ -60,6 +74,8 @@ def run_eval(
     api_base_url: str | None = None,
     workspace: str | None = None,
     agent: str | None = None,
+    cleanup: bool = True,
+    isolate: bool = False,
 ) -> list[EvaluationResult]:
     resolved_run_id = run_id or new_run_id()
     cases = load_cases(dataset, category=category, limit=limit)
@@ -72,6 +88,8 @@ def run_eval(
         api_base_url=api_base_url,
         workspace=workspace,
         agent=agent,
+        cleanup=cleanup,
+        isolate=isolate,
     )
     results = [_score_result(case, baseline.run_case(case)) for case in cases]
     write_results_csv(output, results)
@@ -97,10 +115,20 @@ def _score_result(case: EvaluationCase, result: EvaluationResult) -> EvaluationR
         **retrieval,
         "deletion_success": _deletion_success(case, qa),
         "privacy_leakage": bool(qa["forbidden_answer_violation"]),
+        "answer_leakage": bool(qa["forbidden_answer_violation"]),
+        "retrieval_leakage": _retrieval_leakage(case, result.retrieved_memory_texts),
         "stale_memory_error": _stale_memory_error(case, qa),
         "preference_following": _preference_following(case, qa),
+        **_citation_metrics(result),
     }
-    result.metadata = {**result.metadata, "qa": qa, "retrieval": retrieval, "metrics": metrics}
+    result.metadata = {
+        **result.metadata,
+        "history_length_tokens": case.metadata.get("actual_history_tokens")
+        or case.metadata.get("history_length_tokens"),
+        "qa": qa,
+        "retrieval": retrieval,
+        "metrics": metrics,
+    }
     return result
 
 
@@ -120,3 +148,27 @@ def _preference_following(case: EvaluationCase, qa: dict[str, float | bool]) -> 
     if case.category != "preference_following" and case.expected_behavior != "follow_preference":
         return None
     return bool(qa["pass"])
+
+
+def _retrieval_leakage(case: EvaluationCase, texts: list[str]) -> bool:
+    joined = "\n".join(texts)
+    return any(answer and answer in joined for answer in case.forbidden_answers)
+
+
+def _citation_metrics(result: EvaluationResult) -> dict[str, float | bool | None]:
+    if not result.metadata.get("answer_generation"):
+        return {"citation_valid": None, "groundedness": None}
+    citation_map = result.metadata.get("citation_map")
+    if not isinstance(citation_map, dict):
+        return {"citation_valid": False, "groundedness": 0.0}
+    known_refs: set[str] = set()
+    for section in ("memories", "evidence"):
+        entries = citation_map.get(section)
+        if isinstance(entries, dict):
+            known_refs.update(str(key) for key in entries)
+    cited_refs = set(re.findall(r"\[([ME]\d+)\]", result.generated_answer))
+    valid = bool(cited_refs) and cited_refs.issubset(known_refs)
+    return {
+        "citation_valid": valid,
+        "groundedness": 1.0 if valid else 0.0,
+    }

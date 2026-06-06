@@ -9,17 +9,15 @@ This document records evaluation-route items that are intentionally not complete
 ```text
 - embedding similarity scoring beyond backend recall scores
 - keyword-only vs vector vs hybrid baseline comparison report
-- real write/query/update/delete P50/P95/P99/QPS performance suite
-- real context leakage and answer leakage split
-- long history 1K / 10K / 50K / 100K / 500K retention curves
+- concurrent saturation and load testing
+- hard cleanup APIs for evaluation sessions and source documents
 ```
 
 Required backend support:
 
 ```text
 - source chunk vector retrieval path
-- context package leakage inspection
-- agent answer or answer-generation endpoint
+- independent judge model configuration
 ```
 
 ## External Dataset Items
@@ -43,11 +41,10 @@ Current state:
 ## Model-Dependent Items
 
 ```text
-- LLM-as-judge
-- groundedness
+- independent LLM-as-judge
+- semantic groundedness beyond citation validation
 - hallucination rate
 - embedding similarity judge
-- token usage
 - token cost per answer
 ```
 
@@ -87,7 +84,9 @@ DELETE /api/memories/{memory_id} for injected deletion cases
 Limitation:
 
 ```text
-It uses direct memory API injection. It does not yet test automatic memory extraction or full agent answer generation.
+Retrieval-only modes use direct memory API injection. `db_qa`, `vector_qa`, and
+`db_extraction_qa` call the real answer endpoint. The extraction QA mode exercises source
+import, candidate extraction, approval, recall, context packaging, and answer generation.
 ```
 
 Current extraction support:
@@ -120,4 +119,16 @@ Continue backend B1 by expanding vector coverage and reporting comparisons:
 2. Add embedding similarity scoring beyond backend recall scores.
 3. Add real context leakage and answer leakage inspection.
 4. Keep naive_vector_rag as the live API vector-backed baseline.
+```
+
+## Newly Completed
+
+```text
+- provider-backed QA modes with prompt/completion/total token usage
+- deterministic citation validity and citation-groundedness
+- retrieval leakage and answer leakage split
+- generated measured long-context retention curves
+- sequential write/recall/context/QA/update/delete performance sampling
+- external benchmark convert-and-run entry point
+- default soft cleanup for evaluation-created memories
 ```

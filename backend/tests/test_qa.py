@@ -17,7 +17,14 @@ def test_openai_compatible_chat_provider_maps_response(monkeypatch) -> None:
             return None
 
         def json(self) -> dict:
-            return {"choices": [{"message": {"content": "Answer with [M1]."}}]}
+            return {
+                "choices": [{"message": {"content": "Answer with [M1]."}}],
+                "usage": {
+                    "prompt_tokens": 120,
+                    "completion_tokens": 8,
+                    "total_tokens": 128,
+                },
+            }
 
     class FakeClient:
         def __init__(self, *, timeout):
@@ -59,6 +66,9 @@ def test_openai_compatible_chat_provider_maps_response(monkeypatch) -> None:
     assert result.content == "Answer with [M1]."
     assert result.provider == "deepseek"
     assert result.model == "deepseek-chat"
+    assert result.prompt_tokens == 120
+    assert result.completion_tokens == 8
+    assert result.total_tokens == 128
 
 
 def test_qa_answer_api_returns_generated_answer() -> None:

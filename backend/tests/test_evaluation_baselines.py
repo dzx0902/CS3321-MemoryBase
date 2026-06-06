@@ -140,6 +140,7 @@ def test_naive_vector_rag_backfills_embeddings_before_recall(monkeypatch) -> Non
         run_id="test",
         api_base_url="http://testserver",
         workspace="demo",
+        cleanup=False,
     ).run_case(case)
 
     assert result.error == ""
@@ -218,6 +219,7 @@ def test_db_extraction_uses_candidate_workflow_before_recall(monkeypatch) -> Non
         run_id="test",
         api_base_url="http://testserver",
         workspace="demo",
+        cleanup=False,
     ).run_case(case)
 
     assert result.error == ""
@@ -226,3 +228,81 @@ def test_db_extraction_uses_candidate_workflow_before_recall(monkeypatch) -> Non
     assert result.retrieved_memory_ids == ["memory-1"]
     assert ("POST", "http://testserver/api/memory-extraction/from-chunks") in calls
     assert ("POST", "http://testserver/api/memory-candidates/candidate-1/approve") in calls
+
+
+def test_db_qa_calls_answer_endpoint_and_cleans_up(monkeypatch) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def fake_request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        calls.append((method, url))
+        if url.endswith("/api/health/detail"):
+            return FakeResponse(
+                {
+                    "workspace": {
+                        "found": True,
+                        "workspace_id": "00000000-0000-0000-0000-000000000201",
+                    }
+                }
+            )
+        if url.endswith("/api/sessions"):
+            return FakeResponse({"session_id": "session-1"})
+        if url.endswith("/api/observe"):
+            return FakeResponse({"message_id": "message-1"})
+        if url.endswith("/api/memories") and method == "POST":
+            return FakeResponse({"memory_id": "memory-1"})
+        if url.endswith("/api/qa/answer"):
+            return FakeResponse(
+                {
+                    "answer": "Rust [M1].",
+                    "provider": "deepseek",
+                    "model": "deepseek-chat",
+                    "prompt_tokens": 100,
+                    "completion_tokens": 5,
+                    "total_tokens": 105,
+                    "token_count": 30,
+                    "token_budget": 3000,
+                    "citation_map": {"memories": {"M1": {"memory_id": "memory-1"}}},
+                    "supporting_evidence": [],
+                    "selected_memories": [
+                        {"memory_id": "memory-1", "score": 0.9, "selection_reason": "match"}
+                    ],
+                }
+            )
+        if "/api/memories/memory-1" in url and method == "DELETE":
+            return FakeResponse({"memory_id": "memory-1", "status": "forgotten"})
+        raise AssertionError(f"unexpected request {method} {url}")
+
+    monkeypatch.setattr("evaluation.baselines.httpx.request", fake_request)
+    case = EvaluationCase(
+        case_id="single_fact_qa",
+        source="synthetic",
+        category="single_fact",
+        sessions=[
+            EvaluationSession(
+                session_id="s1",
+                turns=[
+                    EvaluationTurn(
+                        role="user",
+                        content="Please remember that Rust is my favorite language.",
+                    )
+                ],
+            )
+        ],
+        query="What is my favorite language?",
+        expected_answer="Rust",
+    )
+
+    result = build_baseline_with_config(
+        mode="db_qa",
+        run_id="test",
+        api_base_url="http://testserver",
+        workspace="demo",
+    ).run_case(case)
+
+    assert result.error == ""
+    assert result.generated_answer == "Rust [M1]."
+    assert result.token_usage == 105
+    assert result.metadata["provider"] == "deepseek"
+    assert result.retrieved_memory_ids == ["memory-1"]
+    assert ("POST", "http://testserver/api/qa/answer") in calls
+    assert ("DELETE", "http://testserver/api/memories/memory-1") in calls

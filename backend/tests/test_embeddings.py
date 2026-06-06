@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.api.deps import get_embedding_service
 from app.main import app
 from app.models.embedding import (
     EmbeddingBackfillRequest,
@@ -29,12 +30,17 @@ def test_local_hashing_embedding_is_deterministic_and_normalized() -> None:
 
 
 def test_embedding_api_generates_vector() -> None:
-    client = TestClient(app)
-
-    response = client.post(
-        "/api/embeddings/generate",
-        json={"text": "Remember that PostgreSQL is the primary database.", "dimension": 32},
+    app.dependency_overrides[get_embedding_service] = lambda: EmbeddingService(
+        provider=LocalHashingEmbeddingProvider(),
     )
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/api/embeddings/generate",
+            json={"text": "Remember that PostgreSQL is the primary database.", "dimension": 32},
+        )
+    finally:
+        app.dependency_overrides.pop(get_embedding_service, None)
 
     assert response.status_code == 200
     payload = response.json()

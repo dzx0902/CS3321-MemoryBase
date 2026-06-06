@@ -328,27 +328,62 @@ python evaluation/runners/run_all.py \
   --limit 6
 python evaluation/runners/run_all.py \
   --dataset evaluation/datasets/synthetic_memory_cases.jsonl \
-  --modes summary_memory,db_memory,naive_vector_rag \
+  --modes summary_memory,db_qa,vector_qa,db_extraction_qa \
   --api-base http://localhost:8000 \
   --workspace <workspace> \
   --agent <agent> \
   --limit 6
 ```
 
+Run measured long-context retention:
+
+```bash
+python -m evaluation.runners.run_long_context_eval \
+  --token-lengths 1000,10000,50000,100000 \
+  --mode db_qa \
+  --workspace <workspace> \
+  --agent <agent>
+```
+
+Run operation-level performance sampling:
+
+```bash
+python -m evaluation.runners.run_api_performance \
+  --workspace <workspace> \
+  --agent <agent> \
+  --iterations 20
+```
+
+Add `--include-qa` only when model latency and provider cost should be measured.
+
+Convert and execute operator-supplied official benchmark data:
+
+```bash
+python -m evaluation.runners.run_benchmark_eval \
+  --benchmark longmemeval \
+  --mode db_qa \
+  --workspace <workspace> \
+  --agent <agent>
+```
+
+Live modes create an isolated workspace per case by default and cascade-delete it after
+scoring. Use `--preserve-eval-data` for failure inspection. Use `--shared-workspace` only
+when intentional; shared runs can soft-delete memories but cannot remove sessions or
+imported sources through the current public API.
+
 ## Remaining Work
 
-Still not fully implemented:
+Still operator- or model-dependent:
 
 ```text
 - embedding similarity scoring
 - official LongMemEval / LoCoMo / MemoryAgentBench full-format validation
-- LLM-as-judge
-- groundedness
+- independent LLM-as-judge
+- semantic groundedness beyond citation validation
 - hallucination rate
-- token usage and token cost
-- real write/query/update/delete database performance suite
-- real context leakage and answer leakage split
-- long history 1K / 10K / 50K / 100K / 500K retention curves
+- provider-specific token cost accounting
+- concurrent saturation and load testing
+- hard cleanup of evaluation sessions and imported sources
 ```
 
 These require either a running API with seed data, external benchmark files, or an LLM judge configuration.
