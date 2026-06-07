@@ -8,19 +8,24 @@ from evaluation.cases import EvaluationCase
 def score_qa(case: EvaluationCase, generated_answer: str) -> dict[str, float | bool]:
     exact = _normalize(generated_answer) == _normalize(case.expected_answer or "")
     contains = _contains_expected(case, generated_answer)
-    forbidden = _has_forbidden_answer(case, generated_answer) or _has_forbidden_pattern(
+    forbidden_mention = _has_forbidden_answer(case, generated_answer) or _has_forbidden_pattern(
         case, generated_answer
     )
+    answer_latest = case.expected_behavior == "answer_latest"
+    blocking_forbidden = forbidden_mention and not answer_latest
+    stale_answer_error = answer_latest and not contains
     expected_text = case.expected_answer or " ".join(case.expected_answer_contains)
     f1 = simple_f1(expected_text, generated_answer)
-    passed = _passes_case(case, exact=exact, contains=contains, forbidden=forbidden)
+    passed = _passes_case(case, exact=exact, contains=contains, forbidden=blocking_forbidden)
     return {
         "exact_match": exact,
         "contains_match": contains,
-        "forbidden_answer_violation": forbidden,
+        "forbidden_answer_violation": forbidden_mention,
+        "historical_value_mention": answer_latest and forbidden_mention,
+        "stale_answer_error": stale_answer_error,
         "simple_f1": f1,
         "pass": passed,
-        "score": _score(exact=exact, contains=contains, forbidden=forbidden, f1=f1),
+        "score": _score(exact=exact, contains=contains, forbidden=blocking_forbidden, f1=f1),
     }
 
 

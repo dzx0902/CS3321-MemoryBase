@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import httpx
 from app.api.deps import get_embedding_service
 from app.main import app
 from app.models.embedding import (
@@ -129,3 +130,48 @@ def test_siliconflow_embedding_provider_maps_response(monkeypatch) -> None:
     assert result.model == "Qwen/Qwen3-Embedding-0.6B"
     assert result.dimension == 3
     assert result.embedding == [0.1, 0.2, 0.3]
+
+
+def test_siliconflow_embedding_provider_retries_transport_error(monkeypatch) -> None:
+    attempts = 0
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"data": [{"embedding": [0.1, 0.2]}]}
+
+    class FakeClient:
+        def __init__(self, *, timeout):
+            assert timeout == 30.0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+        def post(self, url, *, headers, json):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                request = httpx.Request("POST", url)
+                raise httpx.ConnectError("temporary TLS failure", request=request)
+            return FakeResponse()
+
+    monkeypatch.setattr("app.services.embedding_service.httpx.Client", FakeClient)
+    monkeypatch.setattr("app.services.embedding_service.time.sleep", lambda _: None)
+    provider = SiliconFlowEmbeddingProvider(api_key="test-key")
+
+    result = provider.embed(
+        EmbeddingGenerateRequest(
+            text="demo",
+            provider="siliconflow",
+            model="Qwen/Qwen3-Embedding-0.6B",
+            dimension=1024,
+        )
+    )
+
+    assert attempts == 2
+    assert result.embedding == [0.1, 0.2]

@@ -18,7 +18,11 @@ DEFAULT_OUTPUTS = PROJECT_ROOT / "evaluation" / "outputs"
 def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
     outputs_dir.mkdir(parents=True, exist_ok=True)
     report_path = outputs_dir / "benchmark_report.md"
-    csv_paths = sorted(path for path in outputs_dir.rglob("*_results.csv") if path.is_file())
+    csv_paths = sorted(
+        path
+        for path in outputs_dir.rglob("*_results.csv")
+        if path.is_file() and _is_evaluation_result_csv(path)
+    )
     lines = [
         "# MemoryBase Benchmark Report",
         "",
@@ -197,6 +201,12 @@ def main() -> None:
 def _read_rows(path: Path) -> list[dict[str, str]]:
     with path.open("r", encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
+
+
+def _is_evaluation_result_csv(path: Path) -> bool:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        fields = set(csv.DictReader(handle).fieldnames or [])
+    return {"case_id", "category", "pass", "mode", "run_id"}.issubset(fields)
 
 
 def _category_rows(csv_paths: list[Path]) -> dict[str, Counter]:

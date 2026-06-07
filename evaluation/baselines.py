@@ -598,7 +598,7 @@ class LiveMemoryBaseline:
     def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         try:
             if _is_loopback_url(self._config.api_base_url):
-                with httpx.Client(timeout=10.0, trust_env=False) as client:
+                with httpx.Client(timeout=120.0, trust_env=False) as client:
                     response = client.request(
                         method,
                         f"{self._config.api_base_url}{path}",
@@ -608,7 +608,7 @@ class LiveMemoryBaseline:
                 response = httpx.request(
                     method,
                     f"{self._config.api_base_url}{path}",
-                    timeout=10.0,
+                    timeout=120.0,
                     **kwargs,
                 )
         except httpx.RequestError as exc:

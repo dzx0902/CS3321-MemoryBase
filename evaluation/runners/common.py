@@ -114,8 +114,8 @@ def _score_result(case: EvaluationCase, result: EvaluationResult) -> EvaluationR
         **qa,
         **retrieval,
         "deletion_success": _deletion_success(case, qa),
-        "privacy_leakage": bool(qa["forbidden_answer_violation"]),
-        "answer_leakage": bool(qa["forbidden_answer_violation"]),
+        "privacy_leakage": _privacy_leakage(case, qa),
+        "answer_leakage": _answer_leakage(case, qa),
         "retrieval_leakage": _retrieval_leakage(case, result.retrieved_memory_texts),
         "stale_memory_error": _stale_memory_error(case, qa),
         "preference_following": _preference_following(case, qa),
@@ -138,10 +138,22 @@ def _deletion_success(case: EvaluationCase, qa: dict[str, float | bool]) -> bool
     return not bool(qa["forbidden_answer_violation"])
 
 
+def _privacy_leakage(case: EvaluationCase, qa: dict[str, float | bool]) -> bool | None:
+    if case.category != "deletion" and case.expected_behavior != "refuse_or_unknown":
+        return None
+    return bool(qa["forbidden_answer_violation"])
+
+
+def _answer_leakage(case: EvaluationCase, qa: dict[str, float | bool]) -> bool | None:
+    if case.expected_behavior == "answer_latest":
+        return None
+    return bool(qa["forbidden_answer_violation"])
+
+
 def _stale_memory_error(case: EvaluationCase, qa: dict[str, float | bool]) -> bool | None:
     if case.category not in {"temporal_update", "conflict"}:
         return None
-    return bool(qa["forbidden_answer_violation"])
+    return bool(qa["stale_answer_error"])
 
 
 def _preference_following(case: EvaluationCase, qa: dict[str, float | bool]) -> bool | None:

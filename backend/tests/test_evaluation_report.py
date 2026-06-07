@@ -136,3 +136,28 @@ def test_generate_report_reads_nested_mode_outputs(tmp_path: Path) -> None:
     report = report_path.read_text(encoding="utf-8")
     assert "`summary_memory/qa_results.csv`" in report
     assert "Run multiple baselines" in report
+
+
+def test_generate_report_excludes_operation_sample_csv(tmp_path: Path) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir()
+    with (output_dir / "api_results.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["operation", "latency_ms", "success", "status_code", "error"],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "operation": "recall",
+                "latency_ms": "10",
+                "success": "true",
+                "status_code": "200",
+                "error": "",
+            }
+        )
+
+    report = generate_report(outputs_dir=output_dir).read_text(encoding="utf-8")
+
+    assert "`api_results.csv`" not in report
+    assert "No result CSV files were found." in report
