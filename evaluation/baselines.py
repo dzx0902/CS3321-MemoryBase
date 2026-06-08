@@ -224,6 +224,11 @@ def build_baseline_with_config(
 class LiveMemoryBaseline:
     def __init__(self, *, config: LiveMemoryBaselineConfig) -> None:
         self._config = config
+        self._client = (
+            httpx.Client(timeout=120.0, trust_env=False)
+            if _is_loopback_url(config.api_base_url)
+            else None
+        )
 
     def run_case(self, case: EvaluationCase) -> EvaluationResult:
         started = time.perf_counter()
@@ -232,6 +237,7 @@ class LiveMemoryBaseline:
         embedding_backfill: dict[str, Any] | None = None
         workspace_id: str | None = None
         isolated_workspace = False
+        pending_memories: list[tuple[str, EvaluationTurn]] = []
         try:
             if self._config.isolate:
                 workspace_id, agent_id = self._create_isolated_workspace(case)
@@ -256,6 +262,18 @@ class LiveMemoryBaseline:
                     if _is_query_turn(turn.content, case.query):
                         continue
                     if _should_apply_forget_turn(case, turn):
+                        created = self._create_memories(
+                            workspace_id=workspace_id,
+                            agent_id=agent_id,
+                            entries=pending_memories,
+                            case=case,
+                        )
+                        for memory_id, pending_turn in created:
+                            source_id = _turn_source_id(pending_turn)
+                            if source_id:
+                                memory_source_ids[memory_id] = source_id
+                        created_memory_ids.extend(memory_id for memory_id, _turn in created)
+                        pending_memories.clear()
                         self._delete_created_memories(workspace_id, created_memory_ids)
                         created_memory_ids.clear()
                         continue
@@ -268,16 +286,19 @@ class LiveMemoryBaseline:
                             )
                         )
                     else:
-                        memory_id = self._create_memory(
-                            workspace_id=workspace_id,
-                            agent_id=agent_id,
-                            content=turn.content,
-                            case=case,
-                        )
-                        created_memory_ids.append(memory_id)
-                        source_id = _turn_source_id(turn)
-                        if source_id:
-                            memory_source_ids[memory_id] = source_id
+                        pending_memories.append((turn.content, turn))
+
+            created = self._create_memories(
+                workspace_id=workspace_id,
+                agent_id=agent_id,
+                entries=pending_memories,
+                case=case,
+            )
+            for memory_id, pending_turn in created:
+                created_memory_ids.append(memory_id)
+                source_id = _turn_source_id(pending_turn)
+                if source_id:
+                    memory_source_ids[memory_id] = source_id
 
             if self._config.backfill_embeddings:
                 embedding_backfill = self._backfill_embeddings(workspace_id)
@@ -400,6 +421,7 @@ class LiveMemoryBaseline:
         workspace_id: str | None = None
         created_memory_ids: list[str] = []
         results: list[EvaluationResult] = []
+        pending_memories: list[tuple[str, EvaluationTurn]] = []
         try:
             if self._config.isolate:
                 workspace_id, agent_id = self._create_isolated_workspace(cases[0])
@@ -420,14 +442,16 @@ class LiveMemoryBaseline:
                     )
                     if not _is_memory_turn(cases[0], turn):
                         continue
-                    created_memory_ids.append(
-                        self._create_memory(
-                            workspace_id=workspace_id,
-                            agent_id=agent_id,
-                            content=turn.content,
-                            case=cases[0],
-                        )
-                    )
+                    pending_memories.append((turn.content, turn))
+            created_memory_ids.extend(
+                memory_id
+                for memory_id, _turn in self._create_memories(
+                    workspace_id=workspace_id,
+                    agent_id=agent_id,
+                    entries=pending_memories,
+                    case=cases[0],
+                )
+            )
 
             for case in cases:
                 started = time.perf_counter()
@@ -599,33 +623,54 @@ class LiveMemoryBaseline:
         }
         self._request("POST", "/api/observe", json=payload)
 
-    def _create_memory(
+    def _create_memories(
         self,
         *,
         workspace_id: str,
         agent_id: str | None,
-        content: str,
+        entries: list[tuple[str, EvaluationTurn]],
         case: EvaluationCase,
-    ) -> str:
-        payload = {
-            "workspace_id": workspace_id,
-            "memory_type": _memory_type_for_case(case, content),
-            "canonical_text": content,
-            "summary": f"Evaluation case {case.case_id}",
-            "confidence": 0.7,
-            "importance": 3,
-            "access_level": "project",
-            "owner_agent_id": agent_id,
-            "evidence": [],
-        }
-        headers = {
-            "X-Actor-Type": "agent",
-            "X-Revision-Reason": f"evaluation injection {self._config.run_id}",
-        }
-        if agent_id:
-            headers["X-Actor-Id"] = agent_id
-        response = self._request("POST", "/api/memories", json=payload, headers=headers)
-        return str(response["memory_id"])
+    ) -> list[tuple[str, EvaluationTurn]]:
+        created: list[tuple[str, EvaluationTurn]] = []
+        for offset in range(0, len(entries), 500):
+            batch = entries[offset : offset + 500]
+            payload = {
+                "items": [
+                    {
+                        "workspace_id": workspace_id,
+                        "memory_type": _memory_type_for_case(case, content),
+                        "canonical_text": content,
+                        "summary": f"Evaluation case {case.case_id}",
+                        "confidence": 0.7,
+                        "importance": 3,
+                        "access_level": "project",
+                        "owner_agent_id": agent_id,
+                        "evidence": [],
+                    }
+                    for content, _turn in batch
+                ]
+            }
+            headers = {
+                "X-Actor-Type": "agent",
+                "X-Revision-Reason": f"evaluation batch injection {self._config.run_id}",
+            }
+            if agent_id:
+                headers["X-Actor-Id"] = agent_id
+            response = self._request(
+                "POST",
+                "/api/memories/batch",
+                json=payload,
+                headers=headers,
+            )
+            items = response.get("items", [])
+            if not isinstance(items, list) or len(items) != len(batch):
+                raise RuntimeError("MemoryBase batch memory response size did not match request")
+            created.extend(
+                (str(item["memory_id"]), turn)
+                for item, (_content, turn) in zip(items, batch, strict=True)
+                if isinstance(item, dict) and item.get("memory_id")
+            )
+        return created
 
     def _extract_and_approve_memory(
         self,
@@ -729,13 +774,12 @@ class LiveMemoryBaseline:
 
     def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         try:
-            if _is_loopback_url(self._config.api_base_url):
-                with httpx.Client(timeout=120.0, trust_env=False) as client:
-                    response = client.request(
-                        method,
-                        f"{self._config.api_base_url}{path}",
-                        **kwargs,
-                    )
+            if self._client is not None:
+                response = self._client.request(
+                    method,
+                    f"{self._config.api_base_url}{path}",
+                    **kwargs,
+                )
             else:
                 response = httpx.request(
                     method,

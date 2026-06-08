@@ -86,7 +86,7 @@ Live retrieval modes use the current memory API directly:
 
 ```text
 case sessions -> /api/sessions + /api/observe
-memory-bearing user turns -> /api/memories
+memory-bearing turns -> /api/memories/batch
 query -> /api/recall
 ```
 
@@ -173,10 +173,10 @@ db_extraction_qa
 backend. `db_memory` requires a running API, workspace, and optionally an agent.
 `db_extraction` imports each memory-bearing turn as a source, extracts candidate
 memories from chunks, approves them, and then recalls active memory.
-`naive_vector_rag` also requires a running API. It writes evaluation memories through
-the memory API, calls `/api/embeddings/backfill` with the local hashing provider, and
-then calls `/api/recall` with `retrieval_mode=vector` so the result records backend
-vector scoring fields.
+`naive_vector_rag` also requires a running API. Direct-memory live modes batch up
+to 500 evaluation memories per request, calls `/api/embeddings/backfill` with the
+local hashing provider, and then calls `/api/recall` with
+`retrieval_mode=vector` so the result records backend vector scoring fields.
 
 ## Long-Context Retention
 

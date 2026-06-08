@@ -176,9 +176,9 @@ def test_longmemeval_live_baseline_writes_assistant_turns(monkeypatch) -> None:
             return FakeResponse({"session_id": "session-1"})
         if url.endswith("/api/observe"):
             return FakeResponse({"message_id": "message-1"})
-        if url.endswith("/api/memories"):
-            memory_payloads.append(kwargs["json"])
-            return FakeResponse({"memory_id": "memory-1"})
+        if url.endswith("/api/memories/batch"):
+            memory_payloads.extend(kwargs["json"]["items"])
+            return FakeResponse({"items": [{"memory_id": "memory-1"}]})
         if url.endswith("/api/recall"):
             return FakeResponse({"memories": []})
         raise AssertionError(f"unexpected request {method} {url}")
@@ -225,8 +225,8 @@ def test_locomo_live_baseline_maps_memory_uuid_to_dialog_id(monkeypatch) -> None
             return FakeResponse({"session_id": "session-1"})
         if url.endswith("/api/observe"):
             return FakeResponse({"message_id": "message-1"})
-        if url.endswith("/api/memories"):
-            return FakeResponse({"memory_id": "memory-uuid-1"})
+        if url.endswith("/api/memories/batch"):
+            return FakeResponse({"items": [{"memory_id": "memory-uuid-1"}]})
         if url.endswith("/api/recall"):
             return FakeResponse(
                 {
@@ -280,6 +280,7 @@ def test_grouped_live_baseline_injects_context_once_for_multiple_questions(
     monkeypatch,
 ) -> None:
     calls: list[tuple[str, str]] = []
+    batch_sizes: list[int] = []
 
     def fake_request(method: str, url: str, **kwargs: Any) -> FakeResponse:
         calls.append((method, url))
@@ -296,8 +297,17 @@ def test_grouped_live_baseline_injects_context_once_for_multiple_questions(
             return FakeResponse({"session_id": "session-1"})
         if url.endswith("/api/observe"):
             return FakeResponse({"message_id": "message-1"})
-        if url.endswith("/api/memories"):
-            return FakeResponse({"memory_id": "memory-1"})
+        if url.endswith("/api/memories/batch"):
+            items = kwargs["json"]["items"]
+            batch_sizes.append(len(items))
+            return FakeResponse(
+                {
+                    "items": [
+                        {"memory_id": f"memory-{index}"}
+                        for index, _item in enumerate(items, start=1)
+                    ]
+                }
+            )
         if url.endswith("/api/qa/answer"):
             return FakeResponse(
                 {
@@ -321,7 +331,10 @@ def test_grouped_live_baseline_injects_context_once_for_multiple_questions(
     sessions = [
         EvaluationSession(
             session_id="context-1",
-            turns=[EvaluationTurn(role="user", content="The chairperson is Bob.")],
+            turns=[
+                EvaluationTurn(role="user", content="The chairperson was Alice."),
+                EvaluationTurn(role="user", content="The chairperson is Bob."),
+            ],
         )
     ]
     cases = [
@@ -351,7 +364,8 @@ def test_grouped_live_baseline_injects_context_once_for_multiple_questions(
     results = baseline.run_group(cases)
 
     assert len(results) == 2
-    assert calls.count(("POST", "http://testserver/api/memories")) == 1
+    assert batch_sizes == [2]
+    assert calls.count(("POST", "http://testserver/api/memories/batch")) == 1
     assert calls.count(("POST", "http://testserver/api/qa/answer")) == 2
     assert all(result.generated_answer == "Bob [M1]." for result in results)
 
@@ -374,8 +388,8 @@ def test_naive_vector_rag_backfills_embeddings_before_recall(monkeypatch) -> Non
             return FakeResponse({"session_id": "session-1"})
         if url.endswith("/api/observe"):
             return FakeResponse({"message_id": "message-1"})
-        if url.endswith("/api/memories"):
-            return FakeResponse({"memory_id": "memory-1"})
+        if url.endswith("/api/memories/batch"):
+            return FakeResponse({"items": [{"memory_id": "memory-1"}]})
         if url.endswith("/api/embeddings/backfill"):
             return FakeResponse({"memory_count": 1, "chunk_count": 1})
         if url.endswith("/api/recall"):
@@ -528,8 +542,8 @@ def test_db_qa_calls_answer_endpoint_and_cleans_up(monkeypatch) -> None:
             return FakeResponse({"session_id": "session-1"})
         if url.endswith("/api/observe"):
             return FakeResponse({"message_id": "message-1"})
-        if url.endswith("/api/memories") and method == "POST":
-            return FakeResponse({"memory_id": "memory-1"})
+        if url.endswith("/api/memories/batch") and method == "POST":
+            return FakeResponse({"items": [{"memory_id": "memory-1"}]})
         if url.endswith("/api/qa/answer"):
             return FakeResponse(
                 {

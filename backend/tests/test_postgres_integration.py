@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 import psycopg
 import pytest
@@ -2125,3 +2127,143 @@ def test_memory_recall_statistics_view_aggregates_logged_results(
     assert row is not None
     assert row[0] >= 2
     assert row[1] is not None
+
+
+def test_batch_memory_create_is_atomic_and_keeps_audit_triggers(
+    integration_client,
+    integration_db: str,
+) -> None:
+    marker = "batch-memory-integration"
+    response = integration_client.post(
+        "/api/memories/batch",
+        headers={
+            "X-Actor-Type": "system",
+            "X-Revision-Reason": "batch integration test",
+        },
+        json={
+            "items": [
+                {
+                    "workspace_id": WORKSPACE_ID,
+                    "memory_type": "fact",
+                    "canonical_text": f"{marker} first",
+                },
+                {
+                    "workspace_id": WORKSPACE_ID,
+                    "memory_type": "fact",
+                    "canonical_text": f"{marker} second",
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["count"] == 2
+    memory_ids = [item["memory_id"] for item in body["items"]]
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT count(*)
+                FROM memory_revision
+                WHERE memory_id = ANY(%s::uuid[])
+                """,
+                (memory_ids,),
+            )
+            assert cur.fetchone()[0] == 2
+            cur.execute(
+                """
+                SELECT count(*)
+                FROM audit_log
+                WHERE target_id = ANY(%s::uuid[])
+                  AND action_type = 'memory.insert'
+                """,
+                (memory_ids,),
+            )
+            assert cur.fetchone()[0] == 2
+
+    failed = integration_client.post(
+        "/api/memories/batch",
+        json={
+            "items": [
+                {
+                    "workspace_id": WORKSPACE_ID,
+                    "memory_type": "fact",
+                    "canonical_text": f"{marker} rollback first",
+                },
+                {
+                    "workspace_id": WORKSPACE_ID,
+                    "memory_type": "fact",
+                    "canonical_text": f"{marker} rollback second",
+                    "evidence": [{"chunk_id": str(uuid4())}],
+                },
+            ]
+        },
+    )
+    assert failed.status_code == 400
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT count(*)
+                FROM memory_item
+                WHERE canonical_text LIKE %s
+                """,
+                (f"{marker} rollback%",),
+            )
+            assert cur.fetchone()[0] == 0
+
+
+def test_memory_create_can_atomically_supersede_an_active_memory(
+    integration_client,
+    integration_db: str,
+) -> None:
+    old_response = integration_client.post(
+        "/api/memories",
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "memory_type": "fact",
+            "canonical_text": "The deployment region is England.",
+        },
+    )
+    assert old_response.status_code == 201
+    old_memory_id = old_response.json()["memory_id"]
+
+    new_response = integration_client.post(
+        "/api/memories",
+        headers={"X-Revision-Reason": "newer structured fact"},
+        json={
+            "workspace_id": WORKSPACE_ID,
+            "memory_type": "fact",
+            "canonical_text": "The deployment region is India.",
+            "valid_from": "2026-06-08T12:00:00Z",
+            "supersedes_memory_id": old_memory_id,
+        },
+    )
+    assert new_response.status_code == 201
+    new_memory_id = new_response.json()["memory_id"]
+
+    old_detail = integration_client.get(
+        f"/api/memories/{old_memory_id}",
+        params={"workspace_id": WORKSPACE_ID},
+    )
+    assert old_detail.status_code == 200
+    assert old_detail.json()["status"] == "superseded"
+    assert old_detail.json()["superseded_by_memory_id"] == new_memory_id
+    assert datetime.fromisoformat(old_detail.json()["valid_to"]).astimezone(UTC) == datetime(
+        2026, 6, 8, 12, tzinfo=UTC
+    )
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT count(*)
+                FROM memory_revision
+                WHERE memory_id = %(memory_id)s
+                """,
+                {"memory_id": old_memory_id},
+            )
+            assert cur.fetchone()[0] == 2

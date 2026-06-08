@@ -170,9 +170,13 @@ MEMORYBASE_AGENT
 /api/health/detail
 /api/sessions
 /api/observe
-/api/memories
+/api/memories/batch
 /api/recall
 ```
+
+Direct-memory modes reuse one HTTP client and batch up to 500 memory-bearing
+turns in one atomic database transaction. Forget operations flush the pending
+batch before changing memory status so event order remains deterministic.
 
 For deletion cases it soft-deletes memories it injected:
 

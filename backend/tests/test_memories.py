@@ -9,6 +9,8 @@ from app.api.deps import get_memory_service
 from app.main import create_app
 from app.models.memory import (
     ActorContext,
+    MemoryBatchCreateRequest,
+    MemoryBatchCreateResponse,
     MemoryCreateRequest,
     MemoryDeleteResponse,
     MemoryDetailResponse,
@@ -19,6 +21,7 @@ from app.models.memory import (
 from app.services.memory_service import (
     MemoryNotFoundError,
     MemoryValidationError,
+    _validate_create_payload,
     _validate_initial_status,
     _validate_status_transition,
 )
@@ -117,6 +120,20 @@ class FakeMemoryService:
             }
         )
         return MemorySummaryResponse(**self.memory.model_dump(exclude={"evidence", "revisions"}))
+
+    def create_memories(
+        self,
+        payload: MemoryBatchCreateRequest,
+        actor: ActorContext | None = None,
+    ) -> MemoryBatchCreateResponse:
+        if len({item.workspace_id for item in payload.items}) != 1:
+            raise MemoryValidationError("batch memory items must use one workspace_id")
+        items = [self.create_memory(item, actor) for item in payload.items]
+        return MemoryBatchCreateResponse(
+            workspace_id=payload.items[0].workspace_id,
+            count=len(items),
+            items=items,
+        )
 
     def list_memories(
         self,
@@ -223,6 +240,71 @@ def test_create_memory_accepts_candidate_status_and_new_memory_type() -> None:
     assert response.status_code == 201
     assert response.json()["memory_type"] == "fact"
     assert response.json()["status"] == "candidate"
+
+
+def test_batch_create_memories_returns_all_items() -> None:
+    client, fake_service = build_client()
+
+    response = client.post(
+        "/api/memories/batch",
+        headers={"X-Actor-Type": "agent"},
+        json={
+            "items": [
+                {
+                    "workspace_id": str(fake_service.workspace_id),
+                    "memory_type": "fact",
+                    "canonical_text": "First batch fact.",
+                },
+                {
+                    "workspace_id": str(fake_service.workspace_id),
+                    "memory_type": "fact",
+                    "canonical_text": "Second batch fact.",
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["count"] == 2
+    assert len(response.json()["items"]) == 2
+
+
+def test_batch_create_rejects_mixed_workspaces() -> None:
+    client, fake_service = build_client()
+
+    response = client.post(
+        "/api/memories/batch",
+        json={
+            "items": [
+                {
+                    "workspace_id": str(fake_service.workspace_id),
+                    "memory_type": "fact",
+                    "canonical_text": "First workspace.",
+                },
+                {
+                    "workspace_id": str(uuid4()),
+                    "memory_type": "fact",
+                    "canonical_text": "Second workspace.",
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "batch memory items must use one workspace_id"
+
+
+def test_superseding_memory_must_start_active() -> None:
+    with pytest.raises(MemoryValidationError, match="must start with active"):
+        _validate_create_payload(
+            MemoryCreateRequest(
+                workspace_id=uuid4(),
+                memory_type="fact",
+                canonical_text="Candidate replacement.",
+                status="candidate",
+                supersedes_memory_id=uuid4(),
+            )
+        )
 
 
 def test_list_memories_returns_collection() -> None:

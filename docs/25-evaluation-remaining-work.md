@@ -81,7 +81,7 @@ Current `db_memory` behavior:
 /api/health/detail
 /api/sessions
 /api/observe
-/api/memories
+/api/memories/batch
 /api/memory-extraction/from-chunks
 /api/memory-candidates
 /api/recall
@@ -146,6 +146,9 @@ Continue backend B1 by expanding vector coverage and reporting comparisons:
 - report pass rates that prefer semantic judgements over string matching
 - MemoryAgentBench context blocks below the context-pack compaction boundary
 - explicit MemoryAgentBench conflict sequence semantics
+- atomic batch memory creation with per-item revision and audit triggers
+- live evaluation HTTP connection reuse and batched direct-memory injection
+- atomic explicit supersession using existing validity and lifecycle columns
 ```
 
 ## Latest Paid Smoke Evidence

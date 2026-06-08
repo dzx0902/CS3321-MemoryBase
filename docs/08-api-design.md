@@ -57,6 +57,8 @@
   "confidence": 0.9,
   "importance": 5,
   "access_level": "project",
+  "valid_from": "2026-06-08T12:00:00Z",
+  "supersedes_memory_id": "optional-older-memory-uuid",
   "evidence": [
     {
       "chunk_id": "uuid",
@@ -74,8 +76,38 @@ Lifecycle notes:
 
 - `memory_type` supports `episodic`, `semantic`, `fact`, `profile`, `procedural`, `decision`, `preference`, `task`, `risk`, `constraint`, `policy`, and `summary`.
 - New memory may start as `active` or `candidate`; automatic extraction should use `candidate`.
+- An active memory may atomically supersede an older active/conflicted memory in
+  the same workspace by setting `supersedes_memory_id`. The backend closes the
+  older validity interval and records `superseded_by_memory_id`.
 - Allowed status transitions are `candidate -> active/rejected`, `active -> superseded/archived/conflicted/forgotten`, `conflicted -> active/superseded/forgotten`, and `archived -> forgotten`.
 - Status changes are rejected if they skip the lifecycle state machine. Database triggers still write memory revision and audit rows for accepted state changes.
+
+### POST /api/memories/batch
+
+Creates 1 to 500 memories in one database transaction:
+
+```json
+{
+  "items": [
+    {
+      "workspace_id": "uuid",
+      "memory_type": "fact",
+      "canonical_text": "First fact.",
+      "evidence": []
+    },
+    {
+      "workspace_id": "uuid",
+      "memory_type": "fact",
+      "canonical_text": "Second fact.",
+      "evidence": []
+    }
+  ]
+}
+```
+
+All items must use the same `workspace_id`. The operation is atomic: validation
+or evidence failure for any item rolls back the complete batch. Existing memory
+revision, audit, and inline agent-evidence behavior applies to every item.
 
 ### GET /api/memories
 
