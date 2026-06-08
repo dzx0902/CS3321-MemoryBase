@@ -20,11 +20,11 @@ as the source of truth; regenerate SVGs after edits.
 | File | Type | Purpose | Where to use in the report |
 |---|---|---|---|
 | `01-er-core.{mmd,svg}` | erDiagram | Simplified 8-entity ER with attribute boxes (Workspace / SourceDocument / SourceChunk / MemoryItem / MemoryEvidence / MemoryRevision / WikiPage / AuditLog) | §3 概念结构设计 — opening figure |
-| `02-er-full.{mmd,svg}` | erDiagram | Full 25-entity ER (relationships only) covering core + governance + semantic + runtime | E-R 完整图 / 附录 |
-| `03-source-to-wiki.{mmd,svg}` | sequenceDiagram | End-to-end business sequence: import → chunk → extract candidate → approve → evidence → revision → wiki export. Includes trigger-driven `current_revision_no` and `audit_log` writes. | §4 数据流图 / §6 系统实现章节 |
-| `04-recall.{mmd,svg}` | sequenceDiagram | Recall path: agent → permission filter (`v_agent_visible_memory`) → lexical (GIN) + optional vector (JSONB embedding cache) → context pack + provenance → `recall_log` with `retrieval_info` (mode/fallback_reason). | §6 Recall 模块 / §7 创新点 hybrid retrieval |
-| `05-governance.{mmd,svg}` | sequenceDiagram | Three governance flows in one diagram: (A) conflict detect → flag → resolve, (B) forget request → approval → soft-delete, (C) memory revision via triggers (`trg_memory_before_update`, `trg_memory_after_update`). | §7 创新点 / governance 章节 |
-| `06-memory-status.{mmd,svg}` | stateDiagram-v2 | `memory_item.status` lifecycle (7-state CHECK constraint): candidate → active → archived/forgotten/superseded/rejected/conflicted, with trigger-driven transitions. | 附录 / status 状态机 |
+| `02-er-full.{mmd,svg}` | erDiagram | Full 25-entity ER with the main persisted and logical relationships covering core + governance + semantic + runtime. Generic principal and polymorphic audit/forget targets are described in text rather than drawn exhaustively. | E-R 完整图 / 附录 |
+| `03-source-to-wiki.{mmd,svg}` | sequenceDiagram | End-to-end business sequence: import → chunk → extract candidate → approve → evidence → revision → wiki export. Includes trigger-driven memory revision and wiki revision audit writes. | §4 数据流图 / §6 系统实现章节 |
+| `04-recall.{mmd,svg}` | sequenceDiagram | Recall path: caller → permission filter (`v_agent_visible_memory` when `agent_id` is provided, otherwise public/project fallback) → lexical (GIN) + optional vector (JSONB embedding cache) → context pack + provenance → `recall_log` with `retrieval_info` (mode/fallback_reason). | §6 Recall 模块 / §7 创新点 hybrid retrieval |
+| `05-governance.{mmd,svg}` | sequenceDiagram | Three governance flows in one diagram: (A) conflict create → trigger flag → resolve/ignore, (B) forget request → approval/done → soft-forget, (C) memory revision via triggers (`trg_memory_before_update`, `trg_memory_after_update`). | §7 创新点 / governance 章节 |
+| `06-memory-status.{mmd,svg}` | stateDiagram-v2 | `memory_item.status` lifecycle (7-state CHECK constraint): candidate → active → archived/forgotten/superseded/rejected/conflicted, with service-validated and trigger-driven transitions. | 附录 / status 状态机 |
 
 ## Canonical sources
 

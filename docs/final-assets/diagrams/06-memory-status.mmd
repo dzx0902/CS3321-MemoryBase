@@ -15,13 +15,12 @@ stateDiagram-v2
 
     active     --> conflicted : conflict detected
     conflicted --> active     : resolved (both_valid)
-    conflicted --> superseded : resolved (loser)
+    conflicted --> superseded : manual merge
 
     active     --> superseded : newer memory replaces
     active     --> archived   : soft delete
     active     --> forgotten  : forget approved
 
-    archived   --> active     : restore (rare)
     archived   --> forgotten  : escalated forget
 
     rejected   --> [*]

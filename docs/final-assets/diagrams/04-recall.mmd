@@ -17,10 +17,14 @@ sequenceDiagram
 
     Note over API,Vis: Permission filter
     API->>Recall: recall(query, agent_id, mode=hybrid)
-    Recall->>Vis: SELECT memory_id WHERE agent_id = $1
-    Vis-->>Recall: visible_memory_ids
+    alt agent_id provided
+        Recall->>Vis: SELECT memory_id WHERE agent_id = $1
+        Vis-->>Recall: visible_memory_ids
+    else no agent_id
+        Recall->>DB: filter access_level IN ('public', 'project')
+    end
 
-    Note over Recall,GIN: Lexical retrieval (always runs)
+    Note over Recall,GIN: Lexical retrieval (keyword/hybrid path)
     Recall->>GIN: chunk FTS via idx_source_chunk_fts (+ trigram fallback)
     GIN-->>Recall: chunk_id ranked list
     Recall->>GIN: memory FTS via idx_memory_fts on memory_item.search_vector

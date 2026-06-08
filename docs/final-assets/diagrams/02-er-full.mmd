@@ -1,27 +1,36 @@
-%% MemoryBase — Full ER (25 entities, relationships only)
-%% Use this diagram as the E-R appendix.
+%% MemoryBase — Full ER (25 entities, main persisted/logical relationships)
+%% Use this diagram as the E-R appendix. Generic principal and polymorphic targets are explained in text.
 %% For core lifecycle with attribute boxes, see 01-er-core.
 
 erDiagram
     USER_ACCOUNT             ||--o{ WORKSPACE             : "owns"
     WORKSPACE                ||--o{ AGENT                 : "registers"
+    USER_ACCOUNT             ||--o{ AGENT                 : "owns"
     WORKSPACE                ||--o{ WORKSPACE_MEMBER      : "has_members"
     USER_ACCOUNT             ||--o{ WORKSPACE_MEMBER      : "joins_as"
     AGENT                    ||--o{ WORKSPACE_MEMBER      : "joins_as"
 
     WORKSPACE                ||--o{ AGENT_SESSION         : "scopes"
     AGENT                    ||--o{ AGENT_SESSION         : "drives"
+    USER_ACCOUNT             ||--o{ AGENT_SESSION         : "starts"
     AGENT_SESSION            ||--o{ MESSAGE               : "records"
+    MESSAGE                  ||--o{ MESSAGE               : "replies"
 
     WORKSPACE                ||--o{ SOURCE_DOCUMENT       : "imports"
+    AGENT_SESSION            ||--o{ SOURCE_DOCUMENT       : "captures"
+    USER_ACCOUNT             ||--o{ SOURCE_DOCUMENT       : "imports"
     SOURCE_DOCUMENT          ||--o{ SOURCE_CHUNK          : "splits_into"
     SOURCE_CHUNK             ||--o{ MEMORY_EVIDENCE       : "supports"
     SOURCE_CHUNK             ||--o{ SOURCE_CHUNK_EMBEDDING : "caches_embedding"
 
     WORKSPACE                ||--o{ MEMORY_ITEM           : "owns"
+    SOURCE_DOCUMENT          ||--o{ MEMORY_ITEM           : "creates"
+    USER_ACCOUNT             ||--o{ MEMORY_ITEM           : "owns"
+    AGENT                    ||--o{ MEMORY_ITEM           : "owns"
     MEMORY_ITEM              ||--o{ MEMORY_EVIDENCE       : "has"
     MEMORY_ITEM              ||--o{ MEMORY_REVISION       : "has_versions"
     MEMORY_ITEM              ||--o{ MEMORY_EMBEDDING      : "caches_embedding"
+    MEMORY_ITEM              ||--o{ MEMORY_ITEM           : "supersedes"
 
     WORKSPACE                ||--o{ ENTITY                : "defines"
     MEMORY_ITEM              ||--o{ MEMORY_ENTITY         : "tags"
@@ -36,9 +45,15 @@ erDiagram
     MEMORY_ITEM              ||--o{ WIKI_PAGE             : "memory_page"
 
     WORKSPACE                ||--o{ TIMELINE_ENTRY        : "tracks"
+    MEMORY_ITEM              ||--o{ TIMELINE_ENTRY        : "anchors"
+    SOURCE_DOCUMENT          ||--o{ TIMELINE_ENTRY        : "anchors"
     WORKSPACE                ||--o{ RECALL_LOG            : "logs"
+    AGENT                    ||--o{ RECALL_LOG            : "queries"
+    USER_ACCOUNT             ||--o{ RECALL_LOG            : "queries"
     WORKSPACE                ||--o{ ACCESS_POLICY         : "controls"
     WORKSPACE                ||--o{ FORGET_REQUEST        : "reviews"
+    USER_ACCOUNT             ||--o{ FORGET_REQUEST        : "requests"
+    USER_ACCOUNT             ||--o{ FORGET_REQUEST        : "reviews"
     MEMORY_ITEM              ||--o{ CONFLICT_RECORD       : "left"
     MEMORY_ITEM              ||--o{ CONFLICT_RECORD       : "right"
     WORKSPACE                ||--o{ AUDIT_LOG             : "audits"

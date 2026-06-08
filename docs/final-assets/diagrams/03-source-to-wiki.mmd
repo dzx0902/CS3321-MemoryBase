@@ -19,7 +19,7 @@ sequenceDiagram
         API->>Service: SourceService.import_source(payload)
         Service->>DB: INSERT source_document (status='active', imported_at)
         Service->>DB: INSERT source_chunk rows (chunk_no, chunk_text, search_text_zh)
-        DB-->>Trig: GENERATED ALWAYS computes search_vector (tsvector)
+        DB->>DB: GENERATED ALWAYS computes search_vector (tsvector)
         Service-->>API: SourceImportResponse {doc_id, chunk_count}
         API-->>FE: 200 OK
     end
@@ -28,27 +28,28 @@ sequenceDiagram
         Note over User,DB: 2) Rule-based memory extraction (candidate)
         User->>FE: click "Extract candidates"
         FE->>API: POST /api/memory-extraction/from-chunks
-        API->>Service: MemoryExtractionService.extract(run_id)
+        API->>Service: MemoryExtractionService.extract_from_chunks(payload)
         Service->>DB: INSERT audit_log (memory_extraction.run.start)
         loop for each chunk match
             Service->>DB: INSERT memory_item (status='candidate')
-            Service->>DB: INSERT memory_evidence (evidence_role='supporting')
+            DB-->>Trig: trg_memory_after_insert INSERT memory_revision + audit_log
+            Service->>DB: INSERT memory_evidence (evidence_role='source')
         end
         Service->>DB: INSERT audit_log (memory_extraction.run.complete, candidate_count)
-        Service-->>API: ExtractionRunResponse
+        Service-->>API: MemoryExtractionResponse
         API-->>FE: candidates list
     end
 
     rect rgb(255, 251, 240)
         Note over User,DB: 3) Candidate approval and revision
         User->>FE: approve a candidate
-        FE->>API: PATCH /api/memories/{id} (status='active')
-        API->>Service: MemoryService.update(memory_id, payload)
+        FE->>API: POST /api/memory-candidates/{id}/approve?workspace_id=...
+        API->>Service: MemoryExtractionService.approve_candidate(...)
         Service->>DB: UPDATE memory_item
         DB-->>Trig: trg_memory_before_update increments current_revision_no
         DB-->>Trig: trg_memory_after_update INSERT memory_revision
         DB-->>Trig: trg_memory_after_update INSERT audit_log
-        Service-->>API: MemoryItem (active)
+        Service-->>API: MemoryCandidateDecisionResponse {memory}
         API-->>FE: 200 OK
     end
 
@@ -56,12 +57,12 @@ sequenceDiagram
         Note over User,Wiki: 4) Wiki projection
         User->>FE: click "Export wiki"
         FE->>API: POST /api/wiki/export
-        API->>Service: WikiService.export(workspace_id)
+        API->>Service: WikiService.export_page/export_pages(payload)
         Service->>DB: INSERT wiki_page (page_slug, generated_from_memory_id)
         Service->>DB: INSERT wiki_page_revision (body_markdown, frontmatter_json)
         DB-->>Trig: trg_wiki_revision_after_insert updates current_revision_no
+        DB-->>Trig: trg_wiki_revision_after_insert INSERT audit_log (wiki.revision.insert)
         Service->>Wiki: write markdown file (provenance citations)
-        Service->>DB: INSERT audit_log (wiki.export)
-        Service-->>API: WikiExportResponse {pages, files}
+        Service-->>API: WikiExportResponse / WikiBatchExportResponse
         API-->>FE: 200 OK
     end
