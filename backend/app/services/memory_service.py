@@ -25,6 +25,9 @@ ALLOWED_STATUS_TRANSITIONS = {
     "conflicted": {"active", "superseded", "forgotten"},
     "archived": {"forgotten"},
 }
+
+# Lifecycle rules live in service code while database triggers record revisions
+# and audit rows. This split keeps invalid transitions out before SQL executes.
 ALLOWED_INITIAL_STATUSES = {"active", "candidate"}
 
 
@@ -145,6 +148,8 @@ class PostgresMemoryRepository:
                 evidence_items = list(payload.evidence)
                 created_from_doc_id = payload.created_from_doc_id
                 if not evidence_items and actor.actor_type == "agent":
+                    # Agent-created memories still receive provenance: an inline source
+                    # document/chunk is created so memory_evidence is never empty.
                     inline_evidence = self._create_inline_evidence_chunk(cur, payload, actor)
                     evidence_items = [
                         MemoryEvidenceInput(

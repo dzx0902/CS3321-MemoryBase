@@ -28,6 +28,8 @@ TRUNCATE TABLE
   user_account
 CASCADE;
 
+-- Users, workspace, agent, membership, and session create a closed demo tenant.
+-- Fixed UUIDs make frontend constants, API examples, and SQL screenshots repeatable.
 INSERT INTO user_account(user_id, username, display_name, email, role_hint)
 VALUES
   ('00000000-0000-0000-0000-000000000101', 'alice', 'Alice Zhang', 'alice@example.com', 'admin'),
@@ -63,6 +65,8 @@ VALUES
   ('00000000-0000-0000-0000-000000000201', 'user', '00000000-0000-0000-0000-000000000104', 'viewer'),
   ('00000000-0000-0000-0000-000000000201', 'agent', '00000000-0000-0000-0000-000000000301', 'agent');
 
+-- The session/message rows show that MemoryBase can preserve runtime dialogue
+-- without forcing every message to become a long-term memory.
 INSERT INTO agent_session(session_id, workspace_id, agent_id, started_by_user_id, title, channel, started_at)
 VALUES (
   '00000000-0000-0000-0000-000000000401',
@@ -95,6 +99,8 @@ VALUES
     '2026-03-02 09:06:00+00'
   );
 
+-- Six source documents simulate a small project history. They are intentionally
+-- compact so recall, evidence, wiki export, and SQL screenshots stay explainable.
 INSERT INTO source_document(
   doc_id, workspace_id, session_id, doc_type, title, source_path, raw_text, checksum,
   imported_by_user_id, imported_at
@@ -173,6 +179,8 @@ VALUES
     '2026-03-25 10:00:00+00'
   );
 
+-- Source chunks preserve line ranges and become the evidence targets for memory
+-- items. search_text_zh is backfilled after seed by backend/scripts/backfill_search_terms.py.
 INSERT INTO source_chunk(chunk_id, doc_id, chunk_no, chunk_text, start_line, end_line, token_count)
 VALUES
   ('00000000-0000-0000-0000-000000000601', '00000000-0000-0000-0000-000000000501', 1, 'The team first considered a campus cafeteria ordering system. The idea was familiar, but it did not show enough database depth for the course.', 6, 8, 24),
@@ -200,6 +208,8 @@ SELECT set_config('app.actor_type', 'system', false);
 SELECT set_config('app.actor_id', '', false);
 SELECT set_config('app.revision_reason', 'seed import', false);
 
+-- Memory inserts intentionally go through the normal trigger path. The triggers
+-- create memory_revision and audit_log rows, proving the lifecycle logic in seed data.
 INSERT INTO memory_item(
   memory_id, workspace_id, created_from_doc_id, memory_type, canonical_text, summary,
   confidence, importance, status, access_level, owner_user_id, owner_agent_id, valid_from
@@ -226,6 +236,8 @@ VALUES
   ('00000000-0000-0000-0000-000000000719', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000506', 'decision', 'The demo answer to the cafeteria question is that the cafeteria system was too CRUD-heavy and did not demonstrate enough database features.', 'Demo recall answer.', 0.970, 5, 'active', 'project', '00000000-0000-0000-0000-000000000102', NULL, '2026-03-25 10:15:00+00'),
   ('00000000-0000-0000-0000-000000000720', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000506', 'decision', 'LLM automatic extraction is useful later but is not required for the MVP demo.', 'LLM extraction is future work.', 0.880, 4, 'active', 'project', '00000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-000000000301', '2026-03-25 10:20:00+00');
 
+-- Evidence rows are the core provenance bridge: every seeded memory used in the
+-- demo can be traced back to a concrete source chunk and evidence role.
 INSERT INTO memory_evidence(memory_id, chunk_id, evidence_role, weight, note)
 VALUES
   ('00000000-0000-0000-0000-000000000701', '00000000-0000-0000-0000-000000000602', 'supports', 1.000, 'Direct reason for abandoning cafeteria system.'),
@@ -251,6 +263,8 @@ VALUES
 
 SELECT set_config('app.revision_reason', 'seed correction', false);
 
+-- These updates are deliberate: they exercise revision/audit triggers so the demo
+-- database contains non-trivial memory history, not only initial inserts.
 UPDATE memory_item
 SET summary = 'Reason cafeteria topic was rejected.'
 WHERE memory_id = '00000000-0000-0000-0000-000000000701';
@@ -267,10 +281,14 @@ UPDATE memory_item
 SET canonical_text = 'LLM automatic extraction is useful later but is not required for the deterministic MVP demo.'
 WHERE memory_id = '00000000-0000-0000-0000-000000000720';
 
+-- This team-level memory demonstrates that visibility is not only public/project;
+-- recall without an agent and recall with a configured agent can differ.
 UPDATE memory_item
 SET access_level = 'team'
 WHERE memory_id = '00000000-0000-0000-0000-000000000717';
 
+-- Entity and scene rows provide lightweight semantic organization without turning
+-- the project into a full knowledge-graph system.
 INSERT INTO entity(entity_id, workspace_id, canonical_name, entity_type, description)
 VALUES
   (
@@ -347,6 +365,8 @@ VALUES
     'Captures the final answer expected in the demo.'
   );
 
+-- Access policies make the seeded retriever agent able to see project memory while
+-- explicitly denying private memory. Query #4 in database/08_demo_queries.sql uses this.
 INSERT INTO access_policy(workspace_id, principal_type, principal_id, resource_type, resource_scope, effect)
 VALUES
   ('00000000-0000-0000-0000-000000000201', 'agent', '00000000-0000-0000-0000-000000000301', 'memory_item', 'project', 'allow'),
@@ -366,6 +386,8 @@ VALUES (
   '2026-03-25 11:00:00+00'
 );
 
+-- RecallLog is seeded as a historical snapshot. It is intentionally JSONB-heavy
+-- because the context pack shape can evolve without changing old audit records.
 INSERT INTO recall_log(
   recall_id, workspace_id, agent_id, user_id, query_text, filter_json, result_count,
   top_memory_ids_json, context_pack_json, created_at
@@ -383,6 +405,8 @@ VALUES (
   '2026-03-25 11:10:00+00'
 );
 
+-- Timeline and Wiki rows give the frontend/report a human-readable projection of
+-- the same memories that the database and Agent APIs use.
 INSERT INTO timeline_entry(
   timeline_id, workspace_id, memory_id, doc_id, event_type, title, description, event_time, importance
 )

@@ -1,5 +1,7 @@
 const BASE = '/api';
 
+// Centralize FastAPI error-shape handling so pages can show useful validation,
+// 404, and service-error messages without duplicating response parsing.
 function formatErrorDetail(detail, fallback) {
   if (!detail) return fallback;
   if (typeof detail === 'string') return detail;
@@ -22,6 +24,7 @@ function formatErrorDetail(detail, fallback) {
 }
 
 async function request(path, options = {}) {
+  // The Vite dev proxy and production backend both expose API routes under /api.
   const url = `${BASE}${path}`;
   const config = {
     headers: { 'Content-Type': 'application/json', ...options.headers },
@@ -43,6 +46,7 @@ async function request(path, options = {}) {
 }
 
 function qs(params) {
+  // Drop empty filters so list endpoints keep their documented defaults.
   if (!params) return '';
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {

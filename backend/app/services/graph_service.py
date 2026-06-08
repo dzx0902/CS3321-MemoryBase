@@ -458,6 +458,8 @@ class Neo4jGraphStore:
         self._driver_instance = None
 
     def health(self) -> GraphHealthResponse:
+        # Neo4j is optional. Health reports configuration/availability instead of
+        # failing the whole app so PostgreSQL graph preview can remain usable.
         if not self.settings.neo4j_enabled:
             return GraphHealthResponse(
                 enabled=False,
@@ -499,6 +501,8 @@ class Neo4jGraphStore:
         edge_groups = _group_edges_by_relation_type(graph.edges)
 
         with driver.session(database=self.settings.neo4j_database) as session:
+            # Sync is snapshot-based for demo scale: replace one workspace graph,
+            # then batch-create nodes and grouped relationships with UNWIND.
             session.run(
                 "MATCH (n:MemoryBaseNode {workspace_id: $workspace_id}) DETACH DELETE n",
                 workspace_id=workspace_id,
@@ -677,6 +681,8 @@ class GraphService:
         workspace_id: UUID,
         agent_id: UUID | None,
     ) -> GraphResponse:
+        # Graph visibility reuses the repository visibility policy: memory nodes
+        # outside the caller's view are removed before edges and isolated nodes are returned.
         visible_memory_ids = self.visibility_repository.list_visible_memory_ids(
             workspace_id,
             agent_id,

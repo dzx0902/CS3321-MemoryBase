@@ -24,6 +24,8 @@ from .api.wiki import router as wiki_router
 from .core.config import get_settings
 
 
+# FastAPI lifespan owns process-level resources. Most services are stateless per
+# request, but the graph service may hold a Neo4j driver pool that should be closed.
 @asynccontextmanager
 async def app_lifespan(app: FastAPI):
     try:
@@ -39,6 +41,9 @@ def create_app() -> FastAPI:
         version=settings.app_version,
         lifespan=app_lifespan,
     )
+
+    # All routers are mounted under /api so the React frontend can use one proxy
+    # prefix while backend modules stay grouped by domain responsibility.
     app.include_router(health_router, prefix="/api")
     app.include_router(sources_router, prefix="/api")
     app.include_router(memories_router, prefix="/api")

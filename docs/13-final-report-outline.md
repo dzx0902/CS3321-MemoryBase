@@ -30,6 +30,12 @@
 22. 附录 B 高级语言源程序说明
 23. 附录 C 演示数据
 
+## 附录素材来源
+
+- 附录 A / B 的源码清单、注释覆盖情况和推荐摘录见 `docs/gap8-source-sql-appendix-map.md`。
+- 附录 A 以 `database/*.sql` 为准，重点展示 DDL、索引、视图、触发器和演示查询。
+- 附录 B 以 FastAPI service、React 页面、CLI / scripts / evaluation 目录说明为主，报告中只摘代表性片段。
+
 ## 创新点写法
 
 - 文件—数据库双态架构
