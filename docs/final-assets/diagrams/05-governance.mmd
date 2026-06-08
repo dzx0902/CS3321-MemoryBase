@@ -1,0 +1,66 @@
+%% MemoryBase — Governance lifecycle sequences
+%% Covers: (A) conflict detection/resolution, (B) forget request approval, (C) revision audit
+%% Use in report §7 创新点 / 治理章节.
+
+sequenceDiagram
+    autonumber
+    actor       Editor       as Editor / Admin
+    participant API          as FastAPI /api/governance
+    participant Gov          as GovernanceService
+    participant DB           as PostgreSQL
+    participant Trig         as Triggers
+    participant Audit        as audit_log
+
+    rect rgb(255, 245, 245)
+        Note over Editor,Audit: (A) Conflict — detect, flag, resolve
+        Editor->>API: POST /api/governance/conflicts {left_memory_id, right_memory_id, conflict_type}
+        API->>Gov: GovernanceService.report_conflict(payload)
+        Gov->>DB: INSERT conflict_record (status='open', left/right_memory_id)
+        Gov->>DB: UPDATE memory_item SET status='conflicted' WHERE id IN (left, right)
+        DB-->>Trig: trg_memory_after_update writes memory_revision + audit_log
+        Gov->>Audit: audit conflict.opened
+        Gov-->>API: ConflictRecord (open)
+
+        Editor->>API: PATCH /api/governance/conflicts/{id} (resolution, winner_memory_id?)
+        API->>Gov: resolve_conflict(...)
+        alt resolution = 'merged' or 'kept_left'
+            Gov->>DB: UPDATE memory_item SET status='active' WHERE id IN (winner)
+            Gov->>DB: UPDATE memory_item SET status='superseded' WHERE id IN (loser)
+        else resolution = 'both_valid'
+            Gov->>DB: UPDATE memory_item SET status='active' WHERE id IN (left, right)
+        end
+        Gov->>DB: UPDATE conflict_record SET status='resolved', resolved_by_actor_*
+        Gov->>Audit: audit conflict.resolved
+    end
+
+    rect rgb(245, 255, 247)
+        Note over Editor,Audit: (B) Forget — request, review, soft-delete
+        Editor->>API: POST /api/governance/forget {target_type, target_id, reason}
+        API->>Gov: submit_forget_request(payload)
+        Gov->>DB: INSERT forget_request (status='pending')
+        Gov->>Audit: audit forget.requested
+
+        Editor->>API: PATCH /api/governance/forget/{id} (decision='approved')
+        API->>Gov: review_forget_request(...)
+        Gov->>DB: UPDATE forget_request SET status='approved', reviewed_by_user_id
+        alt target_type = 'memory_item'
+            Gov->>DB: UPDATE memory_item SET status='forgotten' WHERE id = target_id
+            DB-->>Trig: trg_memory_after_update writes memory_revision + audit_log
+        else target_type = 'source_document' or 'wiki_page' or 'entity'
+            Gov->>DB: UPDATE <target_table> SET status='forgotten', forgotten_at=now()
+        end
+        Gov->>DB: UPDATE forget_request SET status='done', resolved_at=now()
+        Gov->>Audit: audit forget.applied
+        Gov-->>API: ForgetRequest (done)
+    end
+
+    rect rgb(245, 247, 255)
+        Note over Editor,Audit: (C) Revision — edit memory, immutable history
+        Editor->>API: PATCH /api/memories/{id} (canonical_text or governance fields)
+        API->>Gov: update_memory(memory_id, patch)
+        Gov->>DB: UPDATE memory_item SET ...
+        DB-->>Trig: trg_memory_before_update increments current_revision_no
+        DB-->>Trig: trg_memory_after_update INSERT memory_revision (immutable)
+        DB-->>Trig: trg_memory_after_update INSERT audit_log (before_json, after_json)
+        Gov-->>API: MemoryItem (new current_revision_no)
+    end
