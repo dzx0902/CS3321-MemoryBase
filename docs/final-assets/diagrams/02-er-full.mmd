@@ -32,13 +32,13 @@ erDiagram
 
     WORKSPACE                ||--o{ WIKI_PAGE             : "publishes"
     WIKI_PAGE                ||--o{ WIKI_PAGE_REVISION    : "has_versions"
-    MEMORY_SCENE             ||--o{ WIKI_PAGE             : "projects_to"
-    MEMORY_ITEM              ||--o{ WIKI_PAGE             : "projects_to"
+    MEMORY_SCENE             ||--o{ WIKI_PAGE             : "scene_page"
+    MEMORY_ITEM              ||--o{ WIKI_PAGE             : "memory_page"
 
     WORKSPACE                ||--o{ TIMELINE_ENTRY        : "tracks"
     WORKSPACE                ||--o{ RECALL_LOG            : "logs"
     WORKSPACE                ||--o{ ACCESS_POLICY         : "controls"
     WORKSPACE                ||--o{ FORGET_REQUEST        : "reviews"
-    MEMORY_ITEM              ||--o{ CONFLICT_RECORD       : "left_conflict"
-    MEMORY_ITEM              ||--o{ CONFLICT_RECORD       : "right_conflict"
+    MEMORY_ITEM              ||--o{ CONFLICT_RECORD       : "left"
+    MEMORY_ITEM              ||--o{ CONFLICT_RECORD       : "right"
     WORKSPACE                ||--o{ AUDIT_LOG             : "audits"
