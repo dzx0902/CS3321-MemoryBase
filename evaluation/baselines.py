@@ -11,7 +11,7 @@ import httpx
 import psycopg
 from dotenv import load_dotenv
 
-from evaluation.cases import EvaluationCase
+from evaluation.cases import EvaluationCase, EvaluationTurn
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(PROJECT_ROOT / ".env")
@@ -144,11 +144,14 @@ class LocalMemoryBaseline:
 
     def run_case(self, case: EvaluationCase) -> EvaluationResult:
         started = time.perf_counter()
-        memories = _local_case_memories(case)
+        memory_entries = _local_case_memory_entries(case)
         if self._mode == "recency_only":
-            selected = list(reversed(memories))[:3]
+            selected_entries = list(reversed(memory_entries))[:3]
         else:
-            selected = [_summarize_memory(memory) for memory in memories[:8]]
+            selected_entries = [
+                (memory_id, _summarize_memory(memory)) for memory_id, memory in memory_entries[:8]
+            ]
+        selected = [memory for _memory_id, memory in selected_entries]
         generated_answer = "\n".join(selected)
         return EvaluationResult(
             case_id=case.case_id,
@@ -157,10 +160,7 @@ class LocalMemoryBaseline:
             query=case.query,
             expected_answer=case.expected_answer,
             generated_answer=generated_answer,
-            retrieved_memory_ids=[
-                f"{self._mode}:{case.case_id}:{index}"
-                for index, _memory in enumerate(selected, start=1)
-            ],
+            retrieved_memory_ids=[memory_id for memory_id, _memory in selected_entries],
             retrieved_memory_texts=selected,
             retrieved_scores=[1 / index for index, _memory in enumerate(selected, start=1)],
             latency_ms=(time.perf_counter() - started) * 1000,
@@ -228,6 +228,7 @@ class LiveMemoryBaseline:
     def run_case(self, case: EvaluationCase) -> EvaluationResult:
         started = time.perf_counter()
         created_memory_ids: list[str] = []
+        memory_source_ids: dict[str, str] = {}
         embedding_backfill: dict[str, Any] | None = None
         workspace_id: str | None = None
         isolated_workspace = False
@@ -250,11 +251,11 @@ class LiveMemoryBaseline:
                         content=turn.content,
                         agent_id=agent_id,
                     )
-                    if turn.role != "user":
+                    if not _is_memory_turn(case, turn):
                         continue
                     if _is_query_turn(turn.content, case.query):
                         continue
-                    if _is_forget_turn(turn.content):
+                    if _should_apply_forget_turn(case, turn):
                         self._delete_created_memories(workspace_id, created_memory_ids)
                         created_memory_ids.clear()
                         continue
@@ -267,14 +268,16 @@ class LiveMemoryBaseline:
                             )
                         )
                     else:
-                        created_memory_ids.append(
-                            self._create_memory(
-                                workspace_id=workspace_id,
-                                agent_id=agent_id,
-                                content=turn.content,
-                                case=case,
-                            )
+                        memory_id = self._create_memory(
+                            workspace_id=workspace_id,
+                            agent_id=agent_id,
+                            content=turn.content,
+                            case=case,
                         )
+                        created_memory_ids.append(memory_id)
+                        source_id = _turn_source_id(turn)
+                        if source_id:
+                            memory_source_ids[memory_id] = source_id
 
             if self._config.backfill_embeddings:
                 embedding_backfill = self._backfill_embeddings(workspace_id)
@@ -319,7 +322,13 @@ class LiveMemoryBaseline:
                 query=case.query,
                 expected_answer=case.expected_answer,
                 generated_answer=generated_answer,
-                retrieved_memory_ids=[str(item.get("memory_id", "")) for item in memories],
+                retrieved_memory_ids=[
+                    memory_source_ids.get(
+                        str(item.get("memory_id", "")),
+                        str(item.get("memory_id", "")),
+                    )
+                    for item in memories
+                ],
                 retrieved_memory_texts=[str(item.get("canonical_text", "")) for item in memories],
                 retrieved_scores=[_float(item.get("score")) for item in memories],
                 latency_ms=(time.perf_counter() - started) * 1000,
@@ -339,6 +348,7 @@ class LiveMemoryBaseline:
                     "workspace_id": workspace_id,
                     "agent_id": agent_id,
                     "created_memory_ids": created_memory_ids,
+                    "memory_source_ids": memory_source_ids,
                     "embedding_backfill": embedding_backfill,
                     "rank_reasons": [str(item.get("rank_reason", "")) for item in memories],
                     "vector_scores": [_float(item.get("vector_score")) for item in memories],
@@ -378,6 +388,128 @@ class LiveMemoryBaseline:
                 except Exception:
                     # Cleanup must not replace the benchmark result or original failure.
                     pass
+
+    def run_group(self, cases: list[EvaluationCase]) -> list[EvaluationResult]:
+        if not cases:
+            return []
+        if not self._config.generate_answer or self._config.use_extraction:
+            raise ValueError("grouped live evaluation currently requires direct-memory QA mode")
+        if any(case.sessions != cases[0].sessions for case in cases[1:]):
+            raise ValueError("grouped evaluation cases must share identical sessions")
+
+        workspace_id: str | None = None
+        created_memory_ids: list[str] = []
+        results: list[EvaluationResult] = []
+        try:
+            if self._config.isolate:
+                workspace_id, agent_id = self._create_isolated_workspace(cases[0])
+            else:
+                workspace_id, agent_id = self._resolve_workspace_and_agent()
+            for session in cases[0].sessions:
+                session_id = self._create_session(
+                    workspace_id=workspace_id,
+                    agent_id=agent_id,
+                    title=f"{self._config.run_id}:{cases[0].metadata.get('context_group_id')}",
+                )
+                for turn in session.turns:
+                    self._observe_message(
+                        session_id=session_id,
+                        role=turn.role,
+                        content=turn.content,
+                        agent_id=agent_id,
+                    )
+                    if not _is_memory_turn(cases[0], turn):
+                        continue
+                    created_memory_ids.append(
+                        self._create_memory(
+                            workspace_id=workspace_id,
+                            agent_id=agent_id,
+                            content=turn.content,
+                            case=cases[0],
+                        )
+                    )
+
+            for case in cases:
+                started = time.perf_counter()
+                try:
+                    answer = self._answer(
+                        workspace_id=workspace_id,
+                        agent_id=agent_id,
+                        query=case.query,
+                    )
+                    memories = [
+                        item
+                        for item in answer.get("selected_memories", [])
+                        if isinstance(item, dict)
+                    ]
+                    results.append(
+                        EvaluationResult(
+                            case_id=case.case_id,
+                            source=case.source,
+                            category=case.category,
+                            query=case.query,
+                            expected_answer=case.expected_answer,
+                            generated_answer=str(answer.get("answer", "")),
+                            retrieved_memory_ids=[
+                                str(item.get("memory_id", "")) for item in memories
+                            ],
+                            retrieved_memory_texts=[
+                                str(item.get("canonical_text", "")) for item in memories
+                            ],
+                            retrieved_scores=[_float(item.get("score")) for item in memories],
+                            latency_ms=(time.perf_counter() - started) * 1000,
+                            token_usage=_optional_int(answer.get("total_tokens")),
+                            mode=self._config.mode,
+                            run_id=self._config.run_id,
+                            metadata={
+                                "injection_mode": "grouped_memory_api",
+                                "write_mode": "direct_memory_create",
+                                "retrieval_mode": "backend_hybrid_recall",
+                                "workspace_id": workspace_id,
+                                "agent_id": agent_id,
+                                "created_memory_ids": created_memory_ids,
+                                "answer_generation": True,
+                                "provider": answer.get("provider"),
+                                "model": answer.get("model"),
+                                "prompt_tokens": answer.get("prompt_tokens"),
+                                "completion_tokens": answer.get("completion_tokens"),
+                                "total_tokens": answer.get("total_tokens"),
+                                "context_tokens": answer.get("token_count"),
+                                "token_budget": answer.get("token_budget"),
+                                "citation_map": answer.get("citation_map", {}),
+                                "supporting_evidence": answer.get(
+                                    "supporting_evidence",
+                                    [],
+                                ),
+                                "context_group_id": case.metadata.get("context_group_id"),
+                            },
+                        )
+                    )
+                except Exception as exc:
+                    results.append(
+                        EvaluationResult(
+                            case_id=case.case_id,
+                            source=case.source,
+                            category=case.category,
+                            query=case.query,
+                            expected_answer=case.expected_answer,
+                            generated_answer="",
+                            latency_ms=(time.perf_counter() - started) * 1000,
+                            mode=self._config.mode,
+                            run_id=self._config.run_id,
+                            error=str(exc),
+                            metadata={
+                                "injection_mode": "grouped_memory_api",
+                                "context_group_id": case.metadata.get("context_group_id"),
+                            },
+                        )
+                    )
+            return results
+        finally:
+            if self._config.isolate and workspace_id and self._config.cleanup:
+                self._delete_isolated_workspace(workspace_id)
+            elif self._config.cleanup and workspace_id and created_memory_ids:
+                self._delete_created_memories(workspace_id, created_memory_ids)
 
     def _resolve_workspace_and_agent(self) -> tuple[str, str | None]:
         if not self._config.workspace:
@@ -678,18 +810,43 @@ def _evaluation_slug(run_id: str, case_id: str) -> str:
 
 
 def _local_case_memories(case: EvaluationCase) -> list[str]:
-    memories: list[str] = []
+    return [memory for _memory_id, memory in _local_case_memory_entries(case)]
+
+
+def _local_case_memory_entries(case: EvaluationCase) -> list[tuple[str, str]]:
+    memories: list[tuple[str, str]] = []
+    fallback_index = 0
     for session in case.sessions:
         for turn in session.turns:
-            if turn.role != "user":
+            if not _is_memory_turn(case, turn):
                 continue
             if _is_query_turn(turn.content, case.query):
                 continue
-            if _is_forget_turn(turn.content):
+            if _should_apply_forget_turn(case, turn):
                 memories.clear()
                 continue
-            memories.append(turn.content)
+            fallback_index += 1
+            memory_id = _turn_source_id(turn) or f"local:{case.case_id}:{fallback_index}"
+            memories.append((memory_id, turn.content))
     return memories
+
+
+def _is_memory_turn(case: EvaluationCase, turn: EvaluationTurn) -> bool:
+    if turn.role == "user":
+        return True
+    return case.source in {"locomo", "longmemeval"} and turn.role == "assistant"
+
+
+def _should_apply_forget_turn(case: EvaluationCase, turn: EvaluationTurn) -> bool:
+    return case.category == "deletion" and _is_forget_turn(turn.content)
+
+
+def _turn_source_id(turn: EvaluationTurn) -> str:
+    for key in ("dia_id", "longmemeval_session_id"):
+        value = turn.metadata.get(key)
+        if value is not None and str(value):
+            return str(value)
+    return ""
 
 
 def _summarize_memory(memory: str) -> str:

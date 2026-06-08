@@ -45,7 +45,10 @@ data/markdown_wiki/
 .coverage
 coverage/
 htmlcov/
-evaluation/outputs/*.csv
-evaluation/outputs/*.md
+evaluation/outputs/**
+evaluation/external/*/raw/*
+!evaluation/external/*/raw/.gitkeep
+evaluation/external/*/processed/*
+!evaluation/external/*/processed/.gitkeep
 docs/prompt.md
 docs/summary.md

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterable
 
 from evaluation.baselines import EvaluationResult
+from evaluation.pricing import estimate_model_cost
 
 RESULT_FIELDS = [
     "case_id",
@@ -23,11 +24,16 @@ RESULT_FIELDS = [
     "context_tokens",
     "provider",
     "model",
+    "estimated_cost",
+    "cost_currency",
+    "pricing_as_of",
+    "pricing_assumption",
     "history_length_tokens",
     "score",
     "pass",
     "exact_match",
     "contains_match",
+    "refusal_match",
     "simple_f1",
     "forbidden_answer_violation",
     "historical_value_mention",
@@ -63,6 +69,12 @@ def write_results_csv(path: Path, results: Iterable[EvaluationResult]) -> None:
 
 def result_to_row(result: EvaluationResult) -> dict[str, object]:
     metrics = result.metadata.get("metrics", {})
+    cost = estimate_model_cost(
+        provider=result.metadata.get("provider"),
+        model=result.metadata.get("model"),
+        prompt_tokens=result.metadata.get("prompt_tokens"),
+        completion_tokens=result.metadata.get("completion_tokens"),
+    )
     return {
         "case_id": result.case_id,
         "source": result.source,
@@ -80,11 +92,16 @@ def result_to_row(result: EvaluationResult) -> dict[str, object]:
         "context_tokens": _metadata(result, "context_tokens"),
         "provider": _metadata(result, "provider"),
         "model": _metadata(result, "model"),
+        "estimated_cost": _cost_value(cost["estimated_cost"]),
+        "cost_currency": cost["cost_currency"] or "",
+        "pricing_as_of": cost["pricing_as_of"] or "",
+        "pricing_assumption": cost["pricing_assumption"] or "",
         "history_length_tokens": _metadata(result, "history_length_tokens"),
         "score": f"{result.score:.6f}",
         "pass": "true" if result.passed else "false",
         "exact_match": _metric(metrics, "exact_match"),
         "contains_match": _metric(metrics, "contains_match"),
+        "refusal_match": _metric(metrics, "refusal_match"),
         "simple_f1": _metric(metrics, "simple_f1"),
         "forbidden_answer_violation": _metric(metrics, "forbidden_answer_violation"),
         "historical_value_mention": _metric(metrics, "historical_value_mention"),
@@ -123,3 +140,9 @@ def _metric(metrics: dict[str, object], key: str) -> str:
 def _metadata(result: EvaluationResult, key: str) -> object:
     value = result.metadata.get(key)
     return "" if value is None else value
+
+
+def _cost_value(value: object) -> str:
+    if not isinstance(value, float):
+        return ""
+    return f"{value:.8f}"

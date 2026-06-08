@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from evaluation.metrics.system_metrics import latency_summary  # noqa: E402
+from evaluation.pricing import estimate_model_cost  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUTS = PROJECT_ROOT / "evaluation" / "outputs"
@@ -49,7 +50,7 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
         )
         for path in csv_paths:
             rows = _read_rows(path)
-            pass_count = sum(1 for row in rows if row.get("pass") == "true")
+            pass_count = sum(1 for row in rows if _effective_pass(row) == "true")
             error_count = sum(1 for row in rows if row.get("error"))
             latencies = [_float(row.get("latency_ms")) for row in rows]
             summary = latency_summary(latencies, error_count=error_count)
@@ -77,8 +78,8 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
         lines.extend(
             [
                 "| Baseline | Cases | Pass Rate | Avg F1 | Groundedness | Avg Tokens | "
-                "Privacy Leakage | Stale Error | P95 Latency (ms) |",
-                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                "Avg Cost | Privacy Leakage | Stale Error | P95 Latency (ms) |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
             ]
         )
         for mode, rows in sorted(baseline_rows.items()):
@@ -181,6 +182,8 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
             "- Vector modes depend on the configured backend embedding provider.",
             "- External benchmark adapters support common JSON/JSONL shapes only.",
             "- Official external benchmark files and licenses remain operator-supplied.",
+            "- Semantic judge results override deterministic pass when present.",
+            "- The current smoke judge may use the same model family as answer generation.",
             "- Groundedness is citation validation, not a separate LLM judge.",
             "- Session and extraction source cleanup awaits public delete APIs.",
             "",
@@ -215,7 +218,7 @@ def _category_rows(csv_paths: list[Path]) -> dict[str, Counter]:
         for row in _read_rows(path):
             category = row.get("category") or "uncategorized"
             categories[category]["total"] += 1
-            if row.get("pass") == "true":
+            if _effective_pass(row) == "true":
                 categories[category]["passed"] += 1
     return categories
 
@@ -224,7 +227,7 @@ def _failed_rows(csv_paths: list[Path]) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for path in csv_paths:
         for row in _read_rows(path):
-            if row.get("pass") != "true" or row.get("error"):
+            if _effective_pass(row) != "true" or row.get("error"):
                 rows.append(row)
     return rows
 
@@ -244,13 +247,37 @@ def _metric_summary_row(label: str, rows: list[dict[str, str]]) -> str:
     stale = _bool_rate(rows, "stale_memory_error")
     groundedness = _average(rows, "groundedness")
     average_tokens = _average(rows, "token_usage")
+    average_cost, currency = _average_cost(rows)
     latencies = [_float(row.get("latency_ms")) for row in rows]
     p95 = latency_summary(latencies)["p95_latency_ms"]
     return (
         f"| {label} | {len(rows)} | {pass_rate:.2%} | {avg_f1:.3f} | "
-        f"{groundedness:.3f} | {average_tokens:.1f} | {privacy:.2%} | "
+        f"{groundedness:.3f} | {average_tokens:.1f} | "
+        f"{average_cost:.6f} {currency} | {privacy:.2%} | "
         f"{stale:.2%} | {p95:.3f} |"
     )
+
+
+def _average_cost(rows: list[dict[str, str]]) -> tuple[float, str]:
+    costs: list[float] = []
+    currency = ""
+    for row in rows:
+        raw_cost = row.get("estimated_cost")
+        if raw_cost:
+            costs.append(_float(raw_cost))
+            currency = row.get("cost_currency") or currency
+            continue
+        estimate = estimate_model_cost(
+            provider=row.get("provider"),
+            model=row.get("model"),
+            prompt_tokens=row.get("prompt_tokens"),
+            completion_tokens=row.get("completion_tokens"),
+        )
+        estimated_cost = estimate["estimated_cost"]
+        if isinstance(estimated_cost, float):
+            costs.append(estimated_cost)
+            currency = str(estimate["cost_currency"] or currency)
+    return (sum(costs) / len(costs) if costs else 0.0, currency or "-")
 
 
 def _category_metric_summary_row(label: str, rows: list[dict[str, str]]) -> str:
@@ -263,10 +290,21 @@ def _category_metric_summary_row(label: str, rows: list[dict[str, str]]) -> str:
 
 
 def _bool_rate(rows: list[dict[str, str]], key: str) -> float:
-    values = [row.get(key) for row in rows if row.get(key) in {"true", "false"}]
+    values = [
+        _effective_pass(row) if key == "pass" else row.get(key)
+        for row in rows
+        if (_effective_pass(row) if key == "pass" else row.get(key)) in {"true", "false"}
+    ]
     if not values:
         return 0.0
     return sum(1 for value in values if value == "true") / len(values)
+
+
+def _effective_pass(row: dict[str, str]) -> str | None:
+    judge_pass = row.get("judge_pass")
+    if judge_pass in {"true", "false"}:
+        return judge_pass
+    return row.get("pass")
 
 
 def _average(rows: list[dict[str, str]], key: str) -> float:

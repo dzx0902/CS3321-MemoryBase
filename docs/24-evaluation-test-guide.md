@@ -200,23 +200,48 @@ Processed `EvaluationCase` JSONL is written to:
 evaluation/external/<benchmark>/processed/
 ```
 
-Convert LongMemEval-like JSON/JSONL:
+Download one official LongMemEval variant into
+`evaluation/external/longmemeval/raw/`, then convert it:
 
 ```bash
 python evaluation/runners/run_external_eval.py --benchmark longmemeval
 ```
 
-Convert LoCoMo-like JSON/JSONL:
+The official Hugging Face files are extensionless. The adapter supports that
+layout directly and validates the parallel session ID/date arrays. See
+`evaluation/external/longmemeval/README.md` for current file names, sizes, and
+the dataset-license boundary.
+
+Download the official `locomo10.json`, then convert it:
 
 ```bash
 python evaluation/runners/run_external_eval.py --benchmark locomo
 ```
 
-Convert MemoryAgentBench-like JSON/JSONL:
+The official adapter preserves session timestamps, both speakers, image
+captions, dialog evidence IDs, numeric QA categories, and adversarial answers.
+See `evaluation/external/locomo/README.md` for the CC BY-NC 4.0 restriction,
+processed-file size, and recommended smoke/live commands.
+
+Download the official MemoryAgentBench Conflict Resolution parquet shard, then
+convert it:
 
 ```bash
 python evaluation/runners/run_external_eval.py --benchmark memoryagentbench
 ```
+
+Run multiple questions against one shared official context:
+
+```bash
+python evaluation/runners/run_grouped_benchmark_eval.py \
+  --dataset evaluation/external/memoryagentbench/processed/memoryagentbench_cases.jsonl \
+  --group factconsolidation_sh_6k \
+  --limit 3 \
+  --output evaluation/outputs/memoryagentbench/db_qa_results.csv
+```
+
+See `evaluation/external/memoryagentbench/README.md` for source, license,
+grouping, and conflict-sequence details.
 
 Direct wrappers:
 
@@ -226,7 +251,9 @@ python evaluation/runners/run_locomo_eval.py
 python evaluation/runners/run_memoryagentbench_eval.py
 ```
 
-Current adapter support is partial. It handles common JSON/JSONL shapes with fields such as:
+LongMemEval, LoCoMo, and MemoryAgentBench Conflict Resolution support their
+official record shapes. Other adapters still handle common JSON/JSONL shapes
+with fields such as:
 
 ```text
 question / query
@@ -236,7 +263,22 @@ qa / qas / questions
 task_type / category
 ```
 
-Official dataset variants must be verified before using results as benchmark evidence.
+LongMemEval oracle conversion has been validated against 500 official records.
+LoCoMo conversion has been validated across all 1,986 official QA items.
+Open-ended pass rates still require the official or an equivalent independent
+LLM judge before they should be treated as final benchmark evidence.
+
+For paid smoke runs, append semantic judgement fields to an existing result:
+
+```bash
+python evaluation/runners/run_semantic_judge.py \
+  --input evaluation/outputs/run/benchmark/db_qa_results.csv \
+  --dataset evaluation/external/benchmark/processed/benchmark_cases.jsonl \
+  --output evaluation/outputs/run/benchmark/db_qa_results.csv
+```
+
+When `judge_pass` is present, report generation uses it instead of the
+deterministic substring result. Keep the deterministic columns for diagnosis.
 
 ## Step 8: Report Generation
 
@@ -381,7 +423,7 @@ Still operator- or model-dependent:
 - independent LLM-as-judge
 - semantic groundedness beyond citation validation
 - hallucination rate
-- provider-specific token cost accounting
+- embedding-provider cost accounting
 - concurrent saturation and load testing
 - hard cleanup of evaluation sessions and imported sources
 ```

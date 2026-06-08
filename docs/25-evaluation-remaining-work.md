@@ -23,9 +23,9 @@ Required backend support:
 ## External Dataset Items
 
 ```text
-- official LongMemEval full-format validation
-- official LoCoMo full-format validation
-- official MemoryAgentBench full-format validation
+- official LongMemEval S/M full benchmark execution
+- official LoCoMo event-summarization integration
+- official MemoryAgentBench non-conflict task validation
 - BEIR / MS MARCO retriever-only benchmark conversion
 - BEAM long-context stress benchmark conversion
 ```
@@ -33,9 +33,16 @@ Required backend support:
 Current state:
 
 ```text
-- LongMemEval / LoCoMo / MemoryAgentBench support common JSON/JSONL shapes.
+- LongMemEval official oracle format is validated across all 500 records.
+- LongMemEval S/M files still need full paid benchmark execution.
+- LoCoMo official QA format is validated across all 1,986 QA items.
+- LoCoMo event summarization is not integrated.
+- MemoryAgentBench official Conflict Resolution parquet conversion is validated
+  across 800 QA cases.
 - Raw official datasets are not stored in this repository.
-- Download URLs, licenses, and exact file names still need to be documented before use.
+- LongMemEval download URLs, current file names, sizes, and license boundary are documented.
+- LongMemEval and LoCoMo source/license notes are documented.
+- MemoryAgentBench source, license, grouping, and sequence semantics are documented.
 ```
 
 ## Model-Dependent Items
@@ -45,7 +52,7 @@ Current state:
 - semantic groundedness beyond citation validation
 - hallucination rate
 - embedding similarity judge
-- token cost per answer
+- embedding cost per answer
 ```
 
 Required configuration:
@@ -55,7 +62,7 @@ Required configuration:
 - judge prompt
 - API key through environment/config only
 - deterministic evaluation settings
-- cost accounting policy
+- embedding usage and cost accounting policy
 ```
 
 ## Live API Items
@@ -131,4 +138,34 @@ Continue backend B1 by expanding vector coverage and reporting comparisons:
 - sequential write/recall/context/QA/update/delete performance sampling
 - external benchmark convert-and-run entry point
 - default soft cleanup for evaluation-created memories
+- official LongMemEval oracle conversion across 500 cases
+- official LoCoMo QA conversion across 1,986 cases
+- official MemoryAgentBench Conflict Resolution conversion across 800 cases
+- inject-once/query-many grouped benchmark execution
+- optional semantic LLM judge with token and cost accounting
+- report pass rates that prefer semantic judgements over string matching
+- MemoryAgentBench context blocks below the context-pack compaction boundary
+- explicit MemoryAgentBench conflict sequence semantics
 ```
+
+## Latest Paid Smoke Evidence
+
+The clean final report is:
+
+```text
+evaluation/outputs/external-live-final-20260608/benchmark_report.md
+```
+
+Strict semantic results:
+
+```text
+LongMemEval:       1 / 3
+LoCoMo:            2 / 3
+MemoryAgentBench:  2 / 3
+Overall:           5 / 9
+API errors:        0
+```
+
+The semantic judge currently uses the same DeepSeek model family as answer
+generation. This is useful smoke evidence, but publication-grade evaluation
+still requires an independent judge model or official benchmark evaluator.

@@ -145,8 +145,12 @@ Still model- or dataset-dependent:
 ```text
 - hallucination rate
 - LLM-as-judge score
-- token cost per answer
+- embedding cost per answer
 ```
+
+LLM token cost per answer is estimated from a dated model-price snapshot when
+the provider/model is known. The current DeepSeek snapshot assumes cache-miss
+input pricing; update `evaluation/pricing.py` when provider prices change.
 
 ## Baselines
 
@@ -237,14 +241,15 @@ python -m evaluation.runners.run_benchmark_eval \
 
 | Benchmark | Purpose | Current Status |
 | --- | --- | --- |
-| LongMemEval | Long-term dialogue memory, temporal reasoning, abstention | TODO adapter skeleton |
-| LoCoMo | Multi-session dialogue memory and event QA | TODO adapter skeleton |
+| LongMemEval | Long-term dialogue memory, temporal reasoning, abstention | Official JSON format supported; independent judge pending |
+| LoCoMo | Multi-session dialogue memory and event QA | Official QA format supported; event summarization pending |
 | MemoryAgentBench | Memory-agent retrieval, learning, conflict tasks | TODO adapter skeleton |
 | BEIR / MS MARCO | Retriever/RAG only, not primary memory evidence | TODO adapter skeleton |
 | BEAM | Ultra-long context retention stress test | TODO adapter skeleton |
 
-Manual download instructions and license notes should be added in
-`evaluation/external/README.md` before storing raw benchmark data.
+LongMemEval and LoCoMo source, license, and execution instructions are in their
+respective directories under `evaluation/external/`. Equivalent notes are still
+required before using other official benchmark files.
 
 ## Current Limitations
 

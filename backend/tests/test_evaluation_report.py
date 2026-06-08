@@ -161,3 +161,22 @@ def test_generate_report_excludes_operation_sample_csv(tmp_path: Path) -> None:
 
     assert "`api_results.csv`" not in report
     assert "No result CSV files were found." in report
+
+
+def test_generate_report_prefers_semantic_judge_result(tmp_path: Path) -> None:
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir()
+    (output_dir / "judged_results.csv").write_text(
+        (
+            "case_id,category,pass,judge_pass,mode,run_id\n"
+            "case-1,qa,false,true,db_qa,run-1\n"
+            "case-2,qa,true,false,db_qa,run-1\n"
+        ),
+        encoding="utf-8",
+    )
+
+    report = generate_report(outputs_dir=output_dir).read_text(encoding="utf-8")
+
+    assert "| `judged_results.csv` | 2 | 50.00% |" in report
+    assert "| case-2 | qa | db_qa |" in report
+    assert "| case-1 | qa | db_qa |" not in report

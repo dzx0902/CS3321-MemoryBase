@@ -106,6 +106,7 @@ def build_markdown(
                 "ref": memory_ref,
                 "memory_id": str(memory.memory_id),
                 "memory_type": memory.memory_type,
+                "canonical_text": memory.canonical_text,
                 "score": memory.score,
                 "selection_reason": selection_reason,
                 "status": memory.status,

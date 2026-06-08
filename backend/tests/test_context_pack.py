@@ -71,6 +71,7 @@ def test_format_context_pack_renders_agent_ready_markdown_with_citations() -> No
     assert "reason=ranked by score, importance, and confidence" in result.markdown
     assert result.token_budget == 800
     assert result.selected_memories[0]["selection_reason"]
+    assert "campus cafeteria" in result.selected_memories[0]["canonical_text"]
     assert result.supporting_evidence[0]["memory_ref"] == "M1"
     assert result.citation_map["memories"]["M1"]["memory_type"] == "decision"
     assert result.citation_map["memories"]["M1"]["selection_reason"]

@@ -66,6 +66,89 @@ def test_summary_memory_clears_local_memory_after_forget_turn() -> None:
     assert result.retrieved_memory_texts == []
 
 
+def test_longmemeval_local_baseline_includes_assistant_turns() -> None:
+    case = EvaluationCase(
+        case_id="longmemeval_assistant_001",
+        source="longmemeval",
+        category="single_fact",
+        sessions=[
+            EvaluationSession(
+                session_id="s1",
+                turns=[
+                    EvaluationTurn(role="user", content="What should I cook?"),
+                    EvaluationTurn(role="assistant", content="Try mushroom risotto."),
+                ],
+            )
+        ],
+        query="What dish did the assistant suggest?",
+        expected_answer="mushroom risotto",
+    )
+
+    result = build_baseline_with_config(mode="summary_memory", run_id="test").run_case(case)
+
+    assert "Try mushroom risotto." in result.retrieved_memory_texts
+
+
+def test_locomo_local_baseline_uses_dialog_ids_for_retrieval() -> None:
+    case = EvaluationCase(
+        case_id="locomo_conv-1_qa001",
+        source="locomo",
+        category="single_hop",
+        sessions=[
+            EvaluationSession(
+                session_id="session_1",
+                turns=[
+                    EvaluationTurn(
+                        role="assistant",
+                        content="Melanie: The race supported mental health.",
+                        metadata={"dia_id": "D1:2"},
+                    )
+                ],
+            )
+        ],
+        query="What did the race support?",
+        expected_answer="mental health",
+        gold_memory_ids=["D1:2"],
+    )
+
+    result = build_baseline_with_config(mode="summary_memory", run_id="test").run_case(case)
+
+    assert result.retrieved_memory_ids == ["D1:2"]
+    assert "mental health" in result.generated_answer
+
+
+def test_locomo_local_baseline_does_not_apply_deletion_forget_heuristic() -> None:
+    case = EvaluationCase(
+        case_id="locomo_conv-1_qa002",
+        source="locomo",
+        category="single_hop",
+        sessions=[
+            EvaluationSession(
+                session_id="session_1",
+                turns=[
+                    EvaluationTurn(
+                        role="user",
+                        content="Caroline: Do not forget that the race supported mental health.",
+                        metadata={"dia_id": "D1:1"},
+                    ),
+                    EvaluationTurn(
+                        role="assistant",
+                        content="Melanie: I will remember that.",
+                        metadata={"dia_id": "D1:2"},
+                    ),
+                ],
+            )
+        ],
+        query="What did the race support?",
+        expected_answer="mental health",
+        gold_memory_ids=["D1:1"],
+    )
+
+    result = build_baseline_with_config(mode="summary_memory", run_id="test").run_case(case)
+
+    assert result.retrieved_memory_ids[:2] == ["D1:1", "D1:2"]
+
+
 class FakeResponse:
     def __init__(self, payload: dict[str, Any], status_code: int = 200) -> None:
         self._payload = payload
@@ -74,6 +157,203 @@ class FakeResponse:
 
     def json(self) -> dict[str, Any]:
         return self._payload
+
+
+def test_longmemeval_live_baseline_writes_assistant_turns(monkeypatch) -> None:
+    memory_payloads: list[dict[str, Any]] = []
+
+    def fake_request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        if url.endswith("/api/health/detail"):
+            return FakeResponse(
+                {
+                    "workspace": {
+                        "found": True,
+                        "workspace_id": "00000000-0000-0000-0000-000000000201",
+                    }
+                }
+            )
+        if url.endswith("/api/sessions"):
+            return FakeResponse({"session_id": "session-1"})
+        if url.endswith("/api/observe"):
+            return FakeResponse({"message_id": "message-1"})
+        if url.endswith("/api/memories"):
+            memory_payloads.append(kwargs["json"])
+            return FakeResponse({"memory_id": "memory-1"})
+        if url.endswith("/api/recall"):
+            return FakeResponse({"memories": []})
+        raise AssertionError(f"unexpected request {method} {url}")
+
+    monkeypatch.setattr("evaluation.baselines.httpx.request", fake_request)
+    case = EvaluationCase(
+        case_id="longmemeval_assistant_002",
+        source="longmemeval",
+        category="single_fact",
+        sessions=[
+            EvaluationSession(
+                session_id="s1",
+                turns=[EvaluationTurn(role="assistant", content="Try mushroom risotto.")],
+            )
+        ],
+        query="What dish did the assistant suggest?",
+        expected_answer="mushroom risotto",
+    )
+
+    result = build_baseline_with_config(
+        mode="db_memory",
+        run_id="test",
+        api_base_url="http://testserver",
+        workspace="demo",
+        cleanup=False,
+    ).run_case(case)
+
+    assert result.error == ""
+    assert [payload["canonical_text"] for payload in memory_payloads] == ["Try mushroom risotto."]
+
+
+def test_locomo_live_baseline_maps_memory_uuid_to_dialog_id(monkeypatch) -> None:
+    def fake_request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        if url.endswith("/api/health/detail"):
+            return FakeResponse(
+                {
+                    "workspace": {
+                        "found": True,
+                        "workspace_id": "00000000-0000-0000-0000-000000000201",
+                    }
+                }
+            )
+        if url.endswith("/api/sessions"):
+            return FakeResponse({"session_id": "session-1"})
+        if url.endswith("/api/observe"):
+            return FakeResponse({"message_id": "message-1"})
+        if url.endswith("/api/memories"):
+            return FakeResponse({"memory_id": "memory-uuid-1"})
+        if url.endswith("/api/recall"):
+            return FakeResponse(
+                {
+                    "memories": [
+                        {
+                            "memory_id": "memory-uuid-1",
+                            "canonical_text": "Melanie: The race supported mental health.",
+                            "score": 0.9,
+                        }
+                    ]
+                }
+            )
+        raise AssertionError(f"unexpected request {method} {url}")
+
+    monkeypatch.setattr("evaluation.baselines.httpx.request", fake_request)
+    case = EvaluationCase(
+        case_id="locomo_conv-1_qa001",
+        source="locomo",
+        category="single_hop",
+        sessions=[
+            EvaluationSession(
+                session_id="session_1",
+                turns=[
+                    EvaluationTurn(
+                        role="assistant",
+                        content="Melanie: The race supported mental health.",
+                        metadata={"dia_id": "D1:2"},
+                    )
+                ],
+            )
+        ],
+        query="What did the race support?",
+        expected_answer="mental health",
+        gold_memory_ids=["D1:2"],
+    )
+
+    result = build_baseline_with_config(
+        mode="db_memory",
+        run_id="test",
+        api_base_url="http://testserver",
+        workspace="demo",
+        cleanup=False,
+    ).run_case(case)
+
+    assert result.error == ""
+    assert result.retrieved_memory_ids == ["D1:2"]
+    assert result.metadata["memory_source_ids"] == {"memory-uuid-1": "D1:2"}
+
+
+def test_grouped_live_baseline_injects_context_once_for_multiple_questions(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def fake_request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        calls.append((method, url))
+        if url.endswith("/api/health/detail"):
+            return FakeResponse(
+                {
+                    "workspace": {
+                        "found": True,
+                        "workspace_id": "00000000-0000-0000-0000-000000000201",
+                    }
+                }
+            )
+        if url.endswith("/api/sessions"):
+            return FakeResponse({"session_id": "session-1"})
+        if url.endswith("/api/observe"):
+            return FakeResponse({"message_id": "message-1"})
+        if url.endswith("/api/memories"):
+            return FakeResponse({"memory_id": "memory-1"})
+        if url.endswith("/api/qa/answer"):
+            return FakeResponse(
+                {
+                    "answer": "Bob [M1].",
+                    "provider": "deepseek",
+                    "model": "deepseek-chat",
+                    "total_tokens": 20,
+                    "selected_memories": [
+                        {
+                            "memory_id": "memory-1",
+                            "canonical_text": "The chairperson is Bob.",
+                            "score": 0.9,
+                        }
+                    ],
+                    "citation_map": {"memories": {"M1": {"memory_id": "memory-1"}}},
+                }
+            )
+        raise AssertionError(f"unexpected request {method} {url}")
+
+    monkeypatch.setattr("evaluation.baselines.httpx.request", fake_request)
+    sessions = [
+        EvaluationSession(
+            session_id="context-1",
+            turns=[EvaluationTurn(role="user", content="The chairperson is Bob.")],
+        )
+    ]
+    cases = [
+        EvaluationCase(
+            case_id=f"group-{index}",
+            source="memoryagentbench",
+            category="conflict_single_hop_6k",
+            sessions=sessions,
+            query=question,
+            expected_answer="Bob",
+            expected_behavior="answer_latest",
+            metadata={"context_group_id": "factconsolidation_sh_6k"},
+        )
+        for index, question in enumerate(
+            ["Who is the chairperson?", "Who holds the role now?"],
+            start=1,
+        )
+    ]
+    baseline = build_baseline_with_config(
+        mode="db_qa",
+        run_id="test",
+        api_base_url="http://testserver",
+        workspace="demo",
+        cleanup=False,
+    )
+
+    results = baseline.run_group(cases)
+
+    assert len(results) == 2
+    assert calls.count(("POST", "http://testserver/api/memories")) == 1
+    assert calls.count(("POST", "http://testserver/api/qa/answer")) == 2
+    assert all(result.generated_answer == "Bob [M1]." for result in results)
 
 
 def test_naive_vector_rag_backfills_embeddings_before_recall(monkeypatch) -> None:

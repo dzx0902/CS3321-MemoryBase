@@ -5,7 +5,11 @@ from uuid import uuid4
 from app.api.deps import get_answer_service
 from app.main import create_app
 from app.models.qa import AnswerResponse
-from app.services.llm_service import ChatCompletionRequest, OpenAICompatibleChatProvider
+from app.services.llm_service import (
+    ChatCompletionRequest,
+    OpenAICompatibleChatProvider,
+    _system_prompt,
+)
 from fastapi.testclient import TestClient
 
 
@@ -106,3 +110,11 @@ def test_qa_answer_api_returns_generated_answer() -> None:
     assert payload["answer"] == "Rust [M1]"
     assert payload["provider"] == "deepseek"
     assert payload["model"] == "deepseek-chat"
+
+
+def test_answer_prompt_prefers_explicitly_latest_conflicting_value() -> None:
+    prompt = _system_prompt()
+
+    assert "sequence numbers" in prompt
+    assert "use the latest value" in prompt
+    assert "highest N is authoritative" in prompt

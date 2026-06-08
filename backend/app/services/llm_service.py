@@ -143,7 +143,13 @@ def _system_prompt() -> str:
     return (
         "You are MemoryBase's grounded answer generator. Answer in the user's language. "
         "Use only the supplied MemoryBase context as factual support. If the context does "
-        "not contain enough evidence, say you do not know. Prefer concise answers. "
+        "not contain enough evidence, say you do not know. When conflicting values have "
+        "explicit dates, versions, or sequence numbers, use the latest value and treat "
+        "older values as history; do not refuse only because an older value differs. "
+        "For labels formatted as [Memory sequence N], compare N for facts about the same "
+        "subject and relation; the highest N is authoritative even when its retrieval "
+        "score is lower or it appears later in the context pack. "
+        "Prefer concise answers. "
         "When using recalled memories or evidence, cite refs like [M1] or [E1]."
     )
 

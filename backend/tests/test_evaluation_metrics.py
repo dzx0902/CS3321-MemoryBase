@@ -47,3 +47,22 @@ def test_deletion_case_still_blocks_forbidden_content() -> None:
     assert metrics["pass"] is False
     assert metrics["forbidden_answer_violation"] is True
     assert metrics["historical_value_mention"] is False
+
+
+def test_refusal_case_requires_explicit_unknown_answer() -> None:
+    case = _case(
+        case_id="adversarial-1",
+        category="adversarial",
+        expected_answer=None,
+        forbidden_answers=["a painting"],
+        expected_behavior="refuse_or_unknown",
+    )
+
+    hallucinated = score_qa(case, "She bought a sculpture.")
+    refused = score_qa(case, "There is not enough information to answer that.")
+
+    assert hallucinated["pass"] is False
+    assert hallucinated["refusal_match"] is False
+    assert refused["pass"] is True
+    assert refused["refusal_match"] is True
+    assert refused["score"] == 1.0
