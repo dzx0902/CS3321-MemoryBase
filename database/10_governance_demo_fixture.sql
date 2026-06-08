@@ -17,7 +17,7 @@
 -- 复现：
 --   psql $DATABASE_URL -f database/10_governance_demo_fixture.sql
 --
--- 演示查询：见 docs/governance-demo-walkthrough.md（如有）或 database/08_demo_queries.sql
+-- 演示查询：见 docs/governance-demo-walkthrough.md 或 database/08_demo_queries.sql
 -- ============================================================
 
 \set ON_ERROR_STOP on

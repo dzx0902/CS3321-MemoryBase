@@ -21,10 +21,11 @@
 | policy_id | 权限策略编号 | UUID | PK | pol001 |
 | audit_id | 审计日志编号 | UUID | PK | audit001 |
 | access_level | 访问范围 | VARCHAR | public/project/team/private | project |
-| memory_type | 记忆类型 | VARCHAR | episodic/semantic/profile/procedural/decision/preference/task/risk | decision |
+| memory_type | 记忆类型 | VARCHAR | episodic/semantic/fact/profile/procedural/decision/preference/task/risk/constraint/policy/summary | decision |
 | doc_type | SourceDocument 类型 | VARCHAR | markdown/txt/meeting/chat/note/report/inline_agent_note | inline_agent_note |
 | channel | AgentSession 来源通道 | VARCHAR | meeting/chat/import/manual/cli | cli |
-| status | 数据状态 | VARCHAR | active/archived/forgotten/superseded/conflicted | active |
+| status | MemoryItem 数据状态 | VARCHAR | candidate/active/archived/forgotten/superseded/rejected/conflicted | active |
+| source_status | SourceDocument / WikiPage / Entity 状态 | VARCHAR | active/forgotten | active |
 | forgotten_at | 非 memory 目标被遗忘时间 | TIMESTAMPTZ | NULL 表示未被遗忘 | 2026-05-16T12:00:00Z |
 | confidence | 置信度 | NUMERIC | 0.00–1.00 | 0.85 |
 | importance | 重要性 | INT | 1–5 | 4 |
@@ -34,6 +35,8 @@
 | forget_status | 遗忘请求状态 | VARCHAR | pending/approved/rejected/done | approved |
 | search_text_zh | 中文/中英混排检索文本 | TEXT | 由 jieba 搜索模式分词后空格连接 | 校园 食堂 方向 |
 | search_vector | PostgreSQL 全文检索向量 | TSVECTOR | generated column, GIN index | '食堂':2 |
+| embedding_json | 向量缓存 | JSONB | provider/model/dimension 下的整体向量值 | [0.1, -0.2] |
+| embedding_text_hash | 向量输入文本 hash | VARCHAR(128) | 同一文本同一模型去重 | sha256... |
 
 ## 2. 数据结构字典
 
@@ -43,19 +46,21 @@
 | Agent | agent_id、workspace_id、name、agent_type、status | 可参与检索和写入的 Agent |
 | AgentSession | session_id、workspace_id、agent_id、title、channel、started_at | Agent / CLI / 导入会话 |
 | Message | message_id、session_id、sender_type、role、content、created_at | 会话消息；observe API 的落库对象 |
-| SourceDocument | doc_id、workspace_id、title、raw_text、checksum、status、forgotten_at | 原始文档；`inline_agent_note` 用于 Agent 写回时自动补证据链 |
+| SourceDocument | doc_id、workspace_id、session_id、doc_type、title、raw_text、checksum、status、forgotten_at、imported_by_user_id、imported_at | 原始文档；`inline_agent_note` 用于 Agent 写回时自动补证据链 |
 | SourceChunk | chunk_id、doc_id、chunk_no、chunk_text、line range、search_text_zh、search_vector | 文档切块；search_vector 基于分词后的 search_text_zh 生成 |
-| MemoryItem | memory_id、workspace_id、memory_type、canonical_text、summary、search_text_zh、search_vector、status | 长期记忆核心；支持 memory 级全文检索 |
-| MemoryEvidence | evidence_id、memory_id、chunk_id、evidence_role | 记忆来源证据 |
-| MemoryRevision | memory_id、revision_no、revision_text、editor | 记忆版本 |
+| MemoryItem | memory_id、workspace_id、created_from_doc_id、memory_type、canonical_text、summary、search_text_zh、search_vector、confidence、importance、status、access_level、owner_user_id、owner_agent_id、valid_from、valid_to、superseded_by_memory_id、current_revision_no | 长期记忆核心；支持候选抽取、全文检索、权限、版本和生命周期 |
+| MemoryEvidence | evidence_id、memory_id、chunk_id、evidence_role、weight、note、created_at | 记忆来源证据 |
+| MemoryRevision | memory_id、revision_no、revision_text、revision_summary、revision_reason、editor_type、editor_id、created_at | 记忆版本 |
+| MemoryEmbedding | embedding_id、memory_id、workspace_id、provider、model、dimension、embedding_json、embedding_text_hash、created_at | memory 级 embedding 缓存；用于 hybrid recall，不依赖 pgvector |
+| SourceChunkEmbedding | embedding_id、chunk_id、doc_id、workspace_id、provider、model、dimension、embedding_json、embedding_text_hash、created_at | source chunk 级 embedding 缓存；用于 hybrid recall，不依赖 pgvector |
 | Entity | entity_id、workspace_id、canonical_name、entity_type、description、status、forgotten_at | 工作区内的项目对象、概念、文档或事件；支持软遗忘 |
 | MemoryEntity | memory_id、entity_id、workspace_id、relation_role | MemoryItem 与 Entity 的 M:N 关系 |
 | MemoryScene | scene_id、workspace_id、scene_slug、title、summary | 面向演示和 Wiki 的主题/决策场景 |
 | MemorySceneCell | scene_id、memory_id、workspace_id、cell_role、sort_order、note | MemoryScene 与 MemoryItem 的 M:N 聚合关系 |
-| WikiPage | page_id、workspace_id、page_slug、title、status、forgotten_at | Wiki 页面索引；遗忘治理时保留版本历史并隐藏页面 |
+| WikiPage | page_id、workspace_id、page_slug、page_type、title、current_revision_no、generated_from_scene_id、generated_from_memory_id、needs_rebuild、status、forgotten_at | Wiki 页面索引；遗忘治理时保留版本历史并隐藏页面 |
 | WikiPageRevision | page_id、revision_no、frontmatter_json、body_markdown | Wiki 页面版本 |
-| ForgetRequest | request_id、target、requester、reviewer、reason、status、resolved_at | 遗忘/归档审批记录；审批 memory_item、source_document、wiki_page、entity 时执行对应软治理 |
-| AuditLog | audit_id、actor、action、target、before/after、diff | 操作审计；支持按 target 生命周期、actor 时间线和聚合统计查询 |
+| ForgetRequest | request_id、workspace_id、target_type、target_id、requester_user_id、reviewed_by_user_id、reason、status、requested_at、resolved_at | 遗忘/归档审批记录；审批 memory_item、source_document、wiki_page、entity 时执行对应软治理 |
+| AuditLog | audit_id、workspace_id、actor_type、actor_id、action_type、target_type、target_id、before_json、after_json、created_at | 操作审计；支持按 target 生命周期、actor 时间线和聚合统计查询 |
 
 ## 3. 数据流字典
 
@@ -79,7 +84,7 @@
 |---|---|---|
 | D1 用户与工作区库 | user_account、workspace、workspace_member、agent | 身份、成员、Agent |
 | D2 源文档库 | source_document、source_chunk、message、agent_session | 原始数据 |
-| D3 记忆库 | memory_item、memory_revision、memory_evidence | 长期记忆 |
+| D3 记忆库 | memory_item、memory_revision、memory_evidence、memory_embedding、source_chunk_embedding | 长期记忆、证据和可选 embedding 缓存 |
 | D4 语义结构库 | entity、memory_entity、memory_scene、memory_scene_cell | 实体、记忆实体关系、场景聚合 |
 | D5 表达层库 | wiki_page、wiki_page_revision、timeline_entry | Wiki 与时间线 |
 | D6 治理库 | access_policy、conflict_record、forget_request、audit_log、recall_log | 权限、冲突、遗忘、审计 |

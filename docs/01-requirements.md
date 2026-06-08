@@ -13,15 +13,15 @@ MemoryBase 通过数据库管理长期记忆，使项目知识可以被结构化
 | 普通用户 | 查看项目记忆、搜索结论、阅读 Wiki | 搜索、查看 source、查看 timeline、导出 Wiki |
 | 小组成员 | 维护课程项目记忆 | 导入 source、创建 memory、编辑 memory、处理 conflict |
 | Agent | 基于权限读取 context pack | recall、生成建议 memory、生成 wiki 草稿 |
-| 管理员 | 管理用户、权限、审计 | 用户管理、Agent 管理、权限策略、归档、恢复 |
+| 管理员 | 管理 Agent、权限、审计和治理状态 | Agent 注册、权限策略、审计、冲突、遗忘、归档 |
 | 访客 / 只读用户 | 查看公开 Wiki 或演示结果 | 浏览、搜索公开内容 |
 
 ## 3. 功能需求
 
 | 模块 | 功能 | P0/P1/P2 |
 |---|---|---|
-| Workspace 管理 | 创建工作区、成员管理 | P0 |
-| 用户与 Agent 管理 | 管理用户、Agent 和角色 | P1 |
+| Workspace 基础配置 | 使用 seed / 配置初始化工作区、维护 workspace 边界和成员表 | P0 |
+| Agent 管理 | 注册 Agent、维护 Agent 可见范围和角色策略 | P1 |
 | Source 导入 | 导入 Markdown / txt，切分 chunk | P0 |
 | Message / Chunk 管理 | 保存会话消息和文档块 | P0 |
 | Memory 抽取与编辑 | 创建、编辑、删除 memory | P0 |
@@ -33,8 +33,13 @@ MemoryBase 通过数据库管理长期记忆，使项目知识可以被结构化
 | Timeline | 展示项目决策演进 | P1 |
 | AccessPolicy | Agent 权限过滤 | P1 |
 | ConflictRecord | 冲突记忆治理 | P1 |
-| Entity / MemoryScene | 实体、场景和记忆聚合（轻量模型已实现） | P2 |
-| ForgetRequest | 遗忘与归档申请（轻量审批流程已实现） | P2 |
+| Entity / MemoryScene | 实体、场景和记忆聚合（轻量模型已实现） | P1 |
+| ForgetRequest | 遗忘与归档申请（轻量审批流程已实现） | P1 |
+| Graph Explorer | 展示 workspace 中 source / memory / evidence / wiki / governance 关系 | P1 |
+| Embedding cache / Hybrid recall | 可选向量缓存、hybrid 检索与透明 fallback | P1 |
+| Agent Runtime / CLI | session、observe、remember、search、recall 命令行入口 | P1 |
+| Evaluation framework | 长期记忆评测适配器、指标与报告生成 | P1 |
+| QA | 基于 recall context 的可选 LLM answer | P2 |
 | SkillMemory | 过程性经验归纳 | Future |
 
 ## 4. 非功能需求
@@ -71,3 +76,5 @@ MemoryBase 通过数据库管理长期记忆，使项目知识可以被结构化
 - 版本审计
 - 权限治理
 - Wiki 投影
+- 可解释 hybrid recall 降级
+- 评测框架验证长期记忆效果

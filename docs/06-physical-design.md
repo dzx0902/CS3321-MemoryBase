@@ -2,11 +2,12 @@
 
 ## 1. 数据库选择
 
-主方案采用 PostgreSQL，保底方案保留 SQLite。
+主方案采用 PostgreSQL。早期设计中曾考虑 SQLite + FTS5 作为本地保底方案；
+当前仓库的脚本、测试和演示均以 PostgreSQL 为准，SQLite 不作为已交付能力。
 
 | 维度 | PostgreSQL | SQLite |
 |---|---|---|
-| 部署难度 | 中等，需要服务或 Docker | 极低 |
+| 部署难度 | 中等，需要服务或 Docker | 极低（设计备选，当前未实现） |
 | 展示数据库能力 | 强，支持复杂视图、JSONB、GIN、触发器 | 中等 |
 | 全文检索 | tsvector + GIN | FTS5 |
 | 多人协作 | 强 | 弱 |
@@ -16,7 +17,7 @@
 
 ```text
 主方案：PostgreSQL
-保底方案：SQLite + FTS5
+历史备选：SQLite + FTS5（当前未进入交付脚本）
 ```
 
 ## 2. 数据库名称
@@ -82,7 +83,7 @@ project-root/
 |---|---|
 | v_active_memory | 查询 active 且仍在有效期内的 memory，使用显式列名避免 schema 漂移 |
 | v_memory_with_source | 串联 memory、evidence、source chunk 和 source document，支持来源追溯与行号展示 |
-| v_agent_visible_memory | 基于 `app.agent_id` 和 AccessPolicy 过滤 Agent 可见 memory，未设置 agent 时默认不返回数据 |
+| v_agent_visible_memory | 展开每个 Agent 可见的 active memory；调用方必须显式 `WHERE agent_id = ...`，服务层再按 AccessPolicy 过滤 |
 | v_project_timeline | 串联 timeline、memory 和 source，支持项目决策演进展示 |
 | v_conflict_memory | 展开 conflict_record 两端 memory，支持冲突页面和 SQL 演示 |
 | v_wiki_page_sources | 追溯 WikiPage 由 memory 或 scene 到 evidence/source chunk 的来源链路 |
@@ -119,7 +120,7 @@ project-root/
 
 1. `memory_item` 枚举扩展
    - `memory_type` 新增：`fact`、`constraint`、`policy`、`summary`
-   - `status` 新增：`candidate`、`rejected`
+   - `status` 新增：`candidate`、`rejected`、`conflicted`
 
    作用：把自动抽取出来、尚未人工确认的候选记忆直接纳入主表生命周期，而不是另起一套孤立草稿表。这样治理、审计、召回过滤都可以沿用一套主线逻辑。
 

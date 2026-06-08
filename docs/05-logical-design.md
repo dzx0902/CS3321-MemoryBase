@@ -39,6 +39,10 @@ MemoryRevision(memory_id FK, revision_no, revision_text, revision_summary, revis
 
 MemoryEvidence(evidence_id PK, memory_id FK, chunk_id FK, evidence_role, weight, note, created_at, UNIQUE(memory_id, chunk_id, evidence_role))
 
+MemoryEmbedding(embedding_id PK, memory_id FK, workspace_id FK, provider, model, dimension, embedding_json, embedding_text_hash, created_at, UNIQUE(memory_id, provider, model, embedding_text_hash), FK(memory_id, workspace_id))
+
+SourceChunkEmbedding(embedding_id PK, chunk_id FK, doc_id FK, workspace_id FK, provider, model, dimension, embedding_json, embedding_text_hash, created_at, UNIQUE(chunk_id, provider, model, embedding_text_hash))
+
 Entity(entity_id PK, workspace_id FK, canonical_name, entity_type, description, status, forgotten_at, created_at, updated_at, UNIQUE(workspace_id, canonical_name), UNIQUE(entity_id, workspace_id))
 
 MemoryEntity(memory_id FK, entity_id FK, workspace_id FK, relation_role, created_at, PK(memory_id, entity_id, relation_role), FK(memory_id, workspace_id), FK(entity_id, workspace_id))
@@ -61,7 +65,7 @@ RecallLog(recall_id PK, workspace_id FK, agent_id FK, user_id FK, query_text, fi
 
 AccessPolicy(policy_id PK, workspace_id FK, principal_type, principal_id, resource_type, resource_scope, effect, predicate_json, created_at)
 
-ConflictRecord(conflict_id PK, workspace_id FK, left_memory_id FK, right_memory_id FK, conflict_type, status, resolution_note, created_at, resolved_at, CHECK(left_memory_id < right_memory_id), UNIQUE(left_memory_id, right_memory_id))
+ConflictRecord(conflict_id PK, workspace_id FK, left_memory_id FK, right_memory_id FK, conflict_type, status, resolution_note, resolved_by_actor_type, resolved_by_actor_id, resolved_at, created_at, updated_at, CHECK(left_memory_id < right_memory_id), UNIQUE(left_memory_id, right_memory_id))
 
 ForgetRequest(request_id PK, workspace_id FK, target_type, target_id, requester_user_id FK, reviewed_by_user_id FK, reason, status, requested_at, resolved_at)
 
@@ -93,6 +97,7 @@ AuditLog(audit_id PK, workspace_id FK, actor_type, actor_id, action_type, target
 - 审计记录独立为 AuditLog。
 - Entity、MemoryScene 与 MemoryItem 的 M:N 关系通过 MemoryEntity 和 MemorySceneCell 拆分，关系属性 relation_role、cell_role、sort_order 只依赖各自复合主键。
 - SourceDocument、WikiPage、Entity 的 `status` / `forgotten_at` 是治理状态，不承载业务内容依赖；默认视图和 API 过滤 `active`，遗忘审批只做软治理。
+- MemoryEmbedding、SourceChunkEmbedding 作为 embedding 缓存表保存 provider/model/dimension/hash 与 JSONB 向量值；它们服务 hybrid recall，不把向量维度拆成关系列，也不依赖 pgvector。
 
 例如 MemoryItem 不直接保存来源文本，而通过 MemoryEvidence 关联 SourceChunk，避免将证据来源冗余存储在主表中。
 
@@ -105,6 +110,7 @@ AuditLog(audit_id PK, workspace_id FK, actor_type, actor_id, action_type, target
 | current_revision_no | wiki_page | 快速读取当前 Wiki |
 | token_count | source_chunk | 避免重复计算 |
 | search_text_zh / search_vector | source_chunk / memory_item | 预计算 jieba 搜索文本和 PostgreSQL FTS 向量，避免查询时重复分词和建向量 |
+| embedding_json | memory_embedding / source_chunk_embedding | 缓存可选 embedding provider 的向量结果，避免重复调用模型 |
 | top_memory_ids_json | recall_log | 保留召回快照 |
 | workspace_id | memory_entity / memory_scene_cell | 支撑 workspace 过滤，并通过复合 FK 保证 M:N 两端属于同一 workspace |
 | status / forgotten_at | source_document / wiki_page / entity | 支撑 ForgetRequest 软治理和审计回放 |

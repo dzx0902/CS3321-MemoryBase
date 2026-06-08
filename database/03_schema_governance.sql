@@ -1,3 +1,5 @@
+-- Human-readable projection of memories or scenes. The page row stores current
+-- state, while immutable page contents live in wiki_page_revision.
 CREATE TABLE IF NOT EXISTS wiki_page (
   page_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -17,6 +19,8 @@ CREATE TABLE IF NOT EXISTS wiki_page (
   UNIQUE(workspace_id, page_slug)
 );
 
+-- Immutable wiki version body. frontmatter_json keeps export metadata such as
+-- memory_ids and source_doc_ids without changing the core page schema.
 CREATE TABLE IF NOT EXISTS wiki_page_revision (
   page_id UUID NOT NULL REFERENCES wiki_page(page_id) ON DELETE CASCADE,
   revision_no INT NOT NULL,
@@ -28,6 +32,7 @@ CREATE TABLE IF NOT EXISTS wiki_page_revision (
   PRIMARY KEY (page_id, revision_no)
 );
 
+-- Project timeline event used by the demo and report to explain decisions over time.
 CREATE TABLE IF NOT EXISTS timeline_entry (
   timeline_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -42,6 +47,8 @@ CREATE TABLE IF NOT EXISTS timeline_entry (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Recall invocation log. JSON fields preserve filters, ranked memory snapshots,
+-- and generated context packs for later audit and evaluation.
 CREATE TABLE IF NOT EXISTS recall_log (
   recall_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -55,6 +62,8 @@ CREATE TABLE IF NOT EXISTS recall_log (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Access policy rule for users, agents, or roles. principal_id may be NULL for
+-- global role policies, which is why database/04_indexes.sql adds a partial unique index.
 CREATE TABLE IF NOT EXISTS access_policy (
   policy_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -70,6 +79,8 @@ CREATE TABLE IF NOT EXISTS access_policy (
   UNIQUE(workspace_id, principal_type, principal_id, resource_type, resource_scope, effect)
 );
 
+-- Soft-forget governance request. Targets are generic so one workflow can cover
+-- memory_item, source_document, wiki_page, and entity.
 CREATE TABLE IF NOT EXISTS forget_request (
   request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -85,6 +96,8 @@ CREATE TABLE IF NOT EXISTS forget_request (
   resolved_at TIMESTAMPTZ
 );
 
+-- Pairwise memory conflict record. CHECK(left_memory_id < right_memory_id)
+-- canonicalizes unordered pairs and prevents A/B plus B/A duplicates.
 CREATE TABLE IF NOT EXISTS conflict_record (
   conflict_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -115,6 +128,8 @@ CREATE TABLE IF NOT EXISTS conflict_record (
   UNIQUE(left_memory_id, right_memory_id)
 );
 
+-- Append-only audit log for lifecycle events. before_json/after_json preserve
+-- record snapshots even if the relational schema evolves later.
 CREATE TABLE IF NOT EXISTS audit_log (
   audit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,

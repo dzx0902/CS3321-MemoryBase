@@ -507,3 +507,35 @@ Runs a forgetting verification report after approval. The report checks target s
 ### POST /api/observe/batch
 
 批量写入 messages。单次最多 100 条，后端在一个 transaction 中写入；任一 message 校验失败时整批回滚。
+
+## 12. Extension APIs
+
+以下端点是当前代码已交付的扩展能力。最终报告可按篇幅选择摘要，不必把每个
+request/response 全量展开。
+
+### Graph API
+
+| Endpoint | 作用 |
+|---|---|
+| `GET /api/graph/health` | 查看 Neo4j / graph store 状态 |
+| `GET /api/graph/workspace` | 读取 workspace graph；可选 `agent_id` 做可见性过滤，Neo4j 不可用时可 fallback |
+| `GET /api/graph/workspace/preview` | 直接从 PostgreSQL 构建 graph preview |
+| `POST /api/graph/workspace/sync` | 将 PostgreSQL workspace snapshot 同步到 Neo4j，并写入 audit attribution |
+
+### Embedding API
+
+| Endpoint | 作用 |
+|---|---|
+| `POST /api/embeddings/generate` | 用 local hashing 或配置的 provider 生成 embedding |
+| `POST /api/embeddings/memories/{memory_id}` | 为单条 memory 回填 embedding cache |
+| `POST /api/embeddings/chunks/{chunk_id}` | 为单个 source chunk 回填 embedding cache |
+| `POST /api/embeddings/backfill` | 按 workspace/provider/model 批量回填 memory/chunk embedding |
+
+### QA / Stats / Semantic API
+
+| Endpoint | 作用 |
+|---|---|
+| `POST /api/qa/answer` | 基于 recall context 调用可选 LLM 生成回答 |
+| `GET /api/stats/overview` | Dashboard 统计汇总 |
+| `GET /api/entities` | 查询 workspace entities |
+| `GET /api/scenes` | 查询 memory scenes |
