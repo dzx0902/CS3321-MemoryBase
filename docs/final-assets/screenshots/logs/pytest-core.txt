@@ -1,0 +1,12 @@
+$ .venv/bin/python -m pytest backend/tests/test_health.py backend/tests/test_recall_query.py backend/tests/test_graph_service.py -q
+cwd: /Users/jflin/Workspace/Code/CS3321-MemoryBase
+exit_code: 0
+
+................                                                         [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /Users/jflin/Workspace/Code/CS3321-MemoryBase/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+16 passed, 1 warning in 0.12s
