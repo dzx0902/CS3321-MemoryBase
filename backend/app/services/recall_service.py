@@ -8,7 +8,7 @@ from uuid import UUID
 
 from ..core.database import Database
 from ..models.embedding import EmbeddingGenerateRequest
-from ..models.recall import RecallRequest, RecallResponse
+from ..models.recall import RecallRequest, RecallResponse, RetrievalInfo
 from ._search_query import build_websearch_query
 from .embedding_service import EmbeddingProvider, LocalHashingEmbeddingProvider, cosine_similarity
 from .tokenizer import build_search_text
@@ -16,6 +16,11 @@ from .tokenizer import build_search_text
 QUERY_EXPANSION_FILE = (
     Path(__file__).resolve().parents[3] / "data" / "recall" / "demo_query_expansions.json"
 )
+HYBRID_FALLBACK_REASON = (
+    "No matching embedding records were available; "
+    "hybrid recall fell back to keyword ranking."
+)
+VECTOR_FALLBACK_REASON = "No matching embedding records were available for vector scoring."
 
 
 def _load_query_expansions(path: Path) -> dict[str, tuple[str, ...]]:
@@ -132,6 +137,13 @@ class PostgresRecallRepository:
             "top_memory_ids": [],
             "matched_source_ids": [],
         }
+        retrieval_info = RetrievalInfo(
+            requested_mode=payload.retrieval_mode,
+            effective_mode=payload.retrieval_mode,
+            embedding_provider=self._embedding_provider_name,
+            embedding_model=self._embedding_model,
+        )
+        context_pack["retrieval_info"] = retrieval_info.model_dump()
 
         with self._database.connection() as conn:
             with conn.cursor() as cur:
@@ -232,13 +244,15 @@ class PostgresRecallRepository:
                     )
                     memory_rows = cur.fetchall()
                 if payload.retrieval_mode in {"vector", "hybrid"}:
-                    memory_rows = self._merge_vector_rows(
+                    memory_rows, retrieval_info = self._merge_vector_rows(
                         cur=cur,
                         payload=payload,
                         where_clause=where_clause,
                         params=params,
                         keyword_rows=memory_rows,
+                        retrieval_info=retrieval_info,
                     )
+                    context_pack["retrieval_info"] = retrieval_info.model_dump()
 
                 for row in memory_rows:
                     if row["memory_id"] in memory_ids:
@@ -321,6 +335,7 @@ class PostgresRecallRepository:
             query_text=payload.query_text,
             result_count=len(memories),
             memories=memories,
+            retrieval_info=retrieval_info,
             context_pack=context_pack,
             created_at=created_at,
         )
@@ -333,7 +348,8 @@ class PostgresRecallRepository:
         where_clause: str,
         params: dict[str, object],
         keyword_rows: list[dict[str, object]],
-    ) -> list[dict[str, object]]:
+        retrieval_info: RetrievalInfo,
+    ) -> tuple[list[dict[str, object]], RetrievalInfo]:
         query_embedding = self._embedding_provider.embed(
             EmbeddingGenerateRequest(
                 text=payload.query_text,
@@ -390,7 +406,9 @@ class PostgresRecallRepository:
             row["memory_id"]: dict(row) for row in keyword_rows
         }
         terms = _keyword_terms(payload.query_text)
-        for row in cur.fetchall():
+        memory_vector_rows = cur.fetchall()
+        retrieval_info.vector_memory_candidates = len(memory_vector_rows)
+        for row in memory_vector_rows:
             candidate = _build_vector_candidate(
                 row=row,
                 query_embedding=query_embedding,
@@ -429,7 +447,9 @@ class PostgresRecallRepository:
             """,
             vector_params,
         )
-        for row in cur.fetchall():
+        chunk_vector_rows = cur.fetchall()
+        retrieval_info.vector_chunk_candidates = len(chunk_vector_rows)
+        for row in chunk_vector_rows:
             candidate = _build_vector_candidate(
                 row=row,
                 query_embedding=query_embedding,
@@ -439,6 +459,13 @@ class PostgresRecallRepository:
             )
             if candidate is not None:
                 _merge_scored_candidate(merged, candidate)
+        vector_used = any(float(row.get("vector_score") or 0) > 0 for row in merged.values())
+        retrieval_info.vector_used = vector_used
+        if payload.retrieval_mode == "hybrid" and not vector_used:
+            retrieval_info.effective_mode = "keyword"
+            retrieval_info.fallback_reason = HYBRID_FALLBACK_REASON
+        elif payload.retrieval_mode == "vector" and not vector_used:
+            retrieval_info.fallback_reason = VECTOR_FALLBACK_REASON
         return sorted(
             merged.values(),
             key=lambda row: (
@@ -447,7 +474,7 @@ class PostgresRecallRepository:
                 float(row["confidence"]),
             ),
             reverse=True,
-        )[: payload.limit]
+        )[: payload.limit], retrieval_info
 
 
 def _json_dumps(payload: object) -> str:

@@ -90,7 +90,7 @@ export default function SourceDetail() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {source.chunks.map((chunk) => (
               <div key={chunk.chunk_id} style={{
-                background: 'var(--bg-secondary)',
+                background: 'var(--bg-elevated)',
                 borderRadius: 'var(--radius-md)',
                 padding: '14px 18px',
                 border: '1px solid var(--border)',

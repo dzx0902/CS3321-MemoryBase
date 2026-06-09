@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from .recall import RetrievalMode
+from .recall import RetrievalInfo, RetrievalMode
 
 
 class AnswerRequest(BaseModel):
@@ -29,6 +29,7 @@ class AnswerResponse(BaseModel):
     model: str
     recall_id: UUID | None = None
     result_count: int
+    retrieval_info: RetrievalInfo
     citation_map: dict[str, Any]
     token_count: int
     token_budget: int

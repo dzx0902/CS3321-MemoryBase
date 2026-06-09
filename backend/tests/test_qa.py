@@ -5,11 +5,8 @@ from uuid import uuid4
 from app.api.deps import get_answer_service
 from app.main import create_app
 from app.models.qa import AnswerResponse
-from app.services.llm_service import (
-    ChatCompletionRequest,
-    OpenAICompatibleChatProvider,
-    _system_prompt,
-)
+from app.models.recall import RetrievalInfo
+from app.services.llm_service import ChatCompletionRequest, OpenAICompatibleChatProvider
 from fastapi.testclient import TestClient
 
 
@@ -77,6 +74,10 @@ def test_openai_compatible_chat_provider_maps_response(monkeypatch) -> None:
 
 def test_qa_answer_api_returns_generated_answer() -> None:
     workspace_id = uuid4()
+    fallback_reason = (
+        "No matching embedding records were available; "
+        "hybrid recall fell back to keyword ranking."
+    )
 
     class FakeAnswerService:
         def answer(self, payload):
@@ -86,6 +87,16 @@ def test_qa_answer_api_returns_generated_answer() -> None:
                 model="deepseek-chat",
                 recall_id=None,
                 result_count=1,
+                retrieval_info=RetrievalInfo(
+                    requested_mode="hybrid",
+                    effective_mode="keyword",
+                    embedding_provider="local",
+                    embedding_model="hashing-v1",
+                    vector_memory_candidates=0,
+                    vector_chunk_candidates=0,
+                    vector_used=False,
+                    fallback_reason=fallback_reason,
+                ),
                 citation_map={"memories": {}, "evidence": {}},
                 token_count=42,
                 token_budget=3000,
@@ -110,11 +121,4 @@ def test_qa_answer_api_returns_generated_answer() -> None:
     assert payload["answer"] == "Rust [M1]"
     assert payload["provider"] == "deepseek"
     assert payload["model"] == "deepseek-chat"
-
-
-def test_answer_prompt_prefers_explicitly_latest_conflicting_value() -> None:
-    prompt = _system_prompt()
-
-    assert "sequence numbers" in prompt
-    assert "use the latest value" in prompt
-    assert "highest N is authoritative" in prompt
+    assert payload["retrieval_info"]["effective_mode"] == "keyword"

@@ -127,6 +127,7 @@ class AnswerService:
             model=completion.model,
             recall_id=recall.recall_id,
             result_count=recall.result_count,
+            retrieval_info=recall.retrieval_info,
             citation_map=context.citation_map,
             token_count=context.token_count,
             token_budget=context.token_budget,

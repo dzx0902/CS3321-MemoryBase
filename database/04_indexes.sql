@@ -112,3 +112,30 @@ CREATE INDEX IF NOT EXISTS idx_forget_request_target
 
 CREATE INDEX IF NOT EXISTS idx_wiki_page_workspace_status
   ON wiki_page(workspace_id, status, updated_at DESC);
+
+-- ============================================================
+-- 进阶索引：BRIN + Covering（INCLUDE） + Partial
+-- 见 docs/index-rationale.md 的"现代索引补强"章节
+-- ============================================================
+
+-- BRIN on audit_log(created_at)
+-- audit_log 为 append-only by time，BRIN 用 page range + min/max 元组
+-- 替代每行索引，索引大小通常是同语义 B-tree 的 1-2 个数量级以下；
+-- 写入开销几乎为零；适合"按时间范围聚合 / 跨 workspace 全量回放"等
+-- 分析型查询。与现有 idx_audit_workspace_time（B-tree, workspace 先导）
+-- 形成互补：前者擅长"某 workspace 最近 N 条"，BRIN 擅长"全库时间窗口"。
+CREATE INDEX IF NOT EXISTS idx_audit_brin_time
+  ON audit_log USING BRIN(created_at) WITH (pages_per_range = 32);
+
+-- Covering + Partial + Composite on memory_item
+-- 同时演示三种现代 PostgreSQL 索引特性：
+--   1) Partial (WHERE status = 'active'): 只索引活跃记录，索引随
+--      forgotten/archived 比例增长而显著缩小；
+--   2) Composite + DESC: 复合键直接覆盖 ORDER BY importance DESC, updated_at DESC；
+--   3) Covering (INCLUDE, PG 11+): 把常被 SELECT 的非 key 列纳入索引叶子，
+--      在 visibility map 全干净时可实现 index-only scan，省去 heap fetch。
+-- 适配查询：dashboard / 首屏 / wiki 合成"活跃记忆排序短列表"。
+CREATE INDEX IF NOT EXISTS idx_memory_active_ranking
+  ON memory_item(workspace_id, importance DESC, updated_at DESC)
+  INCLUDE (memory_id, memory_type, confidence, access_level)
+  WHERE status = 'active';

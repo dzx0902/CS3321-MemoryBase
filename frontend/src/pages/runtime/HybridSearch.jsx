@@ -4,11 +4,13 @@ import { DEMO_AGENT_ID, DEMO_WORKSPACE_ID } from '../../api/constants';
 import { useToast } from '../../components/Toast';
 
 const SCOPES = ['all', 'chunks', 'memories', 'sources'];
+const RESULT_TYPES = ['chunk', 'memory', 'source'];
 
 export default function HybridSearch() {
   const toast = useToast();
   const [searching, setSearching] = useState(false);
   const [response, setResponse] = useState(null);
+  const [typeFilter, setTypeFilter] = useState('all');
   const [form, setForm] = useState({
     workspace_id: DEMO_WORKSPACE_ID,
     agent_id: DEMO_AGENT_ID,
@@ -29,6 +31,7 @@ export default function HybridSearch() {
     }
     setSearching(true);
     setResponse(null);
+    setTypeFilter('all');
     try {
       const data = await searchApi.search({
         workspace_id: form.workspace_id,
@@ -86,22 +89,48 @@ export default function HybridSearch() {
 
       {searching && <div className="loading"><div className="spinner" />Searching...</div>}
 
-      {response && !searching && (
-        <>
+      {response && !searching && (() => {
+        const allItems = response.items || [];
+        const visibleItems = typeFilter === 'all'
+          ? allItems
+          : allItems.filter((item) => item.result_type === typeFilter);
+        const typeCounts = RESULT_TYPES.reduce((acc, type) => {
+          acc[type] = allItems.filter((item) => item.result_type === type).length;
+          return acc;
+        }, {});
+        return (
+          <>
           <div className="section-header" style={{ marginTop: 8 }}>
             <h3 style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
               {response.result_count || 0} results · tokenized: <span className="text-mono">{response.tokenized_query || '—'}</span>
             </h3>
           </div>
 
-          {(!response.items || response.items.length === 0) ? (
+          {allItems.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              <button type="button" className={`btn btn--sm ${typeFilter === 'all' ? 'btn--primary' : ''}`}
+                onClick={() => setTypeFilter('all')}>
+                All ({allItems.length})
+              </button>
+              {RESULT_TYPES.map((type) => (
+                <button key={type} type="button"
+                  className={`btn btn--sm ${typeFilter === type ? 'btn--primary' : ''}`}
+                  disabled={typeCounts[type] === 0}
+                  onClick={() => setTypeFilter(type)}>
+                  {type} ({typeCounts[type]})
+                </button>
+              ))}
+            </div>
+          )}
+
+          {visibleItems.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state__icon">⌕</div>
               <div className="empty-state__title">No results</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {response.items.map((item) => (
+              {visibleItems.map((item) => (
                 <div key={`${item.result_type}-${item.result_id}`} className="card" style={{ padding: '16px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
                     <span className="badge badge--accent">{item.result_type}</span>
@@ -122,8 +151,9 @@ export default function HybridSearch() {
               ))}
             </div>
           )}
-        </>
-      )}
+          </>
+        );
+      })()}
     </div>
   );
 }

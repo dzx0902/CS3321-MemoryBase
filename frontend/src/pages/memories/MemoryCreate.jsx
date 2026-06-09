@@ -187,7 +187,7 @@ export default function MemoryCreate() {
         {form.evidence.map((ev, idx) => (
           <div key={idx} style={{
             display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-end',
-            padding: '12px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)',
+            padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)',
           }}>
             <div className="form-group" style={{ flex: 2, marginBottom: 0 }}>
               <label>Chunk</label>

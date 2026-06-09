@@ -9,6 +9,17 @@ from pydantic import BaseModel, Field
 RetrievalMode = Literal["hybrid", "keyword", "vector"]
 
 
+class RetrievalInfo(BaseModel):
+    requested_mode: RetrievalMode
+    effective_mode: RetrievalMode
+    embedding_provider: str
+    embedding_model: str
+    vector_memory_candidates: int = 0
+    vector_chunk_candidates: int = 0
+    vector_used: bool = False
+    fallback_reason: str | None = None
+
+
 class RecallRequest(BaseModel):
     workspace_id: UUID
     agent_id: UUID | None = None
@@ -61,6 +72,7 @@ class RecallResponse(BaseModel):
     query_text: str
     result_count: int
     memories: list[RecallMemoryResponse]
+    retrieval_info: RetrievalInfo
     context_pack: dict[str, Any]
     created_at: datetime | None = None
 

@@ -14,6 +14,12 @@ from ..services.embedding_service import (
     SiliconFlowEmbeddingProvider,
 )
 from ..services.governance_service import GovernanceService, PostgresGovernanceRepository
+from ..services.graph_service import (
+    GraphService,
+    Neo4jGraphStore,
+    PostgresGraphRepository,
+    PostgresGraphVisibilityRepository,
+)
 from ..services.llm_service import AnswerService, ChatProvider, OpenAICompatibleChatProvider
 from ..services.memory_extraction_service import MemoryExtractionService
 from ..services.memory_service import MemoryService, PostgresMemoryRepository
@@ -92,6 +98,18 @@ def get_wiki_service() -> WikiService:
 def get_stats_service() -> StatsService:
     repository = PostgresStatsRepository(get_database())
     return StatsService(repository=repository)
+
+
+@lru_cache(maxsize=1)
+def get_graph_service() -> GraphService:
+    repository = PostgresGraphRepository(get_database())
+    visibility_repository = PostgresGraphVisibilityRepository(get_database())
+    store = Neo4jGraphStore(get_settings())
+    return GraphService(
+        repository=repository,
+        store=store,
+        visibility_repository=visibility_repository,
+    )
 
 
 def get_embedding_service() -> EmbeddingService:

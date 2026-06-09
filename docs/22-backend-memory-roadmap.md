@@ -1,5 +1,7 @@
 # Backend Memory Capability Roadmap
 
+This document is a future roadmap reference, not a description of delivered capability.
+
 Document order:
 
 ```text
@@ -16,14 +18,6 @@ Evaluation and benchmark implementation is intentionally tracked separately in:
 ```text
 docs/23-evaluation-benchmark-roadmap.md
 ```
-
-## Branch And Workflow
-
-- Do not use the `jflin` branch for this work.
-- Use a dedicated feature branch per implementation batch.
-- Keep backend changes separate from evaluation-only changes when possible.
-- Do not commit, push, create PRs, or mutate GitHub issues unless explicitly requested by the owner.
-- Before implementation, check existing code, open issues, and local dirty files.
 
 ## Current Backend Baseline
 
@@ -66,7 +60,7 @@ generate memory + semantic recall + closed-loop agent use + measurable governanc
 
 ## Implementation Phases
 
-Read this document before changing backend behavior. Do not start a backend implementation phase until the corresponding evaluation target is either already available or explicitly deferred by the owner.
+Read this document before changing backend behavior. Use it as a planning reference for future batches.
 
 ### Phase B1: Hybrid Memory Retrieval
 
@@ -121,6 +115,20 @@ Goal:
 raw document / chunk / conversation / agent result / wiki page -> candidate memories
 ```
 
+Current status:
+
+```text
+v1 delivered:
+- rule-based chunk -> candidate extraction
+- candidate approve / reject workflow
+- evidence auto-binding into memory_evidence
+- run-level audit trace in audit_log
+
+v2 planned:
+- analysis-run / draft-table workflow for richer LLM-assisted review loops
+- broader source types beyond chunk-first extraction
+```
+
 Candidate memory shape:
 
 ```json
@@ -168,6 +176,22 @@ Implementation order:
 - Bind source chunks and evidence automatically.
 - Keep extracted memory in candidate status.
 - Move to active only after approve.
+```
+
+Delivered v1 shape:
+
+```text
+- candidate records are stored directly in memory_item with status='candidate'
+- evidence links are stored in memory_evidence
+- extraction run trace is recorded in audit_log with
+  memory_extraction.run.start / memory_extraction.run.complete
+```
+
+Planned v2 shape:
+
+```text
+- add analysis-oriented staging tables when LLM review workflows justify the extra schema
+- keep v1 candidate workflow as the compatibility baseline
 ```
 
 Acceptance criteria:
@@ -435,11 +459,12 @@ Audit completeness:
 ### v0.3 Backend Target
 
 ```text
-- automatic memory extraction
-- candidate memory state
-- approve / reject workflow
+- automatic memory extraction (v1 delivered: rule-based candidate extraction)
+- candidate memory state (delivered in memory_item.status='candidate')
+- approve / reject workflow (delivered)
 - lifecycle state machine
-- evidence auto-binding
+- evidence auto-binding (delivered)
+- v2 analysis tables planned, not delivered
 ```
 
 ### v0.4 Backend Target
@@ -474,7 +499,7 @@ Do not bundle all backend roadmap items into one PR. Avoid mixing:
 - context package rewrite
 ```
 
-The first backend PR after evaluation should be narrow, preferably hybrid retrieval or lifecycle state validation, depending on benchmark evidence.
+The first backend PR after evaluation should be narrow, preferably lifecycle hardening, extraction observability, or benchmark-facing documentation alignment, depending on benchmark evidence.
 
 ## Handoff Template
 

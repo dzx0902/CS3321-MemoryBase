@@ -1,5 +1,7 @@
 # Evaluation And Benchmark Roadmap
 
+This document is a future roadmap reference, not a description of delivered capability.
+
 Document order:
 
 ```text
@@ -31,19 +33,6 @@ Build a repeatable local framework for measuring:
 - database and system performance
 - external benchmark compatibility
 ```
-
-## Branch And Workflow
-
-- Do not use the `jflin` branch for this work.
-- Use a dedicated evaluation branch, such as:
-
-```text
-feat/evaluation-memory-benchmark-plan
-```
-
-- Keep evaluation-only changes separate from backend behavior changes where possible.
-- Do not commit, push, create PRs, or mutate GitHub issues unless explicitly requested.
-- Do not store API keys, real database URLs, or real user data in benchmark files.
 
 ## Preferred Technology
 

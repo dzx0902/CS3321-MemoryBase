@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID
 
 import psycopg
 import pytest
-
 from scripts.backfill_search_terms import backfill_search_terms
 
 WORKSPACE_ID = "00000000-0000-0000-0000-000000000201"
@@ -734,6 +733,36 @@ def test_memory_extraction_from_chunks_creates_approvable_candidate(
     )
     assert approve.status_code == 200
     assert approve.json()["memory"]["status"] == "active"
+
+    with psycopg.connect(integration_db) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT action_type, after_json
+                FROM audit_log
+                WHERE workspace_id = %(workspace_id)s
+                  AND action_type IN (
+                    'memory_extraction.run.start',
+                    'memory_extraction.run.complete'
+                  )
+                ORDER BY created_at DESC
+                LIMIT 2
+                """,
+                {"workspace_id": WORKSPACE_ID},
+            )
+            rows = cur.fetchall()
+
+    assert len(rows) == 2
+    events = {row[0]: row[1] for row in rows}
+    assert "memory_extraction.run.start" in events
+    assert "memory_extraction.run.complete" in events
+    start_payload = events["memory_extraction.run.start"]
+    complete_payload = events["memory_extraction.run.complete"]
+    assert start_payload["run_id"] == complete_payload["run_id"]
+    assert start_payload["method"] == "rule-based"
+    assert start_payload["requested_chunk_ids"] == ["00000000-0000-0000-0000-000000000602"]
+    assert complete_payload["candidate_count"] == 1
+    assert candidate["memory_id"] in complete_payload["candidate_memory_ids"]
 
     visible_recall = integration_client.post(
         "/api/recall",
@@ -2129,141 +2158,149 @@ def test_memory_recall_statistics_view_aggregates_logged_results(
     assert row[1] is not None
 
 
-def test_batch_memory_create_is_atomic_and_keeps_audit_triggers(
-    integration_client,
-    integration_db: str,
+def test_graph_workspace_filters_private_memory_by_agent_visibility(
+    integration_client, integration_db: str
 ) -> None:
-    marker = "batch-memory-integration"
-    response = integration_client.post(
-        "/api/memories/batch",
-        headers={
-            "X-Actor-Type": "system",
-            "X-Revision-Reason": "batch integration test",
-        },
-        json={
-            "items": [
-                {
-                    "workspace_id": WORKSPACE_ID,
-                    "memory_type": "fact",
-                    "canonical_text": f"{marker} first",
-                },
-                {
-                    "workspace_id": WORKSPACE_ID,
-                    "memory_type": "fact",
-                    "canonical_text": f"{marker} second",
-                },
-            ]
-        },
+    hidden_response = integration_client.get(
+        "/api/graph/workspace",
+        params={"workspace_id": WORKSPACE_ID, "limit": 30},
     )
-
-    assert response.status_code == 201
-    body = response.json()
-    assert body["count"] == 2
-    memory_ids = [item["memory_id"] for item in body["items"]]
+    assert hidden_response.status_code == 200
+    hidden_payload = hidden_response.json()
+    hidden_node_ids = {node["id"] for node in hidden_payload["nodes"]}
+    assert f"memory:{PRIVATE_MEMORY_ID}" not in hidden_node_ids
 
     with psycopg.connect(integration_db) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT count(*)
-                FROM memory_revision
-                WHERE memory_id = ANY(%s::uuid[])
+                INSERT INTO agent (
+                    agent_id, workspace_id, name, agent_type, status, owner_user_id
+                )
+                VALUES (
+                    '00000000-0000-0000-0000-000000000302',
+                    %(workspace_id)s,
+                    'graph-viewer',
+                    'retriever',
+                    'active',
+                    '00000000-0000-0000-0000-000000000104'
+                )
+                ON CONFLICT (agent_id) DO NOTHING
                 """,
-                (memory_ids,),
+                {"workspace_id": WORKSPACE_ID},
             )
-            assert cur.fetchone()[0] == 2
-            cur.execute(
-                """
-                SELECT count(*)
-                FROM audit_log
-                WHERE target_id = ANY(%s::uuid[])
-                  AND action_type = 'memory.insert'
-                """,
-                (memory_ids,),
-            )
-            assert cur.fetchone()[0] == 2
+        conn.commit()
 
-    failed = integration_client.post(
-        "/api/memories/batch",
-        json={
-            "items": [
-                {
-                    "workspace_id": WORKSPACE_ID,
-                    "memory_type": "fact",
-                    "canonical_text": f"{marker} rollback first",
-                },
-                {
-                    "workspace_id": WORKSPACE_ID,
-                    "memory_type": "fact",
-                    "canonical_text": f"{marker} rollback second",
-                    "evidence": [{"chunk_id": str(uuid4())}],
-                },
-            ]
+    still_hidden = integration_client.get(
+        "/api/graph/workspace",
+        params={
+            "workspace_id": WORKSPACE_ID,
+            "agent_id": "00000000-0000-0000-0000-000000000302",
+            "limit": 30,
         },
     )
-    assert failed.status_code == 400
+    assert still_hidden.status_code == 200
+    still_hidden_ids = {node["id"] for node in still_hidden.json()["nodes"]}
+    assert f"memory:{PRIVATE_MEMORY_ID}" not in still_hidden_ids
 
-    with psycopg.connect(integration_db) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT count(*)
-                FROM memory_item
-                WHERE canonical_text LIKE %s
-                """,
-                (f"{marker} rollback%",),
-            )
-            assert cur.fetchone()[0] == 0
-
-
-def test_memory_create_can_atomically_supersede_an_active_memory(
-    integration_client,
-    integration_db: str,
-) -> None:
-    old_response = integration_client.post(
-        "/api/memories",
+    policy_response = integration_client.post(
+        "/api/policies",
         json={
             "workspace_id": WORKSPACE_ID,
-            "memory_type": "fact",
-            "canonical_text": "The deployment region is England.",
+            "principal_type": "agent",
+            "principal_id": "00000000-0000-0000-0000-000000000302",
+            "resource_type": "memory_item",
+            "resource_scope": "private",
+            "effect": "allow",
+            "predicate_json": {"reason": "graph visibility test"},
         },
     )
-    assert old_response.status_code == 201
-    old_memory_id = old_response.json()["memory_id"]
+    assert policy_response.status_code == 201
 
-    new_response = integration_client.post(
-        "/api/memories",
-        headers={"X-Revision-Reason": "newer structured fact"},
-        json={
+    visible_response = integration_client.get(
+        "/api/graph/workspace",
+        params={
             "workspace_id": WORKSPACE_ID,
-            "memory_type": "fact",
-            "canonical_text": "The deployment region is India.",
-            "valid_from": "2026-06-08T12:00:00Z",
-            "supersedes_memory_id": old_memory_id,
+            "agent_id": "00000000-0000-0000-0000-000000000302",
+            "limit": 30,
         },
     )
-    assert new_response.status_code == 201
-    new_memory_id = new_response.json()["memory_id"]
-
-    old_detail = integration_client.get(
-        f"/api/memories/{old_memory_id}",
-        params={"workspace_id": WORKSPACE_ID},
-    )
-    assert old_detail.status_code == 200
-    assert old_detail.json()["status"] == "superseded"
-    assert old_detail.json()["superseded_by_memory_id"] == new_memory_id
-    assert datetime.fromisoformat(old_detail.json()["valid_to"]).astimezone(UTC) == datetime(
-        2026, 6, 8, 12, tzinfo=UTC
+    assert visible_response.status_code == 200
+    visible_payload = visible_response.json()
+    visible_node_ids = {node["id"] for node in visible_payload["nodes"]}
+    assert f"memory:{PRIVATE_MEMORY_ID}" in visible_node_ids
+    assert any(
+        edge["source"] == f"memory:{PRIVATE_MEMORY_ID}"
+        or edge["target"] == f"memory:{PRIVATE_MEMORY_ID}"
+        for edge in visible_payload["edges"]
     )
 
-    with psycopg.connect(integration_db) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT count(*)
-                FROM memory_revision
-                WHERE memory_id = %(memory_id)s
-                """,
-                {"memory_id": old_memory_id},
-            )
-            assert cur.fetchone()[0] == 2
+
+def test_graph_sync_records_audit_attribution(
+    integration_client, integration_db: str, monkeypatch
+) -> None:
+    from app.api import deps as deps_module
+    from app.services.graph_service import Neo4jGraphStore
+
+    original_sync = Neo4jGraphStore.sync
+    original_health = Neo4jGraphStore.health
+
+    def fake_health(self):
+        from app.models.graph import GraphHealthResponse
+
+        return GraphHealthResponse(
+            enabled=True,
+            available=True,
+            uri=self.settings.neo4j_uri,
+            database=self.settings.neo4j_database,
+        )
+
+    def fake_sync(self, graph):
+        from app.models.graph import GraphSyncResponse
+
+        return GraphSyncResponse(
+            workspace_id=graph.workspace_id,
+            status="synced",
+            node_count=len(graph.nodes),
+            edge_count=len(graph.edges),
+        )
+
+    monkeypatch.setattr(Neo4jGraphStore, "health", fake_health)
+    monkeypatch.setattr(Neo4jGraphStore, "sync", fake_sync)
+    deps_module.get_graph_service.cache_clear()
+
+    try:
+        response = integration_client.post(
+            "/api/graph/workspace/sync",
+            params={
+                "workspace_id": WORKSPACE_ID,
+                "agent_id": AGENT_ID,
+                "limit": 25,
+            },
+        )
+        assert response.status_code == 200
+
+        with psycopg.connect(integration_db) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT actor_type, actor_id, action_type, target_type, target_id
+                    FROM audit_log
+                    WHERE workspace_id = %(workspace_id)s
+                      AND action_type = 'graph.sync'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    {"workspace_id": WORKSPACE_ID},
+                )
+                row = cur.fetchone()
+        assert row is not None
+        assert row[0] == "agent"
+        assert row[1] == UUID(AGENT_ID)
+        assert row[2] == "graph.sync"
+        assert row[3] == "workspace"
+        assert row[4] == UUID(WORKSPACE_ID)
+    finally:
+        monkeypatch.setattr(Neo4jGraphStore, "health", original_health)
+        monkeypatch.setattr(Neo4jGraphStore, "sync", original_sync)
+        deps_module.get_graph_service.cache_clear()

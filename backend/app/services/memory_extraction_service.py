@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from ..core.database import Database
 from ..models.memory import (
@@ -37,6 +38,19 @@ class MemoryExtractionService:
                 "all chunk_ids must exist and belong to the requested workspace"
             )
 
+        run_id = uuid4()
+        self._insert_run_audit(
+            workspace_id=payload.workspace_id,
+            actor=actor,
+            action_type="memory_extraction.run.start",
+            after_json={
+                "run_id": str(run_id),
+                "method": "rule-based",
+                "requested_chunk_ids": [str(chunk_id) for chunk_id in payload.chunk_ids],
+                "max_candidates": payload.max_candidates,
+            },
+        )
+
         candidates: list[MemorySummaryResponse] = []
         seen_text: set[str] = set()
         for row in chunk_rows:
@@ -70,7 +84,29 @@ class MemoryExtractionService:
                     )
                 )
                 if len(candidates) >= payload.max_candidates:
+                    self._insert_run_audit(
+                        workspace_id=payload.workspace_id,
+                        actor=actor,
+                        action_type="memory_extraction.run.complete",
+                        after_json={
+                            "run_id": str(run_id),
+                            "candidate_count": len(candidates),
+                            "candidate_memory_ids": [
+                                str(candidate.memory_id) for candidate in candidates
+                            ],
+                        },
+                    )
                     return candidates
+        self._insert_run_audit(
+            workspace_id=payload.workspace_id,
+            actor=actor,
+            action_type="memory_extraction.run.complete",
+            after_json={
+                "run_id": str(run_id),
+                "candidate_count": len(candidates),
+                "candidate_memory_ids": [str(candidate.memory_id) for candidate in candidates],
+            },
+        )
         return candidates
 
     def list_candidates(
@@ -140,6 +176,47 @@ class MemoryExtractionService:
                     {"workspace_id": workspace_id, "chunk_ids": chunk_ids},
                 )
                 return cur.fetchall()
+
+    def _insert_run_audit(
+        self,
+        *,
+        workspace_id: UUID,
+        actor: ActorContext,
+        action_type: str,
+        after_json: dict[str, object],
+    ) -> None:
+        with self.database.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO audit_log (
+                        workspace_id,
+                        actor_type,
+                        actor_id,
+                        action_type,
+                        target_type,
+                        target_id,
+                        after_json
+                    )
+                    VALUES (
+                        %(workspace_id)s,
+                        %(actor_type)s,
+                        %(actor_id)s,
+                        %(action_type)s,
+                        'workspace',
+                        %(workspace_id)s,
+                        %(after_json)s::jsonb
+                    )
+                    """,
+                    {
+                        "workspace_id": workspace_id,
+                        "actor_type": actor.actor_type,
+                        "actor_id": actor.actor_id,
+                        "action_type": action_type,
+                        "after_json": json.dumps(after_json),
+                    },
+                )
+            conn.commit()
 
 
 def _candidate_texts(chunk_text: str) -> list[str]:

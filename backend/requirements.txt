@@ -8,3 +8,4 @@ httpx
 jieba
 tiktoken
 typer>=0.12
+neo4j>=5.28

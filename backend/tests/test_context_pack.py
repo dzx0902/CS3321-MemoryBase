@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.models.recall import RecallResponse
+from app.models.recall import RecallResponse, RetrievalInfo
 from app.services.context_pack_service import format_context_pack
 
 
@@ -11,6 +11,10 @@ def build_recall_response(*, repeated_text: str = "") -> RecallResponse:
     workspace_id = uuid4()
     memory_id = uuid4()
     doc_id = uuid4()
+    fallback_reason = (
+        "No matching embedding records were available; "
+        "hybrid recall fell back to keyword ranking."
+    )
     return RecallResponse(
         recall_id=uuid4(),
         workspace_id=workspace_id,
@@ -48,11 +52,31 @@ def build_recall_response(*, repeated_text: str = "") -> RecallResponse:
                 ],
             }
         ],
+        retrieval_info=RetrievalInfo(
+            requested_mode="hybrid",
+            effective_mode="keyword",
+            embedding_provider="local",
+            embedding_model="hashing-v1",
+            vector_memory_candidates=0,
+            vector_chunk_candidates=0,
+            vector_used=False,
+            fallback_reason=fallback_reason,
+        ),
         context_pack={
             "query_text": "为什么放弃校园食堂方向",
             "filters": {"status": "active"},
             "top_memory_ids": [str(memory_id)],
             "matched_source_ids": [str(doc_id)],
+            "retrieval_info": {
+                "requested_mode": "hybrid",
+                "effective_mode": "keyword",
+                "embedding_provider": "local",
+                "embedding_model": "hashing-v1",
+                "vector_memory_candidates": 0,
+                "vector_chunk_candidates": 0,
+                "vector_used": False,
+                "fallback_reason": fallback_reason,
+            },
         },
         created_at=datetime(2026, 5, 22, tzinfo=timezone.utc),
     )

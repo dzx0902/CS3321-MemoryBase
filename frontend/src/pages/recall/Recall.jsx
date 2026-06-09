@@ -5,6 +5,7 @@ import { useToast } from '../../components/Toast';
 
 const MEMORY_TYPES = ['', 'episodic', 'semantic', 'profile', 'procedural', 'decision', 'preference', 'task', 'risk'];
 const ACCESS_LEVELS = ['', 'public', 'project', 'team', 'private'];
+const RETRIEVAL_MODES = ['keyword', 'hybrid', 'vector'];
 
 export default function Recall() {
   const toast = useToast();
@@ -14,6 +15,7 @@ export default function Recall() {
     memory_type: '',
     access_level: '',
     status: 'active',
+    retrieval_mode: 'keyword',
     limit: 10,
     max_tokens: 3000,
     max_answer_tokens: 800,
@@ -45,6 +47,7 @@ export default function Recall() {
         memory_type: form.memory_type || undefined,
         access_level: form.access_level || undefined,
         status: form.status || undefined,
+        retrieval_mode: form.retrieval_mode,
         limit: Number(form.limit),
       });
       setResults(data);
@@ -70,6 +73,7 @@ export default function Recall() {
         memory_type: form.memory_type || undefined,
         access_level: form.access_level || undefined,
         status: form.status || undefined,
+        retrieval_mode: form.retrieval_mode,
         limit: Number(form.limit),
         max_tokens: Number(form.max_tokens),
       });
@@ -95,7 +99,7 @@ export default function Recall() {
         memory_type: form.memory_type || undefined,
         access_level: form.access_level || undefined,
         status: form.status || undefined,
-        retrieval_mode: 'hybrid',
+        retrieval_mode: form.retrieval_mode,
         limit: Number(form.limit),
         max_context_tokens: Number(form.max_tokens),
         max_answer_tokens: Number(form.max_answer_tokens),
@@ -148,6 +152,13 @@ export default function Recall() {
             <label>Result Limit</label>
             <input className="input" type="number" min="1" max="50" value={form.limit}
               onChange={(e) => updateField('limit', e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Retrieval Mode</label>
+            <select className="select" value={form.retrieval_mode}
+              onChange={(e) => updateField('retrieval_mode', e.target.value)}>
+              {RETRIEVAL_MODES.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+            </select>
           </div>
           <div className="form-group">
             <label>Context Tokens</label>
@@ -212,6 +223,11 @@ export default function Recall() {
           <div className="card__header">
             <h3 className="card__title">Context Pack</h3>
             <span className="badge badge--info">{contextPack.token_count} tokens</span>
+            {contextPack.recall_id && (
+              <span className="text-mono text-muted" style={{ marginLeft: 8, fontSize: '0.72rem' }}>
+                {contextPack.recall_id}
+              </span>
+            )}
           </div>
           <pre className="markdown-body" style={{ whiteSpace: 'pre-wrap', fontSize: '0.86rem', maxHeight: 520, overflowY: 'auto' }}>
             {contextPack.markdown}
@@ -221,9 +237,34 @@ export default function Recall() {
 
       {results && !searching && (
         <>
+          {results.retrieval_info && (
+            <div className="card" style={{ marginBottom: 16, padding: '14px 18px' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                <span className="badge badge--accent">
+                  requested: {results.retrieval_info.requested_mode}
+                </span>
+                <span className="badge badge--default">
+                  effective: {results.retrieval_info.effective_mode}
+                </span>
+                <span className="badge badge--info">
+                  embedding: {results.retrieval_info.embedding_provider}/{results.retrieval_info.embedding_model}
+                </span>
+              </div>
+              <div className="text-muted" style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>
+                vector memory candidates: {results.retrieval_info.vector_memory_candidates}, vector chunk candidates: {results.retrieval_info.vector_chunk_candidates}
+                {results.retrieval_info.fallback_reason ? `; ${results.retrieval_info.fallback_reason}` : ''}
+              </div>
+            </div>
+          )}
+
           <div className="section-header" style={{ marginTop: 8 }}>
             <h3 style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
               {results.memories?.length || 0} results found
+              {results.recall_id && (
+                <span className="text-mono text-muted" style={{ marginLeft: 12, fontSize: '0.75rem' }}>
+                  recall_id: {results.recall_id}
+                </span>
+              )}
             </h3>
           </div>
 
@@ -258,7 +299,7 @@ export default function Recall() {
                       </div>
                       {m.evidence.map((ev, j) => (
                         <div key={j} style={{
-                          padding: '8px 12px', background: 'var(--bg-secondary)',
+                          padding: '8px 12px', background: 'var(--bg-elevated)',
                           borderRadius: 'var(--radius-sm)', marginBottom: 4, fontSize: '0.82rem',
                           border: '1px solid var(--border)',
                         }}>

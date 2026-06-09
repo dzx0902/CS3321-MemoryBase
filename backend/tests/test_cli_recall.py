@@ -31,11 +31,25 @@ class FakeRecallClient:
         }
 
     def recall(self, payload):
+        fallback_reason = (
+            "No matching embedding records were available; "
+            "hybrid recall fell back to keyword ranking."
+        )
         return {
             "recall_id": str(uuid4()),
             "workspace_id": payload["workspace_id"],
             "query_text": payload["query_text"],
             "result_count": 1,
+            "retrieval_info": {
+                "requested_mode": "hybrid",
+                "effective_mode": "keyword",
+                "embedding_provider": "local",
+                "embedding_model": "hashing-v1",
+                "vector_memory_candidates": 0,
+                "vector_chunk_candidates": 0,
+                "vector_used": False,
+                "fallback_reason": fallback_reason,
+            },
             "memories": [
                 {
                     "memory_id": str(uuid4()),
