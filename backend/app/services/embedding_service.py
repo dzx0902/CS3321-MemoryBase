@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import re
+import time
 from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
@@ -185,12 +186,18 @@ class SiliconFlowEmbeddingProvider:
         api_key: str,
         base_url: str = "https://api.siliconflow.cn/v1",
         timeout: float = 30.0,
+        max_attempts: int = 3,
+        retry_backoff_seconds: float = 0.25,
     ) -> None:
         if not api_key:
             raise ValueError("SILICONFLOW_API_KEY is required for SiliconFlow embeddings.")
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be at least 1.")
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+        self._max_attempts = max_attempts
+        self._retry_backoff_seconds = retry_backoff_seconds
 
     def embed(self, payload: EmbeddingGenerateRequest) -> EmbeddingGenerateResponse:
         request_body: dict[str, object] = {
@@ -201,16 +208,7 @@ class SiliconFlowEmbeddingProvider:
         if payload.dimension > 0:
             request_body["dimensions"] = payload.dimension
 
-        with httpx.Client(timeout=self._timeout) as client:
-            response = client.post(
-                f"{self._base_url}/embeddings",
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=request_body,
-            )
-        response.raise_for_status()
+        response = self._post_with_retry(request_body)
         data = response.json()
         embedding = data.get("data", [{}])[0].get("embedding")
         if not isinstance(embedding, list):
@@ -223,6 +221,34 @@ class SiliconFlowEmbeddingProvider:
             embedding=vector,
             text_hash=hashlib.sha256(payload.text.encode("utf-8")).hexdigest(),
         )
+
+    def _post_with_retry(self, request_body: dict[str, object]) -> httpx.Response:
+        with httpx.Client(timeout=self._timeout) as client:
+            for attempt in range(self._max_attempts):
+                try:
+                    response = client.post(
+                        f"{self._base_url}/embeddings",
+                        headers={
+                            "Authorization": f"Bearer {self._api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json=request_body,
+                    )
+                    response.raise_for_status()
+                    return response
+                except httpx.HTTPStatusError as exc:
+                    status_code = exc.response.status_code
+                    if status_code != 429 and status_code < 500:
+                        raise
+                    last_error: httpx.HTTPError = exc
+                except httpx.TransportError as exc:
+                    last_error = exc
+
+                if attempt + 1 == self._max_attempts:
+                    raise last_error
+                time.sleep(self._retry_backoff_seconds * (2**attempt))
+
+        raise RuntimeError("Embedding request retry loop exited unexpectedly.")
 
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:

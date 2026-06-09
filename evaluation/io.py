@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterable
 
 from evaluation.baselines import EvaluationResult
+from evaluation.pricing import estimate_model_cost
 
 RESULT_FIELDS = [
     "case_id",
@@ -18,12 +19,25 @@ RESULT_FIELDS = [
     "retrieved_scores",
     "latency_ms",
     "token_usage",
+    "prompt_tokens",
+    "completion_tokens",
+    "context_tokens",
+    "provider",
+    "model",
+    "estimated_cost",
+    "cost_currency",
+    "pricing_as_of",
+    "pricing_assumption",
+    "history_length_tokens",
     "score",
     "pass",
     "exact_match",
     "contains_match",
+    "refusal_match",
     "simple_f1",
     "forbidden_answer_violation",
+    "historical_value_mention",
+    "stale_answer_error",
     "recall_at_1",
     "recall_at_3",
     "recall_at_5",
@@ -32,6 +46,10 @@ RESULT_FIELDS = [
     "ndcg_at_10",
     "deletion_success",
     "privacy_leakage",
+    "retrieval_leakage",
+    "answer_leakage",
+    "citation_valid",
+    "groundedness",
     "stale_memory_error",
     "preference_following",
     "error",
@@ -49,8 +67,31 @@ def write_results_csv(path: Path, results: Iterable[EvaluationResult]) -> None:
             writer.writerow(result_to_row(result))
 
 
+def append_result_csv(path: Path, result: EvaluationResult) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not path.exists() or path.stat().st_size == 0
+    with path.open("a", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=RESULT_FIELDS)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(result_to_row(result))
+
+
+def completed_case_ids(path: Path) -> set[str]:
+    if not path.exists() or path.stat().st_size == 0:
+        return set()
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return {row["case_id"] for row in csv.DictReader(handle) if row.get("case_id")}
+
+
 def result_to_row(result: EvaluationResult) -> dict[str, object]:
     metrics = result.metadata.get("metrics", {})
+    cost = estimate_model_cost(
+        provider=result.metadata.get("provider"),
+        model=result.metadata.get("model"),
+        prompt_tokens=result.metadata.get("prompt_tokens"),
+        completion_tokens=result.metadata.get("completion_tokens"),
+    )
     return {
         "case_id": result.case_id,
         "source": result.source,
@@ -63,12 +104,25 @@ def result_to_row(result: EvaluationResult) -> dict[str, object]:
         "retrieved_scores": "|".join(f"{score:.6f}" for score in result.retrieved_scores),
         "latency_ms": f"{result.latency_ms:.3f}",
         "token_usage": result.token_usage if result.token_usage is not None else "",
+        "prompt_tokens": _metadata(result, "prompt_tokens"),
+        "completion_tokens": _metadata(result, "completion_tokens"),
+        "context_tokens": _metadata(result, "context_tokens"),
+        "provider": _metadata(result, "provider"),
+        "model": _metadata(result, "model"),
+        "estimated_cost": _cost_value(cost["estimated_cost"]),
+        "cost_currency": cost["cost_currency"] or "",
+        "pricing_as_of": cost["pricing_as_of"] or "",
+        "pricing_assumption": cost["pricing_assumption"] or "",
+        "history_length_tokens": _metadata(result, "history_length_tokens"),
         "score": f"{result.score:.6f}",
         "pass": "true" if result.passed else "false",
         "exact_match": _metric(metrics, "exact_match"),
         "contains_match": _metric(metrics, "contains_match"),
+        "refusal_match": _metric(metrics, "refusal_match"),
         "simple_f1": _metric(metrics, "simple_f1"),
         "forbidden_answer_violation": _metric(metrics, "forbidden_answer_violation"),
+        "historical_value_mention": _metric(metrics, "historical_value_mention"),
+        "stale_answer_error": _metric(metrics, "stale_answer_error"),
         "recall_at_1": _metric(metrics, "recall_at_1"),
         "recall_at_3": _metric(metrics, "recall_at_3"),
         "recall_at_5": _metric(metrics, "recall_at_5"),
@@ -77,6 +131,10 @@ def result_to_row(result: EvaluationResult) -> dict[str, object]:
         "ndcg_at_10": _metric(metrics, "ndcg_at_10"),
         "deletion_success": _metric(metrics, "deletion_success"),
         "privacy_leakage": _metric(metrics, "privacy_leakage"),
+        "retrieval_leakage": _metric(metrics, "retrieval_leakage"),
+        "answer_leakage": _metric(metrics, "answer_leakage"),
+        "citation_valid": _metric(metrics, "citation_valid"),
+        "groundedness": _metric(metrics, "groundedness"),
         "stale_memory_error": _metric(metrics, "stale_memory_error"),
         "preference_following": _metric(metrics, "preference_following"),
         "error": result.error,
@@ -94,3 +152,14 @@ def _metric(metrics: dict[str, object], key: str) -> str:
     if isinstance(value, float):
         return f"{value:.6f}"
     return str(value)
+
+
+def _metadata(result: EvaluationResult, key: str) -> object:
+    value = result.metadata.get(key)
+    return "" if value is None else value
+
+
+def _cost_value(value: object) -> str:
+    if not isinstance(value, float):
+        return ""
+    return f"{value:.8f}"

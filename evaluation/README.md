@@ -6,8 +6,9 @@ This framework measures MemoryBase as a database-backed agent memory system, not
 generic RAG demo. It is designed to evaluate retrieval, long-term QA, conflict handling,
 forgetting, preference following, performance, and external benchmark compatibility.
 
-Phase E1 is intentionally minimal. It validates data formats, runs local baselines, writes
-CSV files, and generates a markdown report. It does not call the real MemoryBase backend yet.
+The framework supports local baselines and live end-to-end MemoryBase runs. Live QA modes
+write session turns and memories, recall context, call the configured LLM provider, record
+token usage and citations, then soft-delete memories created by the case.
 
 ## Data Format
 
@@ -71,7 +72,7 @@ Run several baselines into one combined report:
 
 ```bash
 python evaluation/runners/run_all.py \
-  --modes summary_memory,db_memory,db_extraction,naive_vector_rag \
+  --modes summary_memory,db_qa,vector_qa,db_extraction_qa \
   --api-base http://localhost:8000 \
   --workspace cs3321-demo \
   --agent codex \
@@ -81,15 +82,26 @@ python evaluation/runners/run_all.py \
 When `--modes` is used, results are written under `evaluation/outputs/<mode>/`
 and `benchmark_report.md` summarizes all modes together.
 
-Phase E2 uses the current memory API directly:
+Live retrieval modes use the current memory API directly:
 
 ```text
 case sessions -> /api/sessions + /api/observe
-memory-bearing user turns -> /api/memories
+memory-bearing turns -> /api/memories/batch
 query -> /api/recall
 ```
 
-This is not full automatic memory extraction yet. It is marked as `injection_mode=memory_api`.
+Live QA modes call `/api/qa/answer` after writing the case:
+
+```text
+db_qa             direct memory write + hybrid recall + LLM answer
+vector_qa         embedding backfill + vector recall + LLM answer
+db_extraction_qa  source extraction + approval + hybrid recall + LLM answer
+```
+
+Live CLI runs create an isolated workspace per case by default and delete it with all
+dependent rows after scoring. Use `--shared-workspace` to reuse the requested workspace, or
+`--preserve-eval-data` to keep isolated failure data. Shared-workspace cleanup can only
+soft-delete created memories because session and source delete APIs do not exist yet.
 
 Run individual suites:
 
@@ -122,19 +134,23 @@ Implemented in Phase E1:
 - MRR
 - nDCG@10
 - p50 / p95 / p99 latency helpers
+- provider/model and prompt/completion/total token usage
+- citation validity and deterministic citation-groundedness
+- retrieval leakage and answer leakage
+- retention/forgetting by measured history token length
 ```
 
-Reserved for later backend-connected phases:
+Still model- or dataset-dependent:
 
 ```text
-- groundedness
 - hallucination rate
 - LLM-as-judge score
-- retention rate by real history length
-- stale memory error rate from real conflict resolution
-- privacy leakage rate from real forgetting execution
-- token cost per answer
+- embedding cost per answer
 ```
+
+LLM token cost per answer is estimated from a dated model-price snapshot when
+the provider/model is known. The current DeepSeek snapshot assumes cache-miss
+input pricing; update `evaluation/pricing.py` when provider prices change.
 
 ## Baselines
 
@@ -147,6 +163,9 @@ naive_vector_rag
 summary_memory
 db_memory
 db_extraction
+db_qa
+vector_qa
+db_extraction_qa
 ```
 
 `no_memory`, `recency_only`, `summary_memory`, `--dry-run`, `db_memory`, `db_extraction`, and `naive_vector_rag` execute.
@@ -154,10 +173,33 @@ db_extraction
 backend. `db_memory` requires a running API, workspace, and optionally an agent.
 `db_extraction` imports each memory-bearing turn as a source, extracts candidate
 memories from chunks, approves them, and then recalls active memory.
-`naive_vector_rag` also requires a running API. It writes evaluation memories through
-the memory API, calls `/api/embeddings/backfill` with the local hashing provider, and
-then calls `/api/recall` with `retrieval_mode=vector` so the result records backend
-vector scoring fields.
+`naive_vector_rag` also requires a running API. Direct-memory live modes batch up
+to 500 evaluation memories per request, calls `/api/embeddings/backfill` with the
+local hashing provider, and then calls `/api/recall` with
+`retrieval_mode=vector` so the result records backend vector scoring fields.
+
+## Long-Context Retention
+
+```bash
+python -m evaluation.runners.run_long_context_eval \
+  --token-lengths 1000,10000,50000,100000 \
+  --mode db_qa \
+  --workspace cs3321-demo \
+  --agent demo-retriever
+```
+
+The generator materializes filler history and records actual `cl100k_base` token counts.
+
+## API Performance
+
+```bash
+python -m evaluation.runners.run_api_performance \
+  --workspace cs3321-demo \
+  --agent demo-retriever \
+  --iterations 20
+```
+
+Add `--include-qa` only when real model latency and provider cost are intended.
 
 ## Adding Cases
 
@@ -187,20 +229,33 @@ evaluation/external/<benchmark>/processed/
 
 Adapters convert raw benchmark data into `EvaluationCase` JSONL.
 
+Convert and execute supplied benchmark data in one command:
+
+```bash
+python -m evaluation.runners.run_benchmark_eval \
+  --benchmark longmemeval \
+  --mode db_qa \
+  --workspace cs3321-demo \
+  --agent demo-retriever
+```
+
 | Benchmark | Purpose | Current Status |
 | --- | --- | --- |
-| LongMemEval | Long-term dialogue memory, temporal reasoning, abstention | TODO adapter skeleton |
-| LoCoMo | Multi-session dialogue memory and event QA | TODO adapter skeleton |
+| LongMemEval | Long-term dialogue memory, temporal reasoning, abstention | Official JSON format supported; independent judge pending |
+| LoCoMo | Multi-session dialogue memory and event QA | Official QA format supported; event summarization pending |
 | MemoryAgentBench | Memory-agent retrieval, learning, conflict tasks | TODO adapter skeleton |
 | BEIR / MS MARCO | Retriever/RAG only, not primary memory evidence | TODO adapter skeleton |
 | BEAM | Ultra-long context retention stress test | TODO adapter skeleton |
 
-Manual download instructions and license notes should be added in
-`evaluation/external/README.md` before storing raw benchmark data.
+LongMemEval and LoCoMo source, license, and execution instructions are in their
+respective directories under `evaluation/external/`. Equivalent notes are still
+required before using other official benchmark files.
 
 ## Current Limitations
 
 - `recency_only` and `summary_memory` are local baselines and do not call the backend.
-- `db_memory` and `naive_vector_rag` use explicit memory API injection; they do not yet test automatic memory extraction or full agent answer generation.
+- Retrieval-only modes do not generate an LLM answer; use the QA modes for that path.
 - External adapters support common JSON/JSONL shapes but still need official dataset download and license documentation.
+- Citation-groundedness validates references against the returned citation map; it is not an LLM judge.
+- Shared-workspace runs cannot delete evaluation sessions or imported source documents.
 - No API keys, database URLs, or real user data should be stored in benchmark files.

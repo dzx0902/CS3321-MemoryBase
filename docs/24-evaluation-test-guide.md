@@ -170,9 +170,13 @@ MEMORYBASE_AGENT
 /api/health/detail
 /api/sessions
 /api/observe
-/api/memories
+/api/memories/batch
 /api/recall
 ```
+
+Direct-memory modes reuse one HTTP client and batch up to 500 memory-bearing
+turns in one atomic database transaction. Forget operations flush the pending
+batch before changing memory status so event order remains deterministic.
 
 For deletion cases it soft-deletes memories it injected:
 
@@ -200,23 +204,48 @@ Processed `EvaluationCase` JSONL is written to:
 evaluation/external/<benchmark>/processed/
 ```
 
-Convert LongMemEval-like JSON/JSONL:
+Download one official LongMemEval variant into
+`evaluation/external/longmemeval/raw/`, then convert it:
 
 ```bash
 python evaluation/runners/run_external_eval.py --benchmark longmemeval
 ```
 
-Convert LoCoMo-like JSON/JSONL:
+The official Hugging Face files are extensionless. The adapter supports that
+layout directly and validates the parallel session ID/date arrays. See
+`evaluation/external/longmemeval/README.md` for current file names, sizes, and
+the dataset-license boundary.
+
+Download the official `locomo10.json`, then convert it:
 
 ```bash
 python evaluation/runners/run_external_eval.py --benchmark locomo
 ```
 
-Convert MemoryAgentBench-like JSON/JSONL:
+The official adapter preserves session timestamps, both speakers, image
+captions, dialog evidence IDs, numeric QA categories, and adversarial answers.
+See `evaluation/external/locomo/README.md` for the CC BY-NC 4.0 restriction,
+processed-file size, and recommended smoke/live commands.
+
+Download the official MemoryAgentBench Conflict Resolution parquet shard, then
+convert it:
 
 ```bash
 python evaluation/runners/run_external_eval.py --benchmark memoryagentbench
 ```
+
+Run multiple questions against one shared official context:
+
+```bash
+python evaluation/runners/run_grouped_benchmark_eval.py \
+  --dataset evaluation/external/memoryagentbench/processed/memoryagentbench_cases.jsonl \
+  --group factconsolidation_sh_6k \
+  --limit 3 \
+  --output evaluation/outputs/memoryagentbench/db_qa_results.csv
+```
+
+See `evaluation/external/memoryagentbench/README.md` for source, license,
+grouping, and conflict-sequence details.
 
 Direct wrappers:
 
@@ -226,7 +255,9 @@ python evaluation/runners/run_locomo_eval.py
 python evaluation/runners/run_memoryagentbench_eval.py
 ```
 
-Current adapter support is partial. It handles common JSON/JSONL shapes with fields such as:
+LongMemEval, LoCoMo, and MemoryAgentBench Conflict Resolution support their
+official record shapes. Other adapters still handle common JSON/JSONL shapes
+with fields such as:
 
 ```text
 question / query
@@ -236,7 +267,22 @@ qa / qas / questions
 task_type / category
 ```
 
-Official dataset variants must be verified before using results as benchmark evidence.
+LongMemEval oracle conversion has been validated against 500 official records.
+LoCoMo conversion has been validated across all 1,986 official QA items.
+Open-ended pass rates still require the official or an equivalent independent
+LLM judge before they should be treated as final benchmark evidence.
+
+For paid smoke runs, append semantic judgement fields to an existing result:
+
+```bash
+python evaluation/runners/run_semantic_judge.py \
+  --input evaluation/outputs/run/benchmark/db_qa_results.csv \
+  --dataset evaluation/external/benchmark/processed/benchmark_cases.jsonl \
+  --output evaluation/outputs/run/benchmark/db_qa_results.csv
+```
+
+When `judge_pass` is present, report generation uses it instead of the
+deterministic substring result. Keep the deterministic columns for diagnosis.
 
 ## Step 8: Report Generation
 
@@ -328,27 +374,62 @@ python evaluation/runners/run_all.py \
   --limit 6
 python evaluation/runners/run_all.py \
   --dataset evaluation/datasets/synthetic_memory_cases.jsonl \
-  --modes summary_memory,db_memory,naive_vector_rag \
+  --modes summary_memory,db_qa,vector_qa,db_extraction_qa \
   --api-base http://localhost:8000 \
   --workspace <workspace> \
   --agent <agent> \
   --limit 6
 ```
 
+Run measured long-context retention:
+
+```bash
+python -m evaluation.runners.run_long_context_eval \
+  --token-lengths 1000,10000,50000,100000 \
+  --mode db_qa \
+  --workspace <workspace> \
+  --agent <agent>
+```
+
+Run operation-level performance sampling:
+
+```bash
+python -m evaluation.runners.run_api_performance \
+  --workspace <workspace> \
+  --agent <agent> \
+  --iterations 20
+```
+
+Add `--include-qa` only when model latency and provider cost should be measured.
+
+Convert and execute operator-supplied official benchmark data:
+
+```bash
+python -m evaluation.runners.run_benchmark_eval \
+  --benchmark longmemeval \
+  --mode db_qa \
+  --workspace <workspace> \
+  --agent <agent>
+```
+
+Live modes create an isolated workspace per case by default and cascade-delete it after
+scoring. Use `--preserve-eval-data` for failure inspection. Use `--shared-workspace` only
+when intentional; shared runs can soft-delete memories but cannot remove sessions or
+imported sources through the current public API.
+
 ## Remaining Work
 
-Still not fully implemented:
+Still operator- or model-dependent:
 
 ```text
 - embedding similarity scoring
 - official LongMemEval / LoCoMo / MemoryAgentBench full-format validation
-- LLM-as-judge
-- groundedness
+- independent LLM-as-judge
+- semantic groundedness beyond citation validation
 - hallucination rate
-- token usage and token cost
-- real write/query/update/delete database performance suite
-- real context leakage and answer leakage split
-- long history 1K / 10K / 50K / 100K / 500K retention curves
+- embedding-provider cost accounting
+- concurrent saturation and load testing
+- hard cleanup of evaluation sessions and imported sources
 ```
 
 These require either a running API with seed data, external benchmark files, or an LLM judge configuration.
