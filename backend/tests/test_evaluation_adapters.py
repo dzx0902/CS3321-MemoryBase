@@ -287,3 +287,7 @@ def test_memoryagentbench_adapter_converts_official_conflict_parquet(
     assert rows[0]["metadata"]["context_group_id"] == "factconsolidation_sh_6k"
     assert rows[1]["metadata"]["accepted_answers"] == ["Bob", "Robert"]
     assert rows[0]["sessions"][0]["turns"][0]["content"].startswith("[Memory sequence 0001]")
+    first_turn = rows[0]["sessions"][0]["turns"][0]
+    second_turn = rows[0]["sessions"][1]["turns"][0]
+    assert first_turn["metadata"]["valid_from"] < second_turn["metadata"]["valid_from"]
+    assert first_turn["metadata"]["supersession_key"] == second_turn["metadata"]["supersession_key"]

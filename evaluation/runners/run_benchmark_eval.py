@@ -36,6 +36,11 @@ def main() -> None:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--preserve-eval-data", action="store_true")
     parser.add_argument("--shared-workspace", action="store_true")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Keep existing results and skip case IDs already present in the output CSV.",
+    )
     args = parser.parse_args()
 
     raw_dir = args.raw_dir or EXTERNAL_ROOT / args.benchmark / "raw"
@@ -60,6 +65,7 @@ def main() -> None:
         agent=args.agent,
         cleanup=not args.preserve_eval_data,
         isolate=not args.shared_workspace,
+        resume=args.resume,
     )
     print_summary(results, output)
 

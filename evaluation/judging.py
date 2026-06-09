@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -35,18 +36,24 @@ def judge_results_csv(
     provider: str = "deepseek",
     request: Callable[..., httpx.Response] | None = None,
 ) -> Path:
-    with input_csv.open("r", encoding="utf-8", newline="") as handle:
+    source_csv = output_csv if output_csv.exists() else input_csv
+    with source_csv.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         rows = list(reader)
         fields = list(reader.fieldnames or [])
+    output_fields = fields + [field for field in JUDGE_FIELDS if field not in fields]
     case_ids = {row.get("case_id", "") for row in rows}
     cases = _load_selected_cases(dataset, case_ids)
     requester = request or httpx.request
-    for row in rows:
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    _write_judge_rows(output_csv, rows, output_fields)
+    for index, row in enumerate(rows, start=1):
+        if row.get("judge_pass") in {"true", "false"}:
+            continue
         case = cases.get(row.get("case_id", ""))
         if case is None:
             raise ValueError(f"case {row.get('case_id')!r} was not found in {dataset}")
-        judgement = judge_answer(
+        judgement = _judge_answer_with_retry(
             case=case,
             generated_answer=row.get("generated_answer", ""),
             api_key=api_key,
@@ -56,15 +63,50 @@ def judge_results_csv(
             request=requester,
         )
         row.update(judgement)
-    output_csv.parent.mkdir(parents=True, exist_ok=True)
+        _write_judge_rows(output_csv, rows, output_fields)
+        if index % 10 == 0 or index == len(rows):
+            print(f"judged {index}/{len(rows)}", flush=True)
+    return output_csv
+
+
+def _write_judge_rows(
+    output_csv: Path,
+    rows: list[dict[str, str]],
+    fields: list[str],
+) -> None:
     with output_csv.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=fields + [field for field in JUDGE_FIELDS if field not in fields],
-        )
+        writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
-    return output_csv
+
+
+def _judge_answer_with_retry(
+    *,
+    case: EvaluationCase,
+    generated_answer: str,
+    api_key: str,
+    base_url: str,
+    model: str,
+    provider: str,
+    request: Callable[..., httpx.Response],
+    max_attempts: int = 3,
+) -> dict[str, str]:
+    for attempt in range(max_attempts):
+        try:
+            return judge_answer(
+                case=case,
+                generated_answer=generated_answer,
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                provider=provider,
+                request=request,
+            )
+        except (httpx.HTTPError, ValueError):
+            if attempt + 1 == max_attempts:
+                raise
+            time.sleep(0.5 * (2**attempt))
+    raise RuntimeError("judge retry loop exited unexpectedly")
 
 
 def _load_selected_cases(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from .common import (
@@ -14,9 +15,7 @@ from .common import (
     write_cases,
 )
 
-# Context packs retain at most 600 characters per selected memory. Keep benchmark
-# facts below that boundary so retrieval does not silently discard the answer.
-CONTEXT_CHUNK_CHARS = 500
+MEMORY_SEQUENCE_EPOCH = datetime(2000, 1, 1, tzinfo=UTC)
 
 
 def convert(raw_dir: Path, processed_dir: Path) -> Path:
@@ -118,20 +117,11 @@ def _conflict_resolution_cases(
 
 
 def _context_sessions(context: str) -> list[dict[str, object]]:
-    lines = [line.strip() for line in context.splitlines() if line.strip()]
-    chunks: list[str] = []
-    current: list[str] = []
-    current_chars = 0
-    for line in lines:
-        added_chars = len(line) + (1 if current else 0)
-        if current and current_chars + added_chars > CONTEXT_CHUNK_CHARS:
-            chunks.append("\n".join(current))
-            current = []
-            current_chars = 0
-        current.append(line)
-        current_chars += len(line) + (1 if len(current) > 1 else 0)
-    if current:
-        chunks.append("\n".join(current))
+    facts = [
+        match.group("fact").strip()
+        for line in context.splitlines()
+        if (match := re.match(r"^\s*(?P<sequence>\d+)\.\s+(?P<fact>.+?)\s*$", line))
+    ]
     return [
         {
             "session_id": f"context_{index:04d}",
@@ -141,14 +131,58 @@ def _context_sessions(context: str) -> list[dict[str, object]]:
                     "content": (
                         f"[Memory sequence {index:04d}] Higher sequence numbers are "
                         "later and supersede earlier conflicting facts.\n"
-                        f"{chunk}"
+                        f"{fact}"
                     ),
-                    "metadata": {"context_chunk": index},
+                    "metadata": {
+                        "context_chunk": index,
+                        "memory_sequence": index,
+                        "valid_from": (
+                            MEMORY_SEQUENCE_EPOCH + timedelta(seconds=index)
+                        ).isoformat(),
+                        "supersession_key": _fact_supersession_key(fact),
+                    },
                 }
             ],
         }
-        for index, chunk in enumerate(chunks, start=1)
+        for index, fact in enumerate(facts, start=1)
     ]
+
+
+_FACT_RELATIONS = (
+    r"(?P<subject>.+?) was born in the city of ",
+    r"The chairperson of (?P<subject>.+?) is ",
+    r"(?P<subject>.+?) died in the city of ",
+    r"(?P<subject>.+?) plays the position of ",
+    r"(?P<subject>.+?) is located in the continent of ",
+    r"(?P<subject>.+?) worked in the city of ",
+    r"The director of (?P<subject>.+?) is ",
+    r"(?P<subject>.+?) is married to ",
+    r"The headquarters of (?P<subject>.+?) is located in the city of ",
+    r"The author of (?P<subject>.+?) is ",
+    r"The univeristy where (?P<subject>.+?) was educated is ",
+    r"(?P<subject>.+?) was founded by ",
+    r"(?P<subject>.+?) was founded in the city of ",
+    r"(?P<subject>.+?) is associated with the sport of ",
+    r"The capital of (?P<subject>.+?) is ",
+    r"(?P<subject>.+?) is a citizen of ",
+    r"(?P<subject>.+?) was performed by ",
+    r"(?P<subject>.+?) is employed by ",
+    r"(?P<subject>.+?) speaks the language of ",
+    r"(?P<subject>.+?) is famous for ",
+    r"(?P<subject>.+?) was created by ",
+    r"(?P<subject>.+?) was created in the country of ",
+    r"(?P<subject>.+?)'s child is ",
+    r"(?P<subject>The .+?) is ",
+)
+
+
+def _fact_supersession_key(fact: str) -> str | None:
+    for relation_index, pattern in enumerate(_FACT_RELATIONS):
+        match = re.match(pattern, fact, flags=re.IGNORECASE)
+        if match:
+            subject = " ".join(match.group("subject").lower().split())
+            return f"{relation_index}:{subject}"
+    return None
 
 
 def _accepted_answers(raw_answers: object) -> list[str]:

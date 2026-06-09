@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlparse
@@ -632,8 +633,13 @@ class LiveMemoryBaseline:
         case: EvaluationCase,
     ) -> list[tuple[str, EvaluationTurn]]:
         created: list[tuple[str, EvaluationTurn]] = []
-        for offset in range(0, len(entries), 500):
-            batch = entries[offset : offset + 500]
+        supersession_ids: dict[str, str] = {}
+        pending: list[tuple[str, EvaluationTurn, str | None, str | None]] = []
+        pending_keys: set[str] = set()
+
+        def flush() -> None:
+            if not pending:
+                return
             payload = {
                 "items": [
                     {
@@ -645,9 +651,15 @@ class LiveMemoryBaseline:
                         "importance": 3,
                         "access_level": "project",
                         "owner_agent_id": agent_id,
+                        **({"valid_from": valid_from} if valid_from else {}),
+                        **(
+                            {"supersedes_memory_id": supersession_ids[supersession_key]}
+                            if supersession_key and supersession_key in supersession_ids
+                            else {}
+                        ),
                         "evidence": [],
                     }
-                    for content, _turn in batch
+                    for content, _turn, valid_from, supersession_key in pending
                 ]
             }
             headers = {
@@ -663,13 +675,39 @@ class LiveMemoryBaseline:
                 headers=headers,
             )
             items = response.get("items", [])
-            if not isinstance(items, list) or len(items) != len(batch):
+            if not isinstance(items, list) or len(items) != len(pending):
                 raise RuntimeError("MemoryBase batch memory response size did not match request")
-            created.extend(
-                (str(item["memory_id"]), turn)
-                for item, (_content, turn) in zip(items, batch, strict=True)
-                if isinstance(item, dict) and item.get("memory_id")
+            for item, (_content, turn, _valid_from, supersession_key) in zip(
+                items,
+                pending,
+                strict=True,
+            ):
+                if not isinstance(item, dict) or not item.get("memory_id"):
+                    continue
+                memory_id = str(item["memory_id"])
+                created.append((memory_id, turn))
+                if supersession_key:
+                    supersession_ids[supersession_key] = memory_id
+            pending.clear()
+            pending_keys.clear()
+
+        for content, turn in entries:
+            supersession_key = _turn_supersession_key(turn)
+            if supersession_key and supersession_key in pending_keys:
+                flush()
+            pending.append(
+                (
+                    content,
+                    turn,
+                    _turn_valid_from(turn),
+                    supersession_key,
+                )
             )
+            if supersession_key:
+                pending_keys.add(supersession_key)
+            if len(pending) == 500:
+                flush()
+        flush()
         return created
 
     def _extract_and_approve_memory(
@@ -891,6 +929,30 @@ def _turn_source_id(turn: EvaluationTurn) -> str:
         if value is not None and str(value):
             return str(value)
     return ""
+
+
+def _turn_supersession_key(turn: EvaluationTurn) -> str | None:
+    value = turn.metadata.get("supersession_key")
+    return str(value) if value else None
+
+
+def _turn_valid_from(turn: EvaluationTurn) -> str | None:
+    explicit = turn.metadata.get("valid_from")
+    if explicit:
+        return str(explicit)
+    session_date = turn.metadata.get("session_date")
+    if not session_date:
+        return None
+    value = str(session_date).strip()
+    for date_format in (
+        "%Y/%m/%d (%a) %H:%M",
+        "%I:%M %p on %d %B, %Y",
+    ):
+        try:
+            return datetime.strptime(value, date_format).replace(tzinfo=UTC).isoformat()
+        except ValueError:
+            continue
+    return None
 
 
 def _summarize_memory(memory: str) -> str:

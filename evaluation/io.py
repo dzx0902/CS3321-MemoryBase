@@ -67,6 +67,23 @@ def write_results_csv(path: Path, results: Iterable[EvaluationResult]) -> None:
             writer.writerow(result_to_row(result))
 
 
+def append_result_csv(path: Path, result: EvaluationResult) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not path.exists() or path.stat().st_size == 0
+    with path.open("a", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=RESULT_FIELDS)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(result_to_row(result))
+
+
+def completed_case_ids(path: Path) -> set[str]:
+    if not path.exists() or path.stat().st_size == 0:
+        return set()
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return {row["case_id"] for row in csv.DictReader(handle) if row.get("case_id")}
+
+
 def result_to_row(result: EvaluationResult) -> dict[str, object]:
     metrics = result.metadata.get("metrics", {})
     cost = estimate_model_cost(

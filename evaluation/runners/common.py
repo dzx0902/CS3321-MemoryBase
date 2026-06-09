@@ -8,7 +8,7 @@ from pathlib import Path
 
 from evaluation.baselines import EvaluationResult, build_baseline_with_config
 from evaluation.cases import EvaluationCase, load_cases
-from evaluation.io import write_results_csv
+from evaluation.io import append_result_csv, completed_case_ids, write_results_csv
 from evaluation.metrics.qa_metrics import score_qa
 from evaluation.metrics.retrieval_metrics import score_retrieval
 
@@ -76,11 +76,16 @@ def run_eval(
     agent: str | None = None,
     cleanup: bool = True,
     isolate: bool = False,
+    resume: bool = False,
 ) -> list[EvaluationResult]:
     resolved_run_id = run_id or new_run_id()
     cases = load_cases(dataset, category=category, limit=limit)
     if result_filter is not None:
         cases = [case for case in cases if case.category == result_filter]
+    completed = completed_case_ids(output) if resume else set()
+    cases = [case for case in cases if case.case_id not in completed]
+    if not resume:
+        write_results_csv(output, [])
     baseline = build_baseline_with_config(
         mode=mode,
         run_id=resolved_run_id,
@@ -91,8 +96,11 @@ def run_eval(
         cleanup=cleanup,
         isolate=isolate,
     )
-    results = [_score_result(case, baseline.run_case(case)) for case in cases]
-    write_results_csv(output, results)
+    results = []
+    for case in cases:
+        result = _score_result(case, baseline.run_case(case))
+        results.append(result)
+        append_result_csv(output, result)
     return results
 
 

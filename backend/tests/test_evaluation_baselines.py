@@ -210,6 +210,100 @@ def test_longmemeval_live_baseline_writes_assistant_turns(monkeypatch) -> None:
     assert [payload["canonical_text"] for payload in memory_payloads] == ["Try mushroom risotto."]
 
 
+def test_live_baseline_maps_dates_and_supersession_into_batch_payloads(monkeypatch) -> None:
+    batches: list[list[dict[str, Any]]] = []
+    next_memory_id = 1
+
+    def fake_request(method: str, url: str, **kwargs: Any) -> FakeResponse:
+        nonlocal next_memory_id
+        if url.endswith("/api/health/detail"):
+            return FakeResponse(
+                {
+                    "workspace": {
+                        "found": True,
+                        "workspace_id": "00000000-0000-0000-0000-000000000201",
+                    }
+                }
+            )
+        if url.endswith("/api/sessions"):
+            return FakeResponse({"session_id": "session-1"})
+        if url.endswith("/api/observe"):
+            return FakeResponse({"message_id": "message-1"})
+        if url.endswith("/api/memories/batch"):
+            items = kwargs["json"]["items"]
+            batches.append(items)
+            response_items = []
+            for _item in items:
+                response_items.append({"memory_id": f"memory-{next_memory_id}"})
+                next_memory_id += 1
+            return FakeResponse({"items": response_items})
+        if url.endswith("/api/recall"):
+            return FakeResponse({"memories": []})
+        raise AssertionError(f"unexpected request {method} {url}")
+
+    monkeypatch.setattr("evaluation.baselines.httpx.request", fake_request)
+    case = EvaluationCase(
+        case_id="memoryagentbench_supersession",
+        source="memoryagentbench",
+        category="conflict_single_hop_6k",
+        sessions=[
+            EvaluationSession(
+                session_id="s1",
+                turns=[
+                    EvaluationTurn(
+                        role="user",
+                        content="The chairperson is Alice.",
+                        metadata={
+                            "valid_from": "2000-01-01T00:00:01+00:00",
+                            "supersession_key": "chairperson",
+                        },
+                    )
+                ],
+            ),
+            EvaluationSession(
+                session_id="s2",
+                turns=[
+                    EvaluationTurn(
+                        role="user",
+                        content="The unrelated fact is stable.",
+                        metadata={"session_date": "2023/04/10 (Mon) 17:50"},
+                    )
+                ],
+            ),
+            EvaluationSession(
+                session_id="s3",
+                turns=[
+                    EvaluationTurn(
+                        role="user",
+                        content="The chairperson is Bob.",
+                        metadata={
+                            "valid_from": "2000-01-01T00:00:03+00:00",
+                            "supersession_key": "chairperson",
+                        },
+                    )
+                ],
+            ),
+        ],
+        query="Who is the chairperson?",
+        expected_answer="Bob",
+        expected_behavior="answer_latest",
+    )
+
+    result = build_baseline_with_config(
+        mode="db_memory",
+        run_id="test",
+        api_base_url="http://testserver",
+        workspace="demo",
+        cleanup=False,
+    ).run_case(case)
+
+    assert result.error == ""
+    assert [len(batch) for batch in batches] == [2, 1]
+    assert batches[0][0]["valid_from"] == "2000-01-01T00:00:01+00:00"
+    assert batches[0][1]["valid_from"] == "2023-04-10T17:50:00+00:00"
+    assert batches[1][0]["supersedes_memory_id"] == "memory-1"
+
+
 def test_locomo_live_baseline_maps_memory_uuid_to_dialog_id(monkeypatch) -> None:
     def fake_request(method: str, url: str, **kwargs: Any) -> FakeResponse:
         if url.endswith("/api/health/detail"):

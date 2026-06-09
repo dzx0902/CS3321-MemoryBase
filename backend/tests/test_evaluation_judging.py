@@ -104,3 +104,69 @@ def test_judge_results_loads_only_requested_cases(tmp_path: Path) -> None:
         row = next(csv.DictReader(handle))
     assert row["case_id"] == "case-1"
     assert row["judge_pass"] == "false"
+
+
+def test_judge_results_retries_and_resumes_checkpoint(tmp_path: Path) -> None:
+    dataset = tmp_path / "cases.jsonl"
+    dataset.write_text(
+        "\n".join(
+            json.dumps(
+                {
+                    "case_id": f"case-{index}",
+                    "category": "qa",
+                    "query": "Question?",
+                    "expected_answer": "Answer",
+                }
+            )
+            for index in range(1, 3)
+        ),
+        encoding="utf-8",
+    )
+    input_csv = tmp_path / "results.csv"
+    with input_csv.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["case_id", "generated_answer"])
+        writer.writeheader()
+        writer.writerows(
+            [
+                {"case_id": "case-1", "generated_answer": "Answer"},
+                {"case_id": "case-2", "generated_answer": "Answer"},
+            ]
+        )
+
+    calls = 0
+
+    class TruncatedResponse(FakeResponse):
+        def json(self) -> dict:
+            return {
+                "choices": [{"message": {"content": '{"pass": false, "reason": "cut'}}],
+                "usage": {},
+            }
+
+    def flaky_request(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return TruncatedResponse() if calls == 1 else FakeResponse()
+
+    output_csv = tmp_path / "judged.csv"
+    judge_results_csv(
+        input_csv=input_csv,
+        dataset=dataset,
+        output_csv=output_csv,
+        api_key="test",
+        base_url="https://api.deepseek.com/v1",
+        model="deepseek-chat",
+        request=flaky_request,
+    )
+    assert calls == 3
+
+    judge_results_csv(
+        input_csv=input_csv,
+        dataset=dataset,
+        output_csv=output_csv,
+        api_key="test",
+        base_url="https://api.deepseek.com/v1",
+        model="deepseek-chat",
+        request=lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("completed rows should be skipped")
+        ),
+    )
