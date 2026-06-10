@@ -24,6 +24,9 @@ class ChatCompletionResponse:
     content: str
     provider: str
     model: str
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 class ChatProvider(Protocol):
@@ -77,10 +80,14 @@ class OpenAICompatibleChatProvider:
         content = data.get("choices", [{}])[0].get("message", {}).get("content")
         if not isinstance(content, str):
             raise ValueError(f"{self.provider_name} response did not contain message content.")
+        usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
         return ChatCompletionResponse(
             content=content.strip(),
             provider=self.provider_name,
             model=self.model,
+            prompt_tokens=_optional_int(usage.get("prompt_tokens")),
+            completion_tokens=_optional_int(usage.get("completion_tokens")),
+            total_tokens=_optional_int(usage.get("total_tokens")),
         )
 
 
@@ -124,6 +131,9 @@ class AnswerService:
             citation_map=context.citation_map,
             token_count=context.token_count,
             token_budget=context.token_budget,
+            prompt_tokens=completion.prompt_tokens,
+            completion_tokens=completion.completion_tokens,
+            total_tokens=completion.total_tokens,
             selected_memories=context.selected_memories,
             supporting_evidence=context.supporting_evidence,
             created_at=recall.created_at,
@@ -134,10 +144,26 @@ def _system_prompt() -> str:
     return (
         "You are MemoryBase's grounded answer generator. Answer in the user's language. "
         "Use only the supplied MemoryBase context as factual support. If the context does "
-        "not contain enough evidence, say you do not know. Prefer concise answers. "
+        "not contain enough evidence, say you do not know. When conflicting values have "
+        "explicit dates, versions, or sequence numbers, use the latest value and treat "
+        "older values as history; do not refuse only because an older value differs. "
+        "For labels formatted as [Memory sequence N], compare N for facts about the same "
+        "subject and relation; the highest N is authoritative even when its retrieval "
+        "score is lower or it appears later in the context pack. "
+        "Prefer concise answers. "
         "When using recalled memories or evidence, cite refs like [M1] or [E1]."
     )
 
 
 def _user_prompt(*, query_text: str, context: str) -> str:
     return "Question:\n" f"{query_text}\n\n" "MemoryBase context:\n" f"{context}\n\n" "Answer:"
+
+
+def _optional_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return None

@@ -48,7 +48,13 @@ class MemoryCreateRequest(BaseModel):
     created_from_doc_id: UUID | None = None
     owner_user_id: UUID | None = None
     owner_agent_id: UUID | None = None
+    valid_from: datetime | None = None
+    supersedes_memory_id: UUID | None = None
     evidence: list["MemoryEvidenceInput"] = Field(default_factory=list)
+
+
+class MemoryBatchCreateRequest(BaseModel):
+    items: list[MemoryCreateRequest] = Field(min_length=1, max_length=500)
 
 
 class MemoryUpdateRequest(BaseModel):
@@ -132,6 +138,12 @@ class MemorySummaryResponse(BaseModel):
 
 class MemoryListResponse(PageResponse[MemorySummaryResponse]):
     pass
+
+
+class MemoryBatchCreateResponse(BaseModel):
+    workspace_id: UUID
+    count: int
+    items: list[MemorySummaryResponse]
 
 
 class MemoryDetailResponse(MemorySummaryResponse):

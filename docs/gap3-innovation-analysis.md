@@ -159,11 +159,12 @@ MemoryBase 已经包含 evaluation framework，覆盖 synthetic datasets、local
 - `evaluation/runners/` 覆盖 retrieval、QA、forgetting、conflict、deletion、preference、performance 以及 LoCoMo / LongMemEval / MemoryAgentBench 等外部 benchmark runner。
 - `evaluation/reports/generate_report.py` 生成评测报告。
 - `backend/app/cli/commands/eval.py` 提供 CLI gold-set evaluation 入口。
-- 后端测试中有 `test_evaluation_baselines.py`、`test_evaluation_adapters.py`、`test_evaluation_report.py` 等验证 evaluation 基础行为。
+- 后端测试中有 `test_evaluation_baselines.py`、`test_evaluation_adapters.py`、`test_evaluation_judging.py`、`test_evaluation_metrics.py`、`test_evaluation_runner_checkpoint.py` 等验证 evaluation 基础行为。
+- 当前已完成一次 LongMemEval oracle 500-case live `db_qa` 运行，结果记录在 `docs/27-longmemeval-full-evaluation-20260609.md` 和 `evaluation/results/longmemeval_full_20260609.csv`：deterministic pass 为 35.2%，DeepSeek semantic judge pass 为 58.4%。
 
-这使项目比普通课程 CRUD 系统多一层“可量化验证”。即使 LoCoMo / LongMemEval 的 raw recall accuracy 不一定超过 Mem0 / Letta 等专门优化长期记忆效果的系统，MemoryBase 仍有独立价值：它用 evaluation 验证数据库记忆层的 retrieval、forgetting、conflict 和 system behavior，而不是只追求单一问答分数。
+这使项目比普通课程 CRUD 系统多一层“可量化验证”。LongMemEval 的当前结果不高，尤其是 multi-session reasoning 和 preference following 仍明显弱于专门优化长期记忆问答的系统；因此报告不应把 benchmark 分数作为主卖点。MemoryBase 的独立价值在于：它用 evaluation 暴露数据库记忆层在 retrieval、forgetting、conflict、system behavior 和 answer generation 上的真实边界，同时保留 provenance、governance、multi-tenant visibility、audit trail 和 SQL-verifiable lifecycle 这些专门记忆产品通常不突出展示的数据库系统能力。
 
-需要在报告中保持诚实：官方外部数据集下载、完整榜单数字和更强 LLM-based judge 可以作为 future work；当前主线是 database-backed evaluation harness 和可运行的本地 / API 评测路径。
+需要在报告中保持诚实：当前 LongMemEval 数字适合作为工程验证和限制分析，不适合作为对外榜单 claim。LoCoMo 全量结果、MemoryAgentBench 非 conflict 任务、更独立的 judge model、groundedness / hallucination 评估和更强 baseline 对照可以作为 future work；当前主线仍是 database-backed evaluation harness 和可运行的本地 / API 评测路径。
 
 ## 3.10 创新点九：人和 Agent 共用同一套数据库入口
 
@@ -195,7 +196,7 @@ MemoryBase 把这三者统一到数据库应用系统中。
 | 向量检索依赖外部服务 | Hybrid retrieval with transparent fallback | JSONB embedding cache、local hashing、`retrieval_info` |
 | LLM 抽取不可控 | Candidate extraction + approval | `memory_extraction_service.py`、candidate/approve/reject、run audit |
 | 图系统容易替代数据库主线 | Graph as optional provenance visualization | PostgreSQL preview、optional Neo4j sync、`graph.sync` audit |
-| benchmark 与产品割裂 | Evaluation as validation layer | `evaluation/` runners/metrics/reports、CLI eval |
+| benchmark 与产品割裂 | Evaluation as validation layer | `evaluation/` runners/metrics/reports、LongMemEval 500-case result、CLI eval |
 
 ## 3.12 答辩推荐口径
 
@@ -219,6 +220,6 @@ MemoryBase 把这三者统一到数据库应用系统中。
 - JSONB embedding cache 适合课程规模和可部署性，不替代大规模 `pgvector` / ANN。
 - Agent visibility 当前主线覆盖 memory-level recall/search/graph 过滤；source/wiki 的细粒度策略可继续扩展。
 - Graph Explorer 是 provenance 可视化和可选关系缓存，不是默认 GraphRAG 检索主路径。
-- Evaluation framework 已具备本地和 API 模式，但完整外部 benchmark 官方数据、正式榜单数字和 LLM-as-judge 仍需后续补齐。
+- Evaluation framework 已具备本地和 API 模式，并有 LongMemEval 500-case 工程验证结果；但完整 LoCoMo / MemoryAgentBench 对照、正式榜单数字和独立 judge 仍需后续补齐。
 
 这些边界不削弱项目创新，反而说明系统设计有清晰主线：先把数据库层做成可复现、可治理、可演示的事实源，再逐步接入更强的模型、向量索引和评测数据。

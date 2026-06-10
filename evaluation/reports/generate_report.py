@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from evaluation.metrics.system_metrics import latency_summary  # noqa: E402
+from evaluation.pricing import estimate_model_cost  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUTS = PROJECT_ROOT / "evaluation" / "outputs"
@@ -17,7 +19,11 @@ DEFAULT_OUTPUTS = PROJECT_ROOT / "evaluation" / "outputs"
 def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
     outputs_dir.mkdir(parents=True, exist_ok=True)
     report_path = outputs_dir / "benchmark_report.md"
-    csv_paths = sorted(path for path in outputs_dir.rglob("*_results.csv") if path.is_file())
+    csv_paths = sorted(
+        path
+        for path in outputs_dir.rglob("*_results.csv")
+        if path.is_file() and _is_evaluation_result_csv(path)
+    )
     lines = [
         "# MemoryBase Benchmark Report",
         "",
@@ -26,8 +32,8 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
         "| Field | Value |",
         "| --- | --- |",
         "| framework | local evaluation runner |",
-        "| model | not configured in Phase E1 |",
-        "| database | not called by no_memory/dry-run baseline |",
+        f"| providers/models | {_provider_summary(csv_paths)} |",
+        "| database | live modes call MemoryBase APIs; local modes do not |",
         "| outputs_dir | `%s` |" % outputs_dir.as_posix(),
         "",
         "## Result Files",
@@ -44,7 +50,7 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
         )
         for path in csv_paths:
             rows = _read_rows(path)
-            pass_count = sum(1 for row in rows if row.get("pass") == "true")
+            pass_count = sum(1 for row in rows if _effective_pass(row) == "true")
             error_count = sum(1 for row in rows if row.get("error"))
             latencies = [_float(row.get("latency_ms")) for row in rows]
             summary = latency_summary(latencies, error_count=error_count)
@@ -71,9 +77,9 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
     if baseline_rows:
         lines.extend(
             [
-                "| Baseline | Cases | Pass Rate | Avg F1 | Privacy Leakage | "
-                "Stale Error | P95 Latency (ms) |",
-                "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+                "| Baseline | Cases | Pass Rate | Avg F1 | Groundedness | Avg Tokens | "
+                "Avg Cost | Privacy Leakage | Stale Error | P95 Latency (ms) |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
             ]
         )
         for mode, rows in sorted(baseline_rows.items()):
@@ -95,13 +101,53 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
     else:
         lines.append("No detailed category metrics are available yet.")
 
+    lines.extend(["", "## Long-Context Retention", ""])
+    retention_rows = _retention_rows(csv_paths)
+    if retention_rows:
+        lines.extend(
+            [
+                "| Baseline | History Tokens | Cases | Accuracy | Retention | Forgetting |",
+                "| --- | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+        for row in retention_rows:
+            lines.append(
+                f"| {row['mode']} | {row['tokens']} | {row['cases']} | "
+                f"{row['accuracy']:.2%} | {row['retention']:.2%} | "
+                f"{row['forgetting']:.2%} |"
+            )
+    else:
+        lines.append("No measured long-context token-length results are available.")
+
+    lines.extend(["", "## API Operation Performance", ""])
+    performance_rows = _operation_performance_rows(outputs_dir)
+    if performance_rows:
+        lines.extend(
+            [
+                "| Operation | Samples | Errors | P50 (ms) | P95 (ms) | P99 (ms) | QPS |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+        for operation, values in performance_rows:
+            lines.append(
+                f"| {operation} | {int(values.get('samples', 0))} | "
+                f"{int(values.get('errors', 0))} | "
+                f"{float(values.get('p50_latency_ms', 0)):.3f} | "
+                f"{float(values.get('p95_latency_ms', 0)):.3f} | "
+                f"{float(values.get('p99_latency_ms', 0)):.3f} | "
+                f"{float(values.get('throughput_qps', 0)):.3f} |"
+            )
+    else:
+        lines.append("No API operation performance summary is available.")
+
     lines.extend(
         [
             "",
             "## Baseline Comparison",
             "",
             "`no_memory`, `recency_only`, `summary_memory`, `db_memory`, "
-            "`db_extraction`, and `naive_vector_rag` execute. `db_extraction` "
+            "`db_extraction`, `naive_vector_rag`, `db_qa`, `vector_qa`, and "
+            "`db_extraction_qa` execute. `db_extraction` "
             "uses rule-based candidate extraction before recall. `naive_vector_rag` "
             "runs local embedding backfill and then calls vector-mode recall.",
             "",
@@ -133,10 +179,13 @@ def generate_report(*, outputs_dir: Path = DEFAULT_OUTPUTS) -> Path:
             "- `db_memory` uses memory create and recall APIs.",
             "- `db_extraction` uses source import, chunk extraction, candidate approve, "
             "and recall.",
-            "- `naive_vector_rag` depends on backend embedding tables and "
-            "the local hashing provider.",
+            "- Vector modes depend on the configured backend embedding provider.",
             "- External benchmark adapters support common JSON/JSONL shapes only.",
-            "- LLM-as-judge, groundedness, and token cost are not implemented yet.",
+            "- Official external benchmark files and licenses remain operator-supplied.",
+            "- Semantic judge results override deterministic pass when present.",
+            "- The current smoke judge may use the same model family as answer generation.",
+            "- Groundedness is citation validation, not a separate LLM judge.",
+            "- Session and extraction source cleanup awaits public delete APIs.",
             "",
         ]
     )
@@ -157,13 +206,19 @@ def _read_rows(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(handle))
 
 
+def _is_evaluation_result_csv(path: Path) -> bool:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        fields = set(csv.DictReader(handle).fieldnames or [])
+    return {"case_id", "category", "pass", "mode", "run_id"}.issubset(fields)
+
+
 def _category_rows(csv_paths: list[Path]) -> dict[str, Counter]:
     categories: dict[str, Counter] = defaultdict(Counter)
     for path in csv_paths:
         for row in _read_rows(path):
             category = row.get("category") or "uncategorized"
             categories[category]["total"] += 1
-            if row.get("pass") == "true":
+            if _effective_pass(row) == "true":
                 categories[category]["passed"] += 1
     return categories
 
@@ -172,7 +227,7 @@ def _failed_rows(csv_paths: list[Path]) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for path in csv_paths:
         for row in _read_rows(path):
-            if row.get("pass") != "true" or row.get("error"):
+            if _effective_pass(row) != "true" or row.get("error"):
                 rows.append(row)
     return rows
 
@@ -190,12 +245,39 @@ def _metric_summary_row(label: str, rows: list[dict[str, str]]) -> str:
     avg_f1 = _average(rows, "simple_f1")
     privacy = _bool_rate(rows, "privacy_leakage")
     stale = _bool_rate(rows, "stale_memory_error")
+    groundedness = _average(rows, "groundedness")
+    average_tokens = _average(rows, "token_usage")
+    average_cost, currency = _average_cost(rows)
     latencies = [_float(row.get("latency_ms")) for row in rows]
     p95 = latency_summary(latencies)["p95_latency_ms"]
     return (
         f"| {label} | {len(rows)} | {pass_rate:.2%} | {avg_f1:.3f} | "
-        f"{privacy:.2%} | {stale:.2%} | {p95:.3f} |"
+        f"{groundedness:.3f} | {average_tokens:.1f} | "
+        f"{average_cost:.6f} {currency} | {privacy:.2%} | "
+        f"{stale:.2%} | {p95:.3f} |"
     )
+
+
+def _average_cost(rows: list[dict[str, str]]) -> tuple[float, str]:
+    costs: list[float] = []
+    currency = ""
+    for row in rows:
+        raw_cost = row.get("estimated_cost")
+        if raw_cost:
+            costs.append(_float(raw_cost))
+            currency = row.get("cost_currency") or currency
+            continue
+        estimate = estimate_model_cost(
+            provider=row.get("provider"),
+            model=row.get("model"),
+            prompt_tokens=row.get("prompt_tokens"),
+            completion_tokens=row.get("completion_tokens"),
+        )
+        estimated_cost = estimate["estimated_cost"]
+        if isinstance(estimated_cost, float):
+            costs.append(estimated_cost)
+            currency = str(estimate["cost_currency"] or currency)
+    return (sum(costs) / len(costs) if costs else 0.0, currency or "-")
 
 
 def _category_metric_summary_row(label: str, rows: list[dict[str, str]]) -> str:
@@ -208,10 +290,21 @@ def _category_metric_summary_row(label: str, rows: list[dict[str, str]]) -> str:
 
 
 def _bool_rate(rows: list[dict[str, str]], key: str) -> float:
-    values = [row.get(key) for row in rows if row.get(key) in {"true", "false"}]
+    values = [
+        _effective_pass(row) if key == "pass" else row.get(key)
+        for row in rows
+        if (_effective_pass(row) if key == "pass" else row.get(key)) in {"true", "false"}
+    ]
     if not values:
         return 0.0
     return sum(1 for value in values if value == "true") / len(values)
+
+
+def _effective_pass(row: dict[str, str]) -> str | None:
+    judge_pass = row.get("judge_pass")
+    if judge_pass in {"true", "false"}:
+        return judge_pass
+    return row.get("pass")
 
 
 def _average(rows: list[dict[str, str]], key: str) -> float:
@@ -224,6 +317,65 @@ def _float(value: str | None) -> float:
         return float(value or 0)
     except ValueError:
         return 0.0
+
+
+def _provider_summary(csv_paths: list[Path]) -> str:
+    values: set[str] = set()
+    for path in csv_paths:
+        for row in _read_rows(path):
+            provider = row.get("provider")
+            model = row.get("model")
+            if provider or model:
+                values.add("/".join(item for item in (provider, model) if item))
+    return ", ".join(sorted(values)) if values else "not recorded"
+
+
+def _retention_rows(csv_paths: list[Path]) -> list[dict[str, object]]:
+    grouped: dict[tuple[str, int], list[dict[str, str]]] = defaultdict(list)
+    for path in csv_paths:
+        if "long_context" not in path.name and "forgetting" not in path.name:
+            continue
+        for row in _read_rows(path):
+            raw_tokens = row.get("history_length_tokens")
+            if not raw_tokens:
+                continue
+            grouped[(row.get("mode") or "unknown", int(float(raw_tokens)))].append(row)
+    result: list[dict[str, object]] = []
+    by_mode: dict[str, list[tuple[int, float, int]]] = defaultdict(list)
+    for (mode, tokens), rows in grouped.items():
+        accuracy = _bool_rate(rows, "pass")
+        by_mode[mode].append((tokens, accuracy, len(rows)))
+    for mode, values in sorted(by_mode.items()):
+        values.sort()
+        short_accuracy = values[0][1]
+        for tokens, accuracy, count in values:
+            retention = accuracy / short_accuracy if short_accuracy > 0 else 0.0
+            result.append(
+                {
+                    "mode": mode,
+                    "tokens": tokens,
+                    "cases": count,
+                    "accuracy": accuracy,
+                    "retention": retention,
+                    "forgetting": max(0.0, 1.0 - retention),
+                }
+            )
+    return result
+
+
+def _operation_performance_rows(outputs_dir: Path) -> list[tuple[str, dict[str, object]]]:
+    rows: list[tuple[str, dict[str, object]]] = []
+    for path in sorted(outputs_dir.rglob("*.summary.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        for operation, values in payload.items():
+            if isinstance(values, dict):
+                rows.append((str(operation), values))
+    return rows
 
 
 if __name__ == "__main__":

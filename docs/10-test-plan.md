@@ -42,8 +42,14 @@
 
 | 测试文件 | 覆盖目标 | 关键断言 |
 |---|---|---|
-| `test_evaluation_adapters.py` | BEAM / BEIR / LoCoMo / LongMemEval / MemoryAgentBench adapters | 外部 benchmark case 能转换为统一格式 |
-| `test_evaluation_baselines.py` | baseline runner | baseline 输出结构稳定 |
+| `test_evaluation_adapters.py` | LoCoMo / LongMemEval / MemoryAgentBench adapters | 外部 benchmark case 能转换为统一格式；MemoryAgentBench parquet 用例在缺少 `pyarrow` 时跳过 |
+| `test_evaluation_baselines.py` | baseline runner | local/live baseline 输出结构稳定，覆盖 QA、vector、extraction、batch 写入路径 |
+| `test_evaluation_judging.py` | semantic judge | judge 输出、token/cost 字段、retry/resume 行为稳定 |
+| `test_evaluation_metrics.py` | evaluation metrics | QA、retrieval、forgetting、system 指标可计算 |
+| `test_evaluation_runner_checkpoint.py` | checkpoint I/O | 每个 case 可增量写入，已完成 case 可跳过 |
+| `test_evaluation_long_context.py` | long-context generator | 长上下文 retention case 生成结构稳定 |
+| `test_evaluation_performance.py` | performance sampler | 操作级延迟采样输出结构稳定 |
+| `test_evaluation_pricing.py` | pricing helper | provider token cost 估算可复现 |
 | `test_evaluation_report.py` | report generation | 指标可聚合成报告 |
 
 ## 4. 数据库演示测试

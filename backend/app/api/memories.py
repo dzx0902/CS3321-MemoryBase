@@ -8,6 +8,8 @@ from ..models.governance import ConflictDetectionResponse
 from ..models.memory import (
     ActorContext,
     EditorType,
+    MemoryBatchCreateRequest,
+    MemoryBatchCreateResponse,
     MemoryCreateRequest,
     MemoryDeleteResponse,
     MemoryDetailResponse,
@@ -37,6 +39,29 @@ def create_memory(
             revision_reason=x_revision_reason,
         )
         return service.create_memory(payload, actor)
+    except MemoryValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post(
+    "/batch",
+    response_model=MemoryBatchCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_memories(
+    payload: MemoryBatchCreateRequest,
+    x_actor_type: EditorType = Header(default="user", alias="X-Actor-Type"),
+    x_actor_id: UUID | None = Header(default=None, alias="X-Actor-Id"),
+    x_revision_reason: str = Header(default="memory batch create", alias="X-Revision-Reason"),
+    service: MemoryService = Depends(get_memory_service),
+) -> MemoryBatchCreateResponse:
+    try:
+        actor = ActorContext(
+            actor_type=x_actor_type,
+            actor_id=x_actor_id,
+            revision_reason=x_revision_reason,
+        )
+        return service.create_memories(payload, actor)
     except MemoryValidationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

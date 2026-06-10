@@ -20,4 +20,7 @@ def latency_summary(latencies_ms: list[float], error_count: int = 0) -> dict[str
         "p99_latency_ms": percentile(latencies_ms, 0.99),
         "average_latency_ms": sum(latencies_ms) / total if total else 0.0,
         "error_rate": error_count / (total + error_count) if total + error_count else 0.0,
+        "throughput_qps": (
+            total / (sum(latencies_ms) / 1000) if total and sum(latencies_ms) > 0 else 0.0
+        ),
     }

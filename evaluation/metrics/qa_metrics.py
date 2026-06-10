@@ -8,19 +8,39 @@ from evaluation.cases import EvaluationCase
 def score_qa(case: EvaluationCase, generated_answer: str) -> dict[str, float | bool]:
     exact = _normalize(generated_answer) == _normalize(case.expected_answer or "")
     contains = _contains_expected(case, generated_answer)
-    forbidden = _has_forbidden_answer(case, generated_answer) or _has_forbidden_pattern(
+    refusal = _is_refusal(generated_answer)
+    forbidden_mention = _has_forbidden_answer(case, generated_answer) or _has_forbidden_pattern(
         case, generated_answer
     )
+    answer_latest = case.expected_behavior == "answer_latest"
+    blocking_forbidden = forbidden_mention and not answer_latest
+    stale_answer_error = answer_latest and not contains
+    expected_refusal = case.expected_behavior == "refuse_or_unknown"
     expected_text = case.expected_answer or " ".join(case.expected_answer_contains)
     f1 = simple_f1(expected_text, generated_answer)
-    passed = _passes_case(case, exact=exact, contains=contains, forbidden=forbidden)
+    passed = _passes_case(
+        case,
+        exact=exact,
+        contains=contains,
+        forbidden=blocking_forbidden,
+        refusal=refusal,
+    )
     return {
         "exact_match": exact,
         "contains_match": contains,
-        "forbidden_answer_violation": forbidden,
+        "refusal_match": refusal,
+        "forbidden_answer_violation": forbidden_mention,
+        "historical_value_mention": answer_latest and forbidden_mention,
+        "stale_answer_error": stale_answer_error,
         "simple_f1": f1,
         "pass": passed,
-        "score": _score(exact=exact, contains=contains, forbidden=forbidden, f1=f1),
+        "score": _score(
+            exact=exact,
+            contains=contains,
+            forbidden=blocking_forbidden,
+            refusal=expected_refusal and refusal,
+            f1=f1,
+        ),
     }
 
 
@@ -53,11 +73,12 @@ def _passes_case(
     exact: bool,
     contains: bool,
     forbidden: bool,
+    refusal: bool,
 ) -> bool:
     if forbidden:
         return False
     if case.expected_behavior == "refuse_or_unknown" and case.expected_answer is None:
-        return True
+        return refusal
     if case.expected_answer_contains:
         return contains
     if case.expected_answer is not None:
@@ -88,14 +109,42 @@ def _has_forbidden_pattern(case: EvaluationCase, generated_answer: str) -> bool:
     return False
 
 
-def _score(*, exact: bool, contains: bool, forbidden: bool, f1: float) -> float:
+def _score(
+    *,
+    exact: bool,
+    contains: bool,
+    forbidden: bool,
+    refusal: bool,
+    f1: float,
+) -> float:
     if forbidden:
         return 0.0
+    if refusal:
+        return 1.0
     if exact:
         return 1.0
     if contains:
         return max(0.8, f1)
     return f1
+
+
+def _is_refusal(value: str) -> bool:
+    normalized = _normalize(value)
+    patterns = (
+        r"\bi do not know\b",
+        r"\bi don't know\b",
+        r"\bnot enough (?:information|context)\b",
+        r"\binsufficient (?:information|context)\b",
+        r"\bcannot (?:determine|answer|tell)\b",
+        r"\bcan't (?:determine|answer|tell)\b",
+        r"\bunknown\b",
+        r"不知道",
+        r"不清楚",
+        r"信息不足",
+        r"无法(?:确定|判断|回答)",
+        r"没有足够(?:的信息|上下文)",
+    )
+    return any(re.search(pattern, normalized) for pattern in patterns)
 
 
 def _normalize(value: str) -> str:

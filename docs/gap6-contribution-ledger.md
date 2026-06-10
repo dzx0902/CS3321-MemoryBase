@@ -6,14 +6,14 @@
 
 ## 1. Audit Baseline
 
-Audit date: 2026-06-09
+Audit date: 2026-06-10
 
 Repository state at audit time:
 
 - Branch: `jflin`
-- HEAD: `1302a5e docs(gap4): include raw command logs as PNG renderings' source of truth`
+- HEAD: `6620abf docs(gap6): contribution ledger with per-member commit audits`, plus an in-progress merge of latest `origin/dev` benchmark work for review
 - Remote refresh command: `git fetch --all --prune`
-- Branch status: local `jflin` is ahead of `origin/jflin` by 9 commits.
+- Branch status before this merge review: local `jflin` was ahead of `origin/jflin` by 10 final-deliverable commits.
 
 Refs considered:
 
@@ -24,7 +24,7 @@ Author identities included:
 
 | Identity | Treatment |
 |---|---|
-| `hopecommon <1841778349@qq.com>` | Primary direct author identity; 62 author commits in the all-ref audit |
+| `hopecommon <1841778349@qq.com>` | Primary direct author identity; 63 author commits in the all-ref audit |
 | `evanlin257 <143060834+hopecommon@users.noreply.github.com>` | GitHub noreply identity tied to hopecommon; 13 GitHub merge / PR-integration commits |
 
 Important counting rule:
@@ -61,13 +61,13 @@ git log --all \
 Branch-contained direct commit counts:
 
 ```text
-jflin                                                61
+jflin                                                62
 origin/jflin                                         52
 dev                                                  49
 origin/dev                                           52
 main                                                 23
 origin/main                                          52
-origin/feat/evaluation-benchmark-framework           46
+origin/feat/evaluation-benchmark-framework           52
 origin/feat/entity-memory-scene                      23
 origin/frontend-api-integration                      23
 origin/backend-p0                                    20
@@ -77,20 +77,20 @@ Aggregate result across all refs:
 
 | Metric | Count / value |
 |---|---:|
-| Related commits across all refs, de-duplicated | 75 |
-| Direct non-merge commits | 61 |
+| Related commits across all refs, de-duplicated | 76 |
+| Direct non-merge commits | 62 |
 | Merge / PR integration commits | 14 |
-| Approx. changed files touched by related commits | 272 |
-| Approx. aggregate diff across related commits | +47,018 / -2,257 |
+| Approx. changed files touched by related commits | 282 |
+| Approx. aggregate diff across related commits | +47,600 / -2,300 |
 
 The aggregate diff is a rough audit signal, not a grading claim: merges, generated
 assets, docs, and reworked lines can inflate totals. The module-level evidence
 below is the safer source for the final report.
 
-Local-only note: 9 final-deliverable commits are present only on local `jflin`
-at audit time (`1302a5e`, `02e51e8`, `072c376`, `b70f789`, `9c2594d`,
-`055f89c`, `8883161`, `ddf1d93`, `db7c101`). Push or merge them before using
-GitHub remote history as the sole grading evidence.
+Local-only note: 10 final-deliverable commits are present only on local `jflin`
+at audit time (`6620abf`, `1302a5e`, `02e51e8`, `072c376`, `b70f789`,
+`9c2594d`, `055f89c`, `8883161`, `ddf1d93`, `db7c101`). Push or merge
+them before using GitHub remote history as the sole grading evidence.
 
 ## 3. Module-Level Contribution Summary
 
@@ -103,7 +103,7 @@ GitHub remote history as the sole grading evidence.
 | Governance, provenance, and access-control workflows | ~12 commits across SQL/backend/tests/docs | `memory_evidence`, `memory_revision`, `audit_log`, `access_policy`, `forget_request`, `conflict_record`, `v_agent_visible_memory`, governance API/tests/docs | Implemented the project’s main differentiator: evidence-backed memories, revision/audit trail, conflict/forget governance, and agent-aware visibility. |
 | Graph explorer / graph sync hardening | ~1 large feature commit | `backend/app/services/graph_service.py`, `backend/app/api/graph.py`, `frontend/src/pages/graph/*`, `backend/tests/test_graph_service.py` | Added agent-aware graph visibility, Neo4j driver singleton lifecycle, batch `UNWIND` sync, sync audit attribution, frontend graph module split, and graph tests. |
 | Search, recall, and context-pack retrieval | ~8 commits | `backend/app/services/recall_service.py`, `backend/app/services/search_service.py`, `backend/app/cli/commands/eval.py`, `data/eval/*`, `frontend/src/pages/recall/Recall.jsx` | Added lexical search infrastructure, recall API/CLI, context pack formatter, retrieval/evaluation seed data, and UI evidence for recall and QA. |
-| Evaluation / benchmark integration | Integration plus limited earlier eval CLI work | `backend/app/cli/commands/eval.py`, `data/eval/*`, merged `evaluation/` assets | Teammate-owned area. Hopecommon's contribution is limited to early eval CLI/gold-data support plus final review, merge, and alignment into the main demo/report story. |
+| Evaluation / benchmark integration | Integration plus limited earlier eval CLI work | `backend/app/cli/commands/eval.py`, `data/eval/*`, merged `evaluation/` assets | Teammate-owned area. Hopecommon's contribution is limited to early eval CLI/gold-data support plus final review, merge, conflict resolution, and alignment into the main demo/report story. |
 | Final-report materials and evidence assets | ~36 commits | `docs/gap2-research-landscape.md`, `docs/gap3-innovation-analysis.md`, `docs/final-assets/diagrams/*`, `docs/final-assets/screenshots/*`, `docs/gap8-source-sql-appendix-map.md`, `docs/gap9-audit-findings.md` | Produced final report support materials and evidence packages: research landscape, innovation analysis, ER/sequence diagrams, screenshot inventory, source/SQL appendix map, and deliverable re-audit. |
 | Tooling and reproducibility | 6 commits | `scripts/db_cli.py`, `scripts/import_demo_sources.py`, `pyproject.toml`, `uv.lock`, `AGENTS.md` | Improved reproducible database setup/demo execution, CLI packaging, dependency lockfile, and project workflow guardrails. |
 
@@ -165,6 +165,7 @@ GitHub remote history as the sole grading evidence.
 |---|---|---|
 | `c20afcc` / `a49fe14` | 2026-05-22 | Added earlier recall/search evaluation CLI entry points and gold data. |
 | `2dd0d64` | 2026-06-03 | Integrated the teammate evaluation branch with hybrid retrieval and memory extraction into the main `jflin`/`dev` line; count this as integration, review, and alignment evidence rather than original authorship of the whole framework. |
+| `origin/dev` `50609db` / `767eb29` / `965ea4a` | 2026-06-06 to 2026-06-09 | Teammate branch added end-to-end benchmark pipeline, official adapters, semantic judging, and resumable LongMemEval evaluation. Hopecommon's role in this ledger is merge review, conflict resolution, and final-report positioning, not original benchmark implementation. |
 
 ## 5. Report-Ready Personal Contribution Statement
 
@@ -188,7 +189,7 @@ Do not overstate these points:
 
 1. The evaluation framework was integrated into `jflin`/`dev`, but its original implementation should be credited primarily to `dzx0902`. In personal contribution text, count hopecommon's role as integration, review, and alignment unless citing specific hopecommon-authored commits.
 2. GitHub merge commits by `evanlin257 <143060834+hopecommon@users.noreply.github.com>` often have no direct file diff relative to the merged branch. They are useful process evidence, not implementation-line evidence.
-3. Local `jflin` currently contains 9 commits not yet present on `origin/jflin` at audit time. These include Gap 2/3/4/5/8/9 final-deliverable work and should be pushed or merged before using remote GitHub history as the sole grading evidence.
+3. Local `jflin` currently contains 10 final-deliverable commits not yet present on `origin/jflin` at audit time. These include Gap 2/3/4/5/6/8/9 final-deliverable work and should be pushed or merged before using remote GitHub history as the sole grading evidence.
 4. This ledger covers hopecommon only. The final report still needs equivalent rows for other members, even if their rows are shorter or based on branch/PR ownership rather than deep commit archaeology.
 5. Current GitHub issue state is not a reliable completion source because some older issues remain open. Use code/docs artifacts and commit history as the primary evidence.
 
@@ -205,16 +206,16 @@ Raw audit files created so far:
 
 | Member identity | Raw audit file | Direct commits | Merge / integration commits | Notes |
 |---|---|---:|---:|---|
-| `hopecommon <1841778349@qq.com>` / `evanlin257 <143060834+hopecommon@users.noreply.github.com>` | `docs/gap6-hopecommon-commit-audit.tsv` | 61 non-merge | 14 merge / PR integration | Project lead, database/governance/provenance, lexical search/context-pack formatter/CLI dogfood, graph hardening, review/merge/integration, final evidence. |
+| `hopecommon <1841778349@qq.com>` / `evanlin257 <143060834+hopecommon@users.noreply.github.com>` | `docs/gap6-hopecommon-commit-audit.tsv` | 62 non-merge | 14 merge / PR integration | Project lead, database/governance/provenance, lexical search/context-pack formatter/CLI dogfood, graph hardening, review/merge/integration, final evidence. |
 | `lywzc0419 <lzc050419@sjtu.edu.cn>` | `docs/gap6-lywzc0419-commit-audit.tsv` | 8 non-merge | 0 direct merge | Mainly frontend API integration, runtime/governance UI, Neo4j Graph Explorer integration, graph lint/import fixes. |
-| `dzx0902 <3575895791@qq.com>` / `dzx0902 <145189098+dzx0902@users.noreply.github.com>` | `docs/gap6-dzx0902-commit-audit.tsv` | 29 non-merge | 13 merge / PR integration | Project bootstrap, P0 backend/tests, evaluation framework, embedding/hybrid recall, QA, memory extraction, CI/tooling, and integration merges. |
+| `dzx0902 <3575895791@qq.com>` / `dzx0902 <145189098+dzx0902@users.noreply.github.com>` | `docs/gap6-dzx0902-commit-audit.tsv` | 35 non-merge | 15 merge / PR integration | Project bootstrap, P0 backend/tests, evaluation framework, official benchmark adapters/runners, LongMemEval full-run evidence, embedding/hybrid recall, QA, memory extraction, CI/tooling, and integration merges. |
 
 Recommended responsibility split for the final report:
 
 | Member | Primary part to emphasize | Secondary / support wording |
 |---|---|---|
 | hopecommon / jflin | Database schema, governance/provenance model, SQL evidence, lexical search + recall context-pack formatter + CLI dogfood, agent-runtime CLI/sessions/observe/remember, graph hardening over lywzc0419's Neo4j integration, final report assets | Reviewed and integrated teammate frontend/evaluation/QA work; strengthened cross-module consistency and demo readiness. |
-| dzx0902 / dzx | P0 backend, tests, evaluation benchmark framework including LoCoMo Bench integration/evaluation, embedding/hybrid recall, memory extraction, QA, CI/tooling | Also contributed project bootstrap and integration merges. |
+| dzx0902 / dzx | P0 backend, tests, evaluation benchmark framework including LoCoMo / LongMemEval / MemoryAgentBench adapters and LongMemEval full-run evidence, embedding/hybrid recall, memory extraction, QA, CI/tooling | Also contributed project bootstrap, batch memory writes / supersession support, and integration merges. |
 | huiyijian / lywzc0419 / lzc | Frontend API integration, runtime/governance UI, multi-page UI wiring, Neo4j Graph Explorer integration | Also fixed graph lint/Ruff import issues and supporting dependencies/config. |
 | Member 4 | No Git-backed contribution filled yet | Leave blank or fill from non-Git evidence if the team provides it. |
 
@@ -225,7 +226,7 @@ context-pack metadata.
 
 Report-ready draft for `dzx0902` / `dzx`:
 
-> dzx0902 / dzx 主要负责项目初始脚手架与工程化配置、P0 FastAPI 后端和测试体系，并在后续补充 wiki / stats / semantic / governance lifecycle、embedding、hybrid recall、memory lifecycle validation、conflict detection、forgetting verification、context pack metadata、provider-backed QA 等后端能力；同时实现 evaluation benchmark 框架，包括 LoCoMo Bench 集成/评测、外部 benchmark adapters、datasets、baselines、metrics、runners 和 report generation，并维护 CI、数据库 CLI、Windows encoding fix、Postgres CI health check 等工程化支持。少量前端贡献集中在 runtime/governance review 修正和 Recall/QA client 联调。
+> dzx0902 / dzx 主要负责项目初始脚手架与工程化配置、P0 FastAPI 后端和测试体系，并在后续补充 wiki / stats / semantic / governance lifecycle、embedding、hybrid recall、memory lifecycle validation、conflict detection、forgetting verification、context pack metadata、provider-backed QA、batch memory writes 和 explicit supersession 等后端能力；同时实现 evaluation benchmark 框架，包括 LoCoMo / LongMemEval / MemoryAgentBench adapter、datasets、baselines、metrics、runners、semantic judging、checkpoint/resume 和 report generation，并完成 LongMemEval oracle 500-case 工程评测记录。该评测结果主要作为系统能力和限制分析证据，不作为高分榜单卖点。少量前端贡献集中在 runtime/governance review 修正和 Recall/QA client 联调。
 
 Report-ready draft for `huiyijian` / `lywzc0419` / `lzc`:
 
@@ -234,7 +235,7 @@ Report-ready draft for `huiyijian` / `lywzc0419` / `lzc`:
 Additional caution for `dzx0902`: merge / PR integration commits prove account-level
 integration activity, not authorship of every merged line. `origin/feat/evaluation-
 benchmark-framework` is a real evaluation contribution, but it also contains backend,
-docs, and frontend support changes; do not describe all 15 branch commits as pure
+docs, and frontend support changes; do not describe all benchmark branch commits as pure
 `evaluation/` code. `eb34e592` is visible only on
 `origin/fix/db-cli-windows-encoding`, so treat it as branch-level contribution unless
 it is later merged.
@@ -250,7 +251,7 @@ Evidence command:
 git log --all --regexp-ignore-case --author='hopecommon\|1841778349' --no-merges --oneline
 
 Audit result:
-61 direct non-merge commits, primarily across database/governance/provenance,
+62 direct non-merge commits, primarily across database/governance/provenance,
 agent-facing backend/CLI, graph hardening, review/integration, and final-report
 evidence materials.
 14 merge / PR integration commits tracked separately.
