@@ -243,19 +243,21 @@ python -m evaluation.runners.run_benchmark_eval \
 | --- | --- | --- |
 | LongMemEval | Long-term dialogue memory, temporal reasoning, abstention | Official JSON format supported; independent judge pending |
 | LoCoMo | Multi-session dialogue memory and event QA | Official QA format supported; event summarization pending |
-| MemoryAgentBench | Memory-agent retrieval, learning, conflict tasks | TODO adapter skeleton |
+| MemoryAgentBench | Memory-agent retrieval, learning, conflict tasks | Official Conflict Resolution parquet supported; other tasks pending |
 | BEIR / MS MARCO | Retriever/RAG only, not primary memory evidence | TODO adapter skeleton |
 | BEAM | Ultra-long context retention stress test | TODO adapter skeleton |
 
-LongMemEval and LoCoMo source, license, and execution instructions are in their
-respective directories under `evaluation/external/`. Equivalent notes are still
-required before using other official benchmark files.
+LongMemEval, LoCoMo, and MemoryAgentBench source, license, and execution
+instructions are in their respective directories under `evaluation/external/`.
+Equivalent notes are still required before using other official benchmark files.
 
 ## Current Limitations
 
 - `recency_only` and `summary_memory` are local baselines and do not call the backend.
 - Retrieval-only modes do not generate an LLM answer; use the QA modes for that path.
-- External adapters support common JSON/JSONL shapes but still need official dataset download and license documentation.
+- External adapters cover the documented official LongMemEval, LoCoMo, and
+  MemoryAgentBench Conflict Resolution shapes; other benchmark variants still
+  need download, license, and format verification before being used as evidence.
 - Citation-groundedness validates references against the returned citation map; it is not an LLM judge.
 - Shared-workspace runs cannot delete evaluation sessions or imported source documents.
 - No API keys, database URLs, or real user data should be stored in benchmark files.

@@ -32,6 +32,8 @@ class MemoryExtractionService:
         payload: MemoryExtractionFromChunksRequest,
         actor: ActorContext,
     ) -> list[MemorySummaryResponse]:
+        # Extraction writes candidate memories, not active facts. Human/admin review
+        # promotes or rejects them through the same memory lifecycle used elsewhere.
         chunk_rows = self._fetch_chunks(payload.workspace_id, payload.chunk_ids)
         if len(chunk_rows) != len(set(payload.chunk_ids)):
             raise MemoryExtractionValidationError(
@@ -39,6 +41,8 @@ class MemoryExtractionService:
             )
 
         run_id = uuid4()
+        # Run-level audit lets the demo answer "which chunks produced these
+        # candidate memories" without introducing extra analysis-run tables.
         self._insert_run_audit(
             workspace_id=payload.workspace_id,
             actor=actor,

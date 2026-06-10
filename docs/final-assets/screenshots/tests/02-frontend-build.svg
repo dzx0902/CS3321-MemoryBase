@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="408" viewBox="0 0 1100 408">
+  <rect width="100%" height="100%" fill="#F4F2E9"/>
+  <rect x="20" y="20" width="1060" height="368" rx="8" fill="#FFFDF7" stroke="#D7D0BD"/>
+  <text x="36" y="55" class="title">Frontend Build Result</text>
+  <text x="36" y="76" class="meta">MemoryBase Gap 4 evidence · generated from logs/frontend-build.txt</text>
+  <style>
+    .title { font: 700 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #1D4ED8; }
+    .meta { font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #526071; }
+    .term { font: 13px Menlo, Consolas, "SFMono-Regular", monospace; fill: #172033; white-space: pre; }
+  </style>
+  <text x="36" y="94" class="term">$ npm run build</text><text x="36" y="112" class="term">cwd: /Users/jflin/Workspace/Code/CS3321-MemoryBase/frontend</text><text x="36" y="130" class="term">exit_code: 0</text><text x="36" y="148" class="term"></text><text x="36" y="166" class="term">&gt; memorybase-frontend@0.1.0 build</text><text x="36" y="184" class="term">&gt; vite build</text><text x="36" y="202" class="term"></text><text x="36" y="220" class="term">vite v5.4.21 building for production...</text><text x="36" y="238" class="term">transforming...</text><text x="36" y="256" class="term">✓ 64 modules transformed.</text><text x="36" y="274" class="term">rendering chunks...</text><text x="36" y="292" class="term">computing gzip size...</text><text x="36" y="310" class="term">dist/index.html                   0.72 kB │ gzip:  0.40 kB</text><text x="36" y="328" class="term">dist/assets/index-CcdpLdfc.css    9.54 kB │ gzip:  2.89 kB</text><text x="36" y="346" class="term">dist/assets/index-CfwQVtRD.js   292.93 kB │ gzip: 80.69 kB</text><text x="36" y="364" class="term">✓ built in 630ms</text>
+</svg>

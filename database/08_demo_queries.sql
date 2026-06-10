@@ -20,11 +20,11 @@ LIMIT 20;
 SELECT workspace_id, memory_type, status, access_level, memory_count, avg_confidence, avg_importance
 FROM v_memory_statistics;
 
--- 5. Query agent-visible memory after the app sets app.agent_id
-SELECT set_config('app.agent_id', '00000000-0000-0000-0000-000000000301', false);
-
+-- 5. Query memory visible to the demo retriever agent
+-- v_agent_visible_memory materializes visibility for every agent; callers filter explicitly.
 SELECT memory_id, memory_type, canonical_text, access_level, confidence
 FROM v_agent_visible_memory
+WHERE agent_id = '00000000-0000-0000-0000-000000000301'
 ORDER BY importance DESC, updated_at DESC
 LIMIT 20;
 

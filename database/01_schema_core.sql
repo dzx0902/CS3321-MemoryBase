@@ -1,3 +1,5 @@
+-- Human users who own workspaces, import sources, review governance actions,
+-- and appear as actors in audit records.
 CREATE TABLE IF NOT EXISTS user_account (
   user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username VARCHAR(80) NOT NULL UNIQUE,
@@ -9,6 +11,8 @@ CREATE TABLE IF NOT EXISTS user_account (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- A tenant boundary for all source, memory, governance, and wiki data.
+-- Most query indexes start with workspace_id for course-scale multi-tenant isolation.
 CREATE TABLE IF NOT EXISTS workspace (
   workspace_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug VARCHAR(64) NOT NULL UNIQUE,
@@ -21,6 +25,8 @@ CREATE TABLE IF NOT EXISTS workspace (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Agent identities are stored separately from users so visibility policies can
+-- target either a specific agent or an agent role/type.
 CREATE TABLE IF NOT EXISTS agent (
   agent_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -34,6 +40,8 @@ CREATE TABLE IF NOT EXISTS agent (
   UNIQUE(workspace_id, name)
 );
 
+-- Workspace membership accepts both users and agents. principal_id is generic
+-- by design; application/service code validates the matching principal table.
 CREATE TABLE IF NOT EXISTS workspace_member (
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
   principal_type VARCHAR(20) NOT NULL CHECK (principal_type IN ('user', 'agent')),

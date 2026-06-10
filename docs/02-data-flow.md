@@ -51,7 +51,11 @@ Markdown / txt 文件
   → 保存 SourceDocument
   → 按行数 / token 切分
   → 保存 SourceChunk
-  → 写入 AuditLog
+  → 通过 imported_at / imported_by_user_id 保留导入来源
+
+说明：当前实现中 source import 不直接写 `audit_log`；`audit_log` 主要覆盖
+memory、wiki、conflict、forget、extraction run 等治理事件。最终报告若要展示
+source import 审计，应先补代码或只展示 source 表内的导入元数据。
 ```
 
 ## 4. Recall 检索 2 层 DFD
@@ -60,11 +64,12 @@ Markdown / txt 文件
 用户 / Agent 输入 query
   → 解析 query 和过滤条件
   → 应用 AccessPolicy
-  → 查询 SourceChunk FTS
-  → Join MemoryEvidence
-  → Join MemoryItem
+  → 查询 SourceChunk FTS / trigram
+  → 查询 MemoryItem 文本匹配
+  → 可选查询 MemoryEmbedding / SourceChunkEmbedding
+  → Join MemoryEvidence / SourceChunk / SourceDocument
   → 返回 memory + evidence + source
-  → 写入 RecallLog
+  → 写入 RecallLog（含 retrieval_info / fallback reason）
 ```
 
 ## 5. Wiki 导出 2 层 DFD

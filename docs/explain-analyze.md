@@ -2,7 +2,7 @@
 
 本文件收集 4 个有代表性的查询，配套 `database/04_indexes.sql` 中的索引设计，演示 PostgreSQL 查询执行的实际计划。配套阅读：`docs/index-rationale.md`。
 
-所有计划均取自实际数据库执行（PostgreSQL 16.13，本课程 demo workspace `00000000-0000-0000-0000-000000000201`，截至本文件撰写时表规模：`memory_item` 20 行 / `audit_log` 30 行 / `source_chunk` 20 行 / `wiki_page` 3 行）。
+所有计划均取自实际数据库执行（PostgreSQL 16.13，本课程 demo workspace `00000000-0000-0000-0000-000000000201`，截至本文件撰写时表规模：`memory_item` 25 行 / `audit_log` 39 行 / `source_chunk` 20 行 / `wiki_page` 3 行）。
 
 > **数据规模说明**：demo 数据量较小，部分场景下 PostgreSQL planner 会**主动选 Seq Scan**（这是正确决定，因为对几十行数据走索引反而更慢——B+ tree 要先读根节点、再读叶子、再回表）。为了**演示索引路径的形态**，几个案例使用 `SET LOCAL enable_seqscan = off` 临时强制 planner 走索引，对比"小数据 + Seq Scan"与"假设大数据时 + Index 路径"的差异。**生产数据量（1 万行以上）下，planner 会自动选择索引路径**，无需强制。
 
@@ -53,13 +53,13 @@ SELECT memory_id, memory_type, confidence, access_level
 强制 `enable_seqscan = off` 让 planner 选索引路径（在大数据量下会自动选）：
 
 ```
- Limit  (cost=0.14..4.76 rows=10 width=48) (actual time=0.181..0.189 rows=10 loops=1)
+ Limit  (cost=0.14..4.31 rows=10 width=48) (actual time=0.006..0.007 rows=10 loops=1)
    Buffers: shared hit=2
    ->  Index Only Scan using idx_memory_active_ranking on memory_item
          Index Cond: (workspace_id = '00000000-0000-0000-0000-000000000201'::uuid)
          Heap Fetches: 0
          Buffers: shared hit=2
- Execution Time: 0.232 ms
+ Execution Time: 0.016 ms
 ```
 
 **关键观察**：
@@ -72,25 +72,24 @@ SELECT memory_id, memory_type, confidence, access_level
 在事务里 DROP 同一索引，看 fallback 行为：
 
 ```
- Limit  (cost=11.97..11.99 rows=10 width=48) (actual time=0.109..0.111 rows=10 loops=1)
-   Buffers: shared hit=10
+ Limit  (cost=13.07..13.10 rows=10 width=48) (actual time=0.026..0.027 rows=10 loops=1)
+   Buffers: shared hit=4
    ->  Sort
          Sort Key: importance DESC, updated_at DESC
          Sort Method: quicksort  Memory: 27kB
          ->  Bitmap Heap Scan on memory_item
-               Recheck Cond: (workspace_id = '00000000-0000-0000-0000-000000000201'::uuid)
-               Filter: ((status)::text = 'active'::text)
-               Rows Removed by Filter: 2
+               Recheck Cond: ((workspace_id = '00000000-0000-0000-0000-000000000201'::uuid)
+                              AND ((status)::text = 'active'::text))
                Heap Blocks: exact=3
-               ->  Bitmap Index Scan on idx_memory_created_at
- Execution Time: 0.148 ms
+               ->  Bitmap Index Scan on idx_memory_workspace_status_validity
+ Execution Time: 0.037 ms
 ```
 
 **关键退化**：
-- 没有 covering 时，planner 退到 `idx_memory_created_at`（B+ tree 复合索引）走 Bitmap Index Scan，**再做 Bitmap Heap Scan 回表**取 `memory_type / confidence / access_level`。
+- 没有 covering 时，planner 退到 `idx_memory_workspace_status_validity`（B+ tree 复合索引）走 Bitmap Index Scan，**再做 Bitmap Heap Scan 回表**取 `memory_type / confidence / access_level`。
 - 因为索引顺序不是 `importance DESC`，多了一个 **Sort 节点**。
-- 没有 partial（`WHERE status='active'`），还要在 Recheck 后做一次 **Filter `status = 'active'`**，多扫了 2 行（`Rows Removed by Filter: 2`）。
-- **Buffers 命中 10 个**（vs 2 个），IO 多 5 倍。
+- status 条件仍能进入复合索引，但该索引不覆盖 SELECT 列，也不能消除 `ORDER BY importance DESC, updated_at DESC` 的排序。
+- **Buffers 命中 4 个**（vs 2 个），小表规模下只多 2 页；生产规模下差异主要来自 Sort 和 heap fetch。
 
 > **教学要点**：单一索引同时实现了 partial（缩小规模）+ composite DESC（消除 Sort）+ INCLUDE（消除 heap fetch）三种现代特性。配合 visibility map 即可达到"读 2 个 buffer 页完成 LIMIT 10"的极致。
 
@@ -127,23 +126,24 @@ SELECT mi.memory_id, mi.memory_type, mi.canonical_text,
 ### 2.1 完整 plan（默认）
 
 ```
- Limit  (cost=8.28..8.28 rows=2 width=146)
- ->  Sort  Sort Key: score DESC
-       ->  GroupAggregate  Group Key: mi.memory_id
-             ->  Sort  Sort Key: mi.memory_id
-                   ->  Hash Join  Hash Cond: (sc.doc_id = sd.doc_id)
-                         ->  Nested Loop
-                               ->  Hash Join  Hash Cond: (me.chunk_id = sc.chunk_id)
-                                     ->  Seq Scan on memory_evidence me     (20 rows)
-                                     ->  Seq Scan on source_chunk sc        (Filter: FTS OR trigram)
-                               ->  Index Scan using memory_item_pkey on memory_item mi
-                                     Index Cond: (memory_id = me.memory_id AND workspace_id = ...)
-                         ->  Seq Scan on source_document sd
- Execution Time: 0.946 ms
+ Limit  (cost=8.72..8.72 rows=2 width=138) (actual time=0.065..0.066 rows=2 loops=1)
+   Buffers: shared hit=12
+   ->  Sort  Sort Key: score DESC
+         ->  GroupAggregate  Group Key: mi.memory_id
+               ->  Sort  Sort Key: mi.memory_id
+                     ->  Hash Join  Hash Cond: (sc.doc_id = sd.doc_id)
+                           ->  Nested Loop
+                                 ->  Hash Join  Hash Cond: (me.chunk_id = sc.chunk_id)
+                                       ->  Seq Scan on memory_evidence me     (20 rows)
+                                       ->  Seq Scan on source_chunk sc        (Filter: FTS OR trigram)
+                                 ->  Index Scan using memory_item_memory_id_workspace_id_key on memory_item mi
+                                       Index Cond: (memory_id = me.memory_id AND workspace_id = ...)
+                           ->  Seq Scan on source_document sd
+ Execution Time: 0.106 ms
 ```
 
 **关键观察**：
-- **Nested Loop + Index Scan on `memory_item`** — 内层循环对每个匹配 chunk 通过 (memory_id, workspace_id) 复合 PK index 定位 memory，是典型的"小驱动表 + 索引主键查找"模式。
+- **Nested Loop + Index Scan on `memory_item`** — 内层循环对每个匹配 chunk 通过 `(memory_id, workspace_id)` 复合唯一索引定位 memory，是典型的"小驱动表 + 索引查找"模式。
 - `source_chunk` 的 FTS + ILIKE 在小数据量下走 Seq Scan + Filter；大数据量下会切换到 BitmapOr(BitmapIndexScan(`idx_source_chunk_fts`), BitmapIndexScan(`idx_source_chunk_text_trgm`))。
 - `GroupAggregate` 在 Sort 之后，按 `memory_id` 聚合多个 evidence。
 
@@ -165,7 +165,7 @@ SELECT sc.chunk_id, sc.chunk_no, sc.chunk_text
 实际 plan：
 
 ```
- Limit  (cost=48.10..51.23 rows=2 width=167) (actual time=0.029..0.031 rows=2 loops=1)
+ Limit  (cost=48.10..51.23 rows=2 width=167) (actual time=0.016..0.017 rows=2 loops=1)
    Buffers: shared hit=21
    ->  Bitmap Heap Scan on source_chunk sc
          Recheck Cond: ((search_vector @@ '''memorybase'''::tsquery)
@@ -178,7 +178,7 @@ SELECT sc.chunk_id, sc.chunk_no, sc.chunk_text
                ->  Bitmap Index Scan on idx_source_chunk_text_trgm
                      Index Cond: (chunk_text ~~* '%memorybase%'::text)
                      Buffers: shared hit=17
- Execution Time: 0.082 ms
+ Execution Time: 0.022 ms
 ```
 
 **关键观察**：
@@ -223,28 +223,33 @@ SELECT date_trunc('day', created_at) AS day, action_type, count(*) AS cnt
 
 ```
  Sort  Sort Key: day DESC, cnt DESC
+   Buffers: shared hit=12
    ->  HashAggregate  Group Key: date_trunc(...), action_type
+         Buffers: shared hit=6
          ->  Seq Scan on audit_log  Filter: created_at >= now() - 30 days
-              Buffers: shared hit=5
- Execution Time: 0.674 ms
+              Rows Removed by Filter: 1
+              Buffers: shared hit=6
+ Execution Time: 0.148 ms
 ```
 
-30 行 + 时间过滤几乎全部命中 → Seq Scan 是最优解。
+39 行 + 时间过滤几乎全部命中 → Seq Scan 是最优解。
 
-### 3.2 假设大数据：强制走索引（B-tree 路径）
+### 3.2 假设大数据：强制走索引（B-tree 路径，已复验）
 
 `SET enable_seqscan = off`，未单独限制其他索引：
 
 ```
  Bitmap Heap Scan on audit_log
    Recheck Cond: (created_at >= now() - 30 days)
-   Heap Blocks: exact=5
+   Heap Blocks: exact=6
+   Buffers: shared hit=7
    ->  Bitmap Index Scan on idx_audit_target_time
          Index Cond: (created_at >= now() - 30 days)
-   Buffers: shared hit=6
+         Buffers: shared hit=1
+ Execution Time: 0.070 ms
 ```
 
-注意 planner 选了 `idx_audit_target_time = (workspace_id, target_type, target_id, created_at DESC)` 的复合 B-tree——它的最右列正好是 `created_at`，对 trailing 列范围查询仍然能给出 Bitmap Index Scan 候选页。
+注意：该计划已在 fresh demo DB 上复验。B+ tree 复合索引最擅长使用先导列；这里查询只约束 trailing column `created_at`，planner 仍选择 `idx_audit_target_time`，是因为 demo 数据量很小且我们显式关闭了 Seq Scan。生产报告中应把它解释为"B-tree 竞争路径"，不是推荐的全库时间窗索引。
 
 ### 3.3 BRIN 路径（drop 竞争索引后）
 
@@ -261,16 +266,17 @@ ROLLBACK;
 ```
  Bitmap Heap Scan on audit_log
    Recheck Cond: (created_at >= now() - 30 days)
-   Heap Blocks: lossy=5
+   Heap Blocks: lossy=6
    ->  Bitmap Index Scan on idx_audit_brin_time
          Index Cond: (created_at >= now() - 30 days)
          Buffers: shared hit=5
-   Buffers: shared hit=10
+   Buffers: shared hit=11
+ Execution Time: 0.195 ms
 ```
 
 **关键观察**：
-- BRIN 报 **`Heap Blocks: lossy=5`** —— 这是 BRIN 的特征：page range 内可能有不满足条件的行，所以是"lossy"，需要 Recheck Cond 在 heap 上验证。B-tree 报的是 `exact=5`，索引精确定位到行。
-- Buffers 略多（10 vs 6），因为 30 行规模下 BRIN 的 page range 元数据反而引入额外读。
+- BRIN 报 **`Heap Blocks: lossy=6`** —— 这是 BRIN 的特征：page range 内可能有不满足条件的行，所以是"lossy"，需要 Recheck Cond 在 heap 上验证。B-tree 报的是 `exact=6`，索引精确定位到行。
+- Buffers 略多（11 vs 7），因为 39 行规模下 BRIN 的 page range 元数据反而引入额外读。
 
 ### 3.4 索引大小对比
 
@@ -292,7 +298,7 @@ SELECT indexname,
 | `idx_audit_target_time` | 16 kB | btree |
 | `idx_audit_workspace_time` | 16 kB | btree |
 
-> **诚实披露**：在 30 行规模下 BRIN 实际**比 B-tree 还大**——因为 BRIN 有元页 + range descriptor 的固定开销，B-tree 30 行也只有 1 个叶子页（最小 16 kB）。
+> **诚实披露**：在 39 行规模下 BRIN 实际**比 B-tree 还大**——因为 BRIN 有元页 + range descriptor 的固定开销，B-tree 39 行也只有 1 个叶子页（最小 16 kB）。
 >
 > **BRIN 的优势在哪儿出现**：当 `audit_log` 行数到 100 万级别时：
 > - B-tree 索引大小 ≈ 几十 MB（与行数线性相关）
@@ -322,32 +328,34 @@ SELECT page_id, page_slug, memory_id, chunk_id, doc_id, source_title, start_line
 ### 4.1 完整 plan
 
 ```
- Limit  (cost=10.32..15.60 rows=15 width=115)
- ->  Hash Left Join  Hash Cond: (sc.doc_id = sd.doc_id)
-       Filter: ((sd.doc_id IS NULL) OR (sd.status = 'active'))
-       ->  Hash Left Join  Hash Cond: (me.chunk_id = sc.chunk_id)
-             ->  Nested Loop Left Join  (3 loops, 6 rows total)
-                   ->  Seq Scan on wiki_page wp     Filter: status='active' AND workspace=...
-                   ->  Hash Right Join              Hash Cond: (me.memory_id = mi.memory_id)
-                         ->  Seq Scan on memory_evidence me
-                         ->  Hash  ->  Hash Right Join  Hash Cond: (mi.memory_id = page_memory.memory_id)
-                               ->  Seq Scan on memory_item mi
-                               ->  Hash  ->  Subquery Scan on page_memory
-                                     ->  HashAggregate  Group Key: memory_id, cell_role, sort_order
-                                           ->  Append
-                                               ->  Result   One-Time Filter: ...
-                                                   InitPlan 1
-                                                     ->  Seq Scan on memory_scene_cell direct_scene_cell
-                                               ->  Seq Scan on memory_scene_cell msc
-             ->  Hash  ->  Seq Scan on source_chunk sc
-       ->  Hash  ->  Seq Scan on source_document sd
- Execution Time: 0.652 ms
+ Limit  (cost=18.39..40.01 rows=1 width=1068) (actual time=0.160..0.286 rows=6 loops=1)
+   Buffers: shared hit=55
+   ->  Nested Loop Left Join
+         Filter: ((sd.doc_id IS NULL) OR ((sd.status)::text = 'active'::text))
+         ->  Nested Loop Left Join
+               ->  Index Scan using idx_wiki_page_workspace_status on wiki_page wp
+                     Index Cond: (workspace_id = ... AND status = 'active')
+               ->  Hash Right Join  Hash Cond: (mi.memory_id = page_memory.memory_id)
+                     ->  Seq Scan on memory_item mi
+                     ->  Hash  ->  Subquery Scan on page_memory
+                           ->  HashAggregate
+                                 ->  Append
+                                       ->  Result  One-Time Filter: ...
+                                             InitPlan 1
+                                               ->  Index Only Scan using memory_scene_cell_pkey
+                                       ->  Bitmap Heap Scan on memory_scene_cell msc
+                                             ->  Bitmap Index Scan on idx_memory_scene_cell_order
+         ->  Nested Loop Left Join
+               ->  Index Only Scan using memory_evidence_memory_id_chunk_id_evidence_role_key on memory_evidence me
+               ->  Index Scan using source_chunk_pkey on source_chunk sc
+               ->  Index Scan using source_document_pkey on source_document sd
+ Execution Time: 0.492 ms
 ```
 
 **关键观察**：
 - 整棵树有 **6 个 join 节点**（5 个 LEFT JOIN + 1 个 LATERAL），是项目最复杂的查询之一。
-- LATERAL 子查询里用 `Append + Result + Seq Scan` 把"直接关联 memory（generated_from_memory_id）"与"通过 scene_cell 间接关联 memory"两种来源合并去重。
-- 小数据下到处是 Seq Scan，但每个 Seq Scan 后的 Filter 都对应一个有效索引（如 `idx_wiki_page_workspace_status`、`idx_memory_scene_cell_memory`、`idx_memory_scene_cell_order`、`idx_memory_evidence_chunk`）。大数据下计划会切换为对应的 Bitmap Index Scan + Hash Join，整体复杂度 $O(N \log N)$。
+- LATERAL 子查询里用 `Append + Result + Bitmap Heap Scan` 把"直接关联 memory（generated_from_memory_id）"与"通过 scene_cell 间接关联 memory"两种来源合并去重。
+- 当前 demo DB 已经点亮 `idx_wiki_page_workspace_status`、`memory_scene_cell_pkey`、`idx_memory_scene_cell_order`、`memory_evidence_memory_id_chunk_id_evidence_role_key`、`source_chunk_pkey` 和 `source_document_pkey`。这说明视图虽然封装了复杂 join，planner 仍能把过滤和连接下推到具体索引。
 
 > **教学要点**：这个查询展示了**视图作为复杂 join 抽象**的价值——业务代码只需要 `SELECT ... FROM v_wiki_page_sources WHERE workspace_id = ?`，视图把 6 个表的 join + 去重逻辑全部封装。对应课程上"视图作为派生关系 / 关系代数表达"的概念。同时也是 §5.1 提到的 `v_provenance_lineage` 递归 CTE 视图（Tier 2 #11）的语义前身——后者要在此基础上把"固定 5 跳"扩展为"任意深度递归"。
 
@@ -360,15 +368,20 @@ SELECT page_id, page_slug, memory_id, chunk_id, doc_id, source_title, start_line
 | 索引 | 案例 | 类别 |
 |---|---|---|
 | `idx_memory_active_ranking` | 案例 1（covering） | Partial + Composite DESC + Covering (INCLUDE) |
-| `memory_item_pkey` | 案例 2（Nested Loop 内层） | B+ tree PK |
-| `memory_item_memory_id_workspace_id_key` | 案例 1B（fallback） | B+ tree 唯一复合 |
-| `idx_memory_created_at` | 案例 1B（fallback） | B+ tree 复合 |
+| `memory_item_memory_id_workspace_id_key` | 案例 2（Nested Loop 内层） | B+ tree 唯一复合 |
+| `idx_memory_workspace_status_validity` | 案例 1B（fallback） | B+ tree 复合 |
 | `idx_source_chunk_fts` | 案例 2（大数据切换） | GIN tsvector |
 | `idx_source_chunk_text_trgm` | 案例 2（OR 分支大数据切换） | GIN trigram |
 | `idx_audit_target_time` | 案例 3.2 | B+ tree 复合（trailing time） |
 | `idx_audit_brin_time` | 案例 3.3 | **BRIN** |
+| `idx_wiki_page_workspace_status` | 案例 4 | B+ tree 复合 |
+| `memory_scene_cell_pkey` | 案例 4 | B+ tree PK |
+| `idx_memory_scene_cell_order` | 案例 4 | B+ tree 复合排序 |
+| `memory_evidence_memory_id_chunk_id_evidence_role_key` | 案例 4 | B+ tree 唯一复合 |
+| `source_chunk_pkey` | 案例 4 | B+ tree PK |
+| `source_document_pkey` | 案例 4 | B+ tree PK |
 
-> 计 7 个不同索引、覆盖 **7 种索引类别**（PK / 唯一复合 / 复合带 DESC / GIN tsvector / GIN trigram / BRIN / Covering）。完整 8 类索引清单见 `docs/index-rationale.md` §1。
+> 计 13 个不同索引、覆盖 **7 种索引类别**（PK / 唯一复合 / 复合带 DESC / GIN tsvector / GIN trigram / BRIN / Covering）。完整 9 类索引清单见 `docs/index-rationale.md` §1。
 
 ## 复现命令汇总
 

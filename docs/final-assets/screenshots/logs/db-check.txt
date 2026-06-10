@@ -1,0 +1,102 @@
+$ npm run db:check
+cwd: /Users/jflin/Workspace/Code/CS3321-MemoryBase
+exit_code: 0
+
+> memorybase-workspace@0.1.0 db:check
+> python scripts/db_cli.py check
+
+                  List of relations
+ Schema |          Name          | Type  |   Owner    
+--------+------------------------+-------+------------
+ public | access_policy          | table | memorybase
+ public | agent                  | table | memorybase
+ public | agent_session          | table | memorybase
+ public | audit_log              | table | memorybase
+ public | conflict_record        | table | memorybase
+ public | entity                 | table | memorybase
+ public | forget_request         | table | memorybase
+ public | memory_embedding       | table | memorybase
+ public | memory_entity          | table | memorybase
+ public | memory_evidence        | table | memorybase
+ public | memory_item            | table | memorybase
+ public | memory_revision        | table | memorybase
+ public | memory_scene           | table | memorybase
+ public | memory_scene_cell      | table | memorybase
+ public | message                | table | memorybase
+ public | recall_log             | table | memorybase
+ public | source_chunk           | table | memorybase
+ public | source_chunk_embedding | table | memorybase
+ public | source_document        | table | memorybase
+ public | timeline_entry         | table | memorybase
+ public | user_account           | table | memorybase
+ public | wiki_page              | table | memorybase
+ public | wiki_page_revision     | table | memorybase
+ public | workspace              | table | memorybase
+ public | workspace_member       | table | memorybase
+(25 rows)
+
+             workspace_id             |               name                | scope_type 
+--------------------------------------+-----------------------------------+------------
+ 00000000-0000-0000-0000-000000000201 | MemoryBase Course Demo            | project
+ 00000000-0000-0000-0000-000000002201 | Graph Demo: Project Knowledge Map | project
+(2 rows)
+
+              memory_id               |                        summary                         | access_level |   status   
+--------------------------------------+--------------------------------------------------------+--------------+------------
+ 00000000-0000-0000-0000-000000000701 | Reason cafeteria topic was rejected.                   | project      | active
+ 00000000-0000-0000-0000-000000000702 | Reason for choosing MemoryBase.                        | project      | active
+ 00000000-0000-0000-0000-000000000703 | Required demo question.                                | project      | active
+ 00000000-0000-0000-0000-000000000704 | File and database dual state.                          | project      | active
+ 00000000-0000-0000-0000-000000000705 | Core data flow.                                        | project      | active
+ 00000000-0000-0000-0000-000000000706 | Backend API scope.                                     | project      | active
+ 00000000-0000-0000-0000-000000000707 | Database course requirements.                          | project      | active
+ 00000000-0000-0000-0000-000000000708 | Source and chunk responsibilities.                     | project      | active
+ 00000000-0000-0000-0000-000000000709 | Evidence relationship.                                 | project      | active
+ 00000000-0000-0000-0000-000000000710 | Audit and revision responsibility.                     | project      | active
+ 00000000-0000-0000-0000-000000000711 | Recall output shape.                                   | project      | active
+ 00000000-0000-0000-0000-000000000712 | Recall implementation baseline.                        | project      | conflicted
+ 00000000-0000-0000-0000-000000000713 | Private permission rule.                               | private      | active
+ 00000000-0000-0000-0000-000000000714 | RecallLog content.                                     | project      | active
+ 00000000-0000-0000-0000-000000000715 | Wiki export purpose.                                   | project      | active
+ 00000000-0000-0000-0000-000000000716 | Wiki provenance chain.                                 | project      | active
+ 00000000-0000-0000-0000-000000000717 | Timeline value.                                        | team         | active
+ 00000000-0000-0000-0000-000000000718 | Demo checklist.                                        | project      | active
+ 00000000-0000-0000-0000-000000000719 | Demo recall answer.                                    | project      | active
+ 00000000-0000-0000-0000-000000000720 | LLM extraction is future work.                         | project      | conflicted
+ 00000000-0000-0000-0000-000000000731 | Early (wrong) decision: prefer Hash index.             | project      | forgotten
+ 00000000-0000-0000-0000-000000000733 | Final recall design: GIN FTS primary + ILIKE fallback. | project      | active
+ 00000000-0000-0000-0000-000000000732 | Early decision: ILIKE only.                            | project      | archived
+ 00000000-0000-0000-0000-000000000741 | Standup cadence: weekly Monday.                        | project      | active
+ 00000000-0000-0000-0000-000000000742 | Standup cadence: biweekly Mon/Thu (rejected).          | project      | superseded
+ 00000000-0000-0000-0000-000000002701 | Rejected CRUD-heavy topic                              | project      | active
+ 00000000-0000-0000-0000-000000002702 | Selected MemoryBase                                    | project      | active
+ 00000000-0000-0000-0000-000000002703 | PostgreSQL as source of truth                          | project      | active
+ 00000000-0000-0000-0000-000000002704 | Neo4j as graph index                                   | project      | active
+ 00000000-0000-0000-0000-000000002705 | Provenance chain                                       | project      | active
+ 00000000-0000-0000-0000-000000002706 | Agent visibility policy                                | project      | active
+ 00000000-0000-0000-0000-000000002707 | Wiki provenance                                        | project      | active
+(32 rows)
+
+             conflict_id              |  status  | conflict_type 
+--------------------------------------+----------+---------------
+ 00000000-0000-0000-0000-000000001001 | open     | uncertain
+ 00000000-0000-0000-0000-000000001002 | resolved | contradiction
+(2 rows)
+
+           title            | event_type |       event_time       
+----------------------------+------------+------------------------
+ Abandoned cafeteria system | decision   | 2026-03-02 18:30:00+08
+ Selected MemoryBase        | decision   | 2026-03-02 18:40:00+08
+ Locked schema requirements | proposal   | 2026-03-10 18:30:00+08
+ Defined recall shape       | proposal   | 2026-03-15 18:30:00+08
+ Added wiki provenance      | decision   | 2026-03-20 18:30:00+08
+(5 rows)
+
+Using .env.example because .env was not found.
+Using DATABASE_URL=postgresql://memorybase:memorybase@localhost:5432/memorybase_db
+==> Checking core tables
+==> Checking workspace
+==> Checking memory
+==> Checking conflict
+==> Checking timeline
+Database check completed.

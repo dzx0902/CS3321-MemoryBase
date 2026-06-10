@@ -1,0 +1,82 @@
+%% MemoryBase — Core ER (8 lifecycle entities, attribute boxes shown)
+%% Use this diagram in the report introduction (§3 概念结构设计).
+%% Full schema (25 entities) is in 02-er-full.
+
+erDiagram
+    WORKSPACE                ||--o{ SOURCE_DOCUMENT  : "owns"
+    SOURCE_DOCUMENT          ||--o{ SOURCE_CHUNK     : "splits_into"
+    SOURCE_CHUNK             ||--o{ MEMORY_EVIDENCE  : "supports"
+    MEMORY_ITEM              ||--o{ MEMORY_EVIDENCE  : "has"
+    MEMORY_ITEM              ||--o{ MEMORY_REVISION  : "has_versions"
+    WORKSPACE                ||--o{ MEMORY_ITEM      : "owns"
+    WORKSPACE                ||--o{ WIKI_PAGE        : "publishes"
+    MEMORY_ITEM              ||--o{ WIKI_PAGE        : "projects_to"
+    WORKSPACE                ||--o{ AUDIT_LOG        : "audits"
+
+    WORKSPACE {
+        uuid        workspace_id    PK
+        varchar     slug            UK
+        varchar     name
+        text        description
+    }
+    SOURCE_DOCUMENT {
+        uuid        doc_id          PK
+        uuid        workspace_id    FK
+        varchar     title
+        varchar     doc_type
+        varchar     status
+        timestamptz imported_at
+    }
+    SOURCE_CHUNK {
+        uuid        chunk_id        PK
+        uuid        doc_id          FK
+        int         chunk_no
+        text        chunk_text
+        text        search_text_zh
+        tsvector    search_vector
+    }
+    MEMORY_ITEM {
+        uuid        memory_id       PK
+        uuid        workspace_id    FK
+        varchar     memory_type
+        text        canonical_text
+        text        summary
+        numeric     confidence
+        int         importance
+        varchar     status
+        varchar     access_level
+        int         current_revision_no
+    }
+    MEMORY_EVIDENCE {
+        uuid        evidence_id     PK
+        uuid        memory_id       FK
+        uuid        chunk_id        FK
+        varchar     evidence_role
+        numeric     weight
+    }
+    MEMORY_REVISION {
+        uuid        memory_id       FK
+        int         revision_no     PK
+        text        revision_text
+        text        revision_summary
+        timestamptz created_at
+    }
+    WIKI_PAGE {
+        uuid        page_id         PK
+        uuid        workspace_id    FK
+        varchar     page_slug
+        varchar     page_type
+        varchar     status
+        boolean     needs_rebuild
+        int         current_revision_no
+    }
+    AUDIT_LOG {
+        uuid        audit_id        PK
+        uuid        workspace_id    FK
+        varchar     action_type
+        varchar     target_type
+        uuid        target_id
+        jsonb       before_json
+        jsonb       after_json
+        timestamptz created_at
+    }

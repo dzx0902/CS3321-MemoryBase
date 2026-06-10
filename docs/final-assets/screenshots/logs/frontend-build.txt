@@ -1,0 +1,16 @@
+$ npm run build
+cwd: /Users/jflin/Workspace/Code/CS3321-MemoryBase/frontend
+exit_code: 0
+
+> memorybase-frontend@0.1.0 build
+> vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 64 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.72 kB │ gzip:  0.40 kB
+dist/assets/index-CcdpLdfc.css    9.54 kB │ gzip:  2.89 kB
+dist/assets/index-CfwQVtRD.js   292.93 kB │ gzip: 80.69 kB
+✓ built in 630ms

@@ -1,0 +1,61 @@
+$ npm run db:run -- /tmp/memorybase_gap4_focused.sql
+cwd: /Users/jflin/Workspace/Code/CS3321-MemoryBase
+exit_code: 0
+
+
+> memorybase-workspace@0.1.0 db:run
+> python scripts/db_cli.py run /tmp/memorybase_gap4_focused.sql
+
+FOCUSED SQL EVIDENCE: provenance, visibility, governance, recall log
+
+1) Memory provenance: MemoryItem -> SourceChunk -> SourceDocument
+              memory_id               |                                 memory                                 |         source_title         | chunk_no | start_line | end_line 
+--------------------------------------+------------------------------------------------------------------------+------------------------------+----------+------------+----------
+ 00000000-0000-0000-0000-000000000701 | The team abandoned the campus cafeteria system because it was too CRUD | Discussion 01: Project Pivot |        2 |         10 |       10
+ 00000000-0000-0000-0000-000000000719 | The demo answer to the cafeteria question is that the cafeteria system | Discussion 06: Demo Plan     |        2 |          8 |        8
+(2 rows)
+
+
+2) Agent-visible memories exclude private items via v_agent_visible_memory
+              memory_id               | memory_type | access_level |                                 memory                                 
+--------------------------------------+-------------+--------------+------------------------------------------------------------------------
+ 00000000-0000-0000-0000-000000000733 | decision    | project      | Recall combines GIN tsvector full-text search as the primary path with
+ 00000000-0000-0000-0000-000000000716 | semantic    | project      | Wiki statements should trace back to MemoryItem, MemoryEvidence, Sourc
+ 00000000-0000-0000-0000-000000000702 | decision    | project      | MemoryBase was selected because it demonstrates source chunks, evidenc
+ 00000000-0000-0000-0000-000000000701 | decision    | project      | The team abandoned the campus cafeteria system because it was too CRUD
+ 00000000-0000-0000-0000-000000000718 | task        | project      | The five to eight minute demo should show source import, chunk line nu
+ 00000000-0000-0000-0000-000000000707 | semantic    | project      | The schema must demonstrate primary keys, foreign keys, unique constra
+ 00000000-0000-0000-0000-000000000705 | procedural  | project      | The core data flow is SourceDocument to SourceChunk to MemoryItem to M
+ 00000000-0000-0000-0000-000000000709 | semantic    | project      | MemoryEvidence is the many-to-many bridge between MemoryItem and Sourc
+(8 rows)
+
+
+3) Governance lifecycle: forgotten / archived / superseded memories
+              memory_id               |   status   |                    summary                    |       superseded_by_memory_id        
+--------------------------------------+------------+-----------------------------------------------+--------------------------------------
+ 00000000-0000-0000-0000-000000000732 | archived   | Early decision: ILIKE only.                   | 00000000-0000-0000-0000-000000000733
+ 00000000-0000-0000-0000-000000000731 | forgotten  | Early (wrong) decision: prefer Hash index.    | 
+ 00000000-0000-0000-0000-000000000742 | superseded | Standup cadence: biweekly Mon/Thu (rejected). | 00000000-0000-0000-0000-000000000741
+(3 rows)
+
+
+4) Conflict records: open + resolved
+             conflict_id              | conflict_type |  status  |                                 resolution_note                                  
+--------------------------------------+---------------+----------+----------------------------------------------------------------------------------
+ 00000000-0000-0000-0000-000000001001 | uncertain     | open     | Clarify whether LLM extraction belongs to MVP or future scope.
+ 00000000-0000-0000-0000-000000001002 | contradiction | resolved | Resolution by carol: weekly Monday cadence wins per team vote 4-1. Memory 0742 k
+(2 rows)
+
+
+5) Recall log records query, filters, and top memory IDs
+                   query_text                   | result_count |                                                            filters                                                            |                                                                       top_memory_ids_json                                                                        
+------------------------------------------------+--------------+-------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 为什么放弃校园食堂系统？                       |            4 | {"as_of": null, "status": "active", "agent_id": null, "memory_type": null, "access_level": null, "retrieval_mode": "keyword"} | ["00000000-0000-0000-0000-000000000719", "00000000-0000-0000-0000-000000000701", "00000000-0000-0000-0000-000000000703", "00000000-0000-0000-0000-000000000704"]
+ 为什么放弃校园食堂系统？                       |            4 | {"as_of": null, "status": "active", "agent_id": null, "memory_type": null, "access_level": null, "retrieval_mode": "keyword"} | ["00000000-0000-0000-0000-000000000719", "00000000-0000-0000-0000-000000000701", "00000000-0000-0000-0000-000000000703", "00000000-0000-0000-0000-000000000704"]
+ why did we abandon the campus cafeteria system |            3 |                                                                                                                               | ["00000000-0000-0000-0000-000000000701", "00000000-0000-0000-0000-000000000719", "00000000-0000-0000-0000-000000000702"]
+(3 rows)
+
+Using .env.example because .env was not found.
+Using DATABASE_URL=postgresql://memorybase:memorybase@localhost:5432/memorybase_db
+==> Running /tmp/memorybase_gap4_focused.sql
+SQL file completed: /tmp/memorybase_gap4_focused.sql

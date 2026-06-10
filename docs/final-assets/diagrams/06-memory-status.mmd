@@ -1,0 +1,28 @@
+%% MemoryBase — memory_item.status state machine
+%% Optional appendix diagram showing the 7-state lifecycle enforced by
+%% the CHECK constraint in database/02_schema_memory.sql and trigger-driven
+%% transitions in database/06_triggers.sql.
+%% Labels stay short; service paths are explained in the report text.
+
+stateDiagram-v2
+    direction LR
+
+    [*] --> candidate : rule-based extraction
+    [*] --> active    : manual creation
+
+    candidate --> active    : approve
+    candidate --> rejected  : reject
+
+    active     --> conflicted : conflict detected
+    conflicted --> active     : resolved (both_valid)
+    conflicted --> superseded : manual merge
+
+    active     --> superseded : newer memory replaces
+    active     --> archived   : soft delete
+    active     --> forgotten  : forget approved
+
+    archived   --> forgotten  : escalated forget
+
+    rejected   --> [*]
+    forgotten  --> [*]
+    superseded --> [*]

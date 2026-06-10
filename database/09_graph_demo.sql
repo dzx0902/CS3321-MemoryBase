@@ -1,6 +1,8 @@
 -- Optional curated graph demo seed.
 -- Run after 07_seed.sql when you want a cleaner graph visualization example.
 
+-- Remove the optional graph workspace before re-inserting fixed IDs. This keeps
+-- the file re-runnable without touching the main cs3321-demo workspace.
 DELETE FROM workspace WHERE workspace_id = '00000000-0000-0000-0000-000000002201';
 DELETE FROM user_account
 WHERE user_id IN (
@@ -8,6 +10,8 @@ WHERE user_id IN (
   '00000000-0000-0000-0000-000000002102'
 );
 
+-- Graph demo uses a separate workspace so screenshots can show a small clean
+-- provenance graph instead of the denser main course seed.
 INSERT INTO user_account(user_id, username, display_name, email, role_hint)
 VALUES
   ('00000000-0000-0000-0000-000000002101', 'graph-alice', 'Graph Demo Alice', 'graph-alice@example.com', 'admin'),
@@ -39,6 +43,8 @@ VALUES
   ('00000000-0000-0000-0000-000000002201', 'user', '00000000-0000-0000-0000-000000002102', 'editor'),
   ('00000000-0000-0000-0000-000000002201', 'agent', '00000000-0000-0000-0000-000000002301', 'agent');
 
+-- Three source documents form the graph story: topic pivot, architecture split,
+-- and governance. The downstream chunks/memories/entities mirror these themes.
 INSERT INTO source_document(
   doc_id, workspace_id, doc_type, title, source_path, raw_text, checksum, imported_by_user_id, imported_at
 )
@@ -77,6 +83,8 @@ VALUES
     '2026-04-05 09:00:00+00'
   );
 
+-- Chunks are deliberately short so Graph Explorer node tooltips and evidence
+-- edges remain readable in screenshots.
 INSERT INTO source_chunk(chunk_id, doc_id, chunk_no, chunk_text, start_line, end_line, token_count)
 VALUES
   ('00000000-0000-0000-0000-000000002601', '00000000-0000-0000-0000-000000002501', 1, 'The team rejected the cafeteria ordering topic because it mostly demonstrated CRUD.', 4, 4, 12),
@@ -92,6 +100,8 @@ SELECT set_config('app.actor_type', 'system', false);
 SELECT set_config('app.actor_id', '', false);
 SELECT set_config('app.revision_reason', 'graph demo seed', false);
 
+-- Memory inserts go through the normal trigger path, creating revision/audit
+-- records while also providing the Memory nodes used by the graph preview.
 INSERT INTO memory_item(
   memory_id, workspace_id, created_from_doc_id, memory_type, canonical_text, summary,
   confidence, importance, status, access_level, owner_user_id, valid_from
@@ -105,6 +115,7 @@ VALUES
   ('00000000-0000-0000-0000-000000002706', '00000000-0000-0000-0000-000000002201', '00000000-0000-0000-0000-000000002503', 'semantic', 'Access policies decide which memories an agent can see.', 'Agent visibility policy', 0.910, 4, 'active', 'project', '00000000-0000-0000-0000-000000002102', '2026-04-05 09:10:00+00'),
   ('00000000-0000-0000-0000-000000002707', '00000000-0000-0000-0000-000000002201', '00000000-0000-0000-0000-000000002503', 'semantic', 'Wiki provenance lets readers trace generated pages back to memories and evidence.', 'Wiki provenance', 0.930, 5, 'active', 'project', '00000000-0000-0000-0000-000000002101', '2026-04-05 09:12:00+00');
 
+-- Evidence creates SUPPORTED_BY edges in graph_service.py.
 INSERT INTO memory_evidence(memory_id, chunk_id, evidence_role, weight, note)
 VALUES
   ('00000000-0000-0000-0000-000000002701', '00000000-0000-0000-0000-000000002601', 'supports', 1.000, 'Topic rejection reason.'),
@@ -116,6 +127,8 @@ VALUES
   ('00000000-0000-0000-0000-000000002706', '00000000-0000-0000-0000-000000002607', 'supports', 1.000, 'Policy visibility note.'),
   ('00000000-0000-0000-0000-000000002707', '00000000-0000-0000-0000-000000002608', 'supports', 1.000, 'Traceability note.');
 
+-- Entities and memory_entity rows create MENTIONS edges, making the graph more
+-- informative than a source->chunk->memory chain alone.
 INSERT INTO entity(entity_id, workspace_id, canonical_name, entity_type, description)
 VALUES
   ('00000000-0000-0000-0000-000000002801', '00000000-0000-0000-0000-000000002201', 'Cafeteria Ordering System', 'project', 'Rejected CRUD-heavy project idea.'),
@@ -132,6 +145,8 @@ VALUES
   ('00000000-0000-0000-0000-000000002704', '00000000-0000-0000-0000-000000002804', '00000000-0000-0000-0000-000000002201', 'about'),
   ('00000000-0000-0000-0000-000000002707', '00000000-0000-0000-0000-000000002805', '00000000-0000-0000-0000-000000002201', 'about');
 
+-- Scenes group memories into story units. Graph Explorer uses them to show that
+-- MemoryBase can organize memories into narrative views, not just flat search hits.
 INSERT INTO memory_scene(scene_id, workspace_id, scene_slug, title, summary)
 VALUES
   ('00000000-0000-0000-0000-000000002901', '00000000-0000-0000-0000-000000002201', 'topic-pivot', 'Topic Pivot', 'Why the project moved from cafeteria ordering to MemoryBase.'),
@@ -148,6 +163,8 @@ VALUES
   ('00000000-0000-0000-0000-000000002903', '00000000-0000-0000-0000-000000002706', '00000000-0000-0000-0000-000000002201', 'support', 10, 'Agent visibility.'),
   ('00000000-0000-0000-0000-000000002903', '00000000-0000-0000-0000-000000002707', '00000000-0000-0000-0000-000000002201', 'outcome', 20, 'Trustworthy wiki output.');
 
+-- Wiki pages are derived from scenes/memories, producing DERIVED_FROM edges in
+-- the workspace graph and demonstrating readable projections of database memory.
 INSERT INTO wiki_page(page_id, workspace_id, page_slug, page_type, title, generated_from_scene_id, generated_from_memory_id, needs_rebuild)
 VALUES
   ('00000000-0000-0000-0000-000000003301', '00000000-0000-0000-0000-000000002201', 'project-pivot-story', 'synthesis', 'Project Pivot Story', '00000000-0000-0000-0000-000000002901', '00000000-0000-0000-0000-000000002702', false),

@@ -77,6 +77,8 @@ class PolicyNotFoundError(Exception):
 
 
 class GovernanceRepository(Protocol):
+    # Governance is grouped behind one repository because policy, audit, conflict,
+    # forget requests, and timeline all read/write the same lifecycle tables.
     def create_policy(self, payload: PolicyCreateRequest) -> PolicyResponse:
         ...
 
@@ -735,6 +737,8 @@ class PostgresGovernanceRepository:
 
         with self._database.connection() as conn:
             with conn.cursor() as cur:
+                # Lifecycle view is built at query time from audit, revisions,
+                # conflict records, and forget requests so no duplicate log table is needed.
                 cur.execute(
                     """
                     SELECT ts, kind, payload

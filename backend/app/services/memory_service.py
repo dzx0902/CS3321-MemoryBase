@@ -21,6 +21,8 @@ from ..models.memory import (
 from .chunking import _estimate_token_count
 from .tokenizer import build_search_text
 
+# Lifecycle rules live in service code while database triggers record revisions
+# and audit rows. This split keeps invalid transitions out before SQL executes.
 ALLOWED_STATUS_TRANSITIONS = {
     "candidate": {"active", "rejected"},
     "active": {"superseded", "archived", "conflicted", "forgotten"},
@@ -218,6 +220,8 @@ class PostgresMemoryRepository:
         evidence_items = list(payload.evidence)
         created_from_doc_id = payload.created_from_doc_id
         if not evidence_items and actor.actor_type == "agent":
+            # Agent-created memories still receive provenance: an inline source
+            # document/chunk is created so memory_evidence is never empty.
             inline_evidence = self._create_inline_evidence_chunk(cur, payload, actor)
             evidence_items = [
                 MemoryEvidenceInput(

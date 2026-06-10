@@ -423,7 +423,9 @@ Still operator- or model-dependent:
 
 ```text
 - embedding similarity scoring
-- official LongMemEval / LoCoMo / MemoryAgentBench full-format validation
+- official LongMemEval S/M full benchmark execution
+- LoCoMo event-summarization task integration
+- MemoryAgentBench non-conflict task validation
 - independent LLM-as-judge
 - semantic groundedness beyond citation validation
 - hallucination rate

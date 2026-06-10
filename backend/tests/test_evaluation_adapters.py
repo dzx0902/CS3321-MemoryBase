@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pyarrow as pa
-import pyarrow.parquet as pq
 import pytest
 
 from evaluation.adapters import locomo_adapter, longmemeval_adapter, memoryagentbench_adapter
@@ -254,10 +252,12 @@ def test_memoryagentbench_adapter_marks_conflict_behavior(tmp_path: Path) -> Non
 def test_memoryagentbench_adapter_converts_official_conflict_parquet(
     tmp_path: Path,
 ) -> None:
+    pyarrow = pytest.importorskip("pyarrow")
+    parquet = pytest.importorskip("pyarrow.parquet")
     raw_dir = tmp_path / "raw"
     processed_dir = tmp_path / "processed"
     raw_dir.mkdir()
-    table = pa.Table.from_pylist(
+    table = pyarrow.Table.from_pylist(
         [
             {
                 "context": (
@@ -274,7 +274,7 @@ def test_memoryagentbench_adapter_converts_official_conflict_parquet(
             }
         ]
     )
-    pq.write_table(table, raw_dir / "Conflict_Resolution.parquet")
+    parquet.write_table(table, raw_dir / "Conflict_Resolution.parquet")
 
     output = memoryagentbench_adapter.convert(raw_dir, processed_dir)
 

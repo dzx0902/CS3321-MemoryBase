@@ -7,6 +7,8 @@ DROP VIEW IF EXISTS v_memory_recall_statistics;
 DROP VIEW IF EXISTS v_memory_statistics;
 DROP VIEW IF EXISTS v_active_memory;
 
+-- Active, currently valid memories. This view is the safe default for recall,
+-- wiki composition, and dashboard lists.
 CREATE OR REPLACE VIEW v_active_memory AS
 SELECT
   memory_id,
@@ -32,6 +34,8 @@ WHERE status = 'active'
   AND valid_from <= now()
   AND (valid_to IS NULL OR valid_to > now());
 
+-- Provenance join from memory to evidence chunk and source document. It powers
+-- Memory Inspector, SQL demos, and report screenshots.
 CREATE OR REPLACE VIEW v_memory_with_source AS
 SELECT
   mi.memory_id,
@@ -67,6 +71,7 @@ JOIN source_chunk sc ON sc.chunk_id = me.chunk_id
 JOIN source_document sd ON sd.doc_id = sc.doc_id
 WHERE sd.status = 'active';
 
+-- Timeline entries enriched with optional memory/source context for project-history views.
 CREATE OR REPLACE VIEW v_project_timeline AS
 SELECT
   te.workspace_id,
@@ -88,6 +93,8 @@ FROM timeline_entry te
 LEFT JOIN memory_item mi ON mi.memory_id = te.memory_id
 LEFT JOIN source_document sd ON sd.doc_id = te.doc_id;
 
+-- Wiki provenance chain. It supports both direct generated_from_memory_id pages
+-- and scene-generated pages through a LATERAL union.
 CREATE OR REPLACE VIEW v_wiki_page_sources AS
 SELECT
   wp.workspace_id,
@@ -152,6 +159,7 @@ LEFT JOIN source_document sd ON sd.doc_id = sc.doc_id
 WHERE wp.status = 'active'
   AND (sd.doc_id IS NULL OR sd.status = 'active');
 
+-- Aggregated memory counts and averages for dashboard/report tables.
 CREATE OR REPLACE VIEW v_memory_statistics AS
 SELECT
   workspace_id,
@@ -164,6 +172,8 @@ SELECT
 FROM memory_item
 GROUP BY workspace_id, memory_type, status, access_level;
 
+-- Reverse lookup from recall_log snapshots to per-memory recall frequency.
+-- The JSON array is intentionally a historical snapshot, not a live join table.
 CREATE OR REPLACE VIEW v_memory_recall_statistics AS
 SELECT
   rl.workspace_id,
@@ -176,6 +186,8 @@ JOIN memory_item mi ON mi.memory_id = memory_ids.memory_id_text::uuid
 WHERE mi.workspace_id = rl.workspace_id
 GROUP BY rl.workspace_id, memory_ids.memory_id_text;
 
+-- Per-agent visibility materialization. Callers must still filter by agent_id;
+-- the view itself expands all active agent/memory pairs that pass AccessPolicy.
 CREATE OR REPLACE VIEW v_agent_visible_memory AS
 SELECT
   a.agent_id,
@@ -229,6 +241,7 @@ WHERE mi.status = 'active'
     )
   );
 
+-- Conflict records with both endpoint memories expanded for UI and SQL demos.
 CREATE OR REPLACE VIEW v_conflict_memory AS
 SELECT
   cr.conflict_id,

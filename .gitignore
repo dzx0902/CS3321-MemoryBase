@@ -3,6 +3,7 @@
 Thumbs.db
 .vscode/
 .idea/
+.claude/
 
 # Python
 __pycache__/
@@ -27,6 +28,7 @@ dist/
 *.log
 logs/
 data/logs/
+!docs/final-assets/screenshots/logs/
 
 # Environment
 .env

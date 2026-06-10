@@ -31,6 +31,8 @@ export default function Recall() {
   }
 
   async function handleSubmit(e) {
+    // Search, context pack, and QA share the same form so the demo can show the
+    // same query moving from raw recall to agent-ready context to optional answer.
     e.preventDefault();
     if (!form.query_text.trim()) {
       toast.error('Please enter a query');
