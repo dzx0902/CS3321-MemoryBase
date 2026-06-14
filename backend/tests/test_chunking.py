@@ -9,7 +9,7 @@ def test_build_chunks_uses_short_lines_as_reviewable_chunks() -> None:
             [
                 "We decided to abandon the campus cafeteria system because it was too CRUD-heavy.",
                 "MemoryBase should use PostgreSQL as the source of truth.",
-                "Private budget notes must stay hidden from project-only retriever agents unless explicitly allowed.",
+                "Private budget notes must stay hidden from project-only retriever agents.",
             ]
         )
     )
