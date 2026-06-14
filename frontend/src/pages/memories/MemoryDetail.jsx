@@ -88,6 +88,10 @@ export default function MemoryDetail() {
           <div className="detail-item__value">{memory.importance ?? '—'}</div>
         </div>
         <div className="detail-item">
+          <div className="detail-item__label">Confidence</div>
+          <div className="detail-item__value">{memory.confidence != null ? Number(memory.confidence).toFixed(2) : '—'}</div>
+        </div>
+        <div className="detail-item">
           <div className="detail-item__label">Workspace</div>
           <div className="detail-item__value text-mono">{memory.workspace_id || '—'}</div>
         </div>

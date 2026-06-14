@@ -63,6 +63,14 @@ export const sourcesApi = {
   detail: (docId, params) => request(`/sources/${docId}${qs(params)}`),
 };
 
+// ===== Memory Extraction =====
+export const memoryExtractionApi = {
+  extractFromChunks: (body) => request('/memory-extraction/from-chunks', { method: 'POST', body }),
+  candidates: (params) => request(`/memory-candidates${qs(params)}`),
+  approve: (memoryId, params) => request(`/memory-candidates/${memoryId}/approve${qs(params)}`, { method: 'POST' }),
+  reject: (memoryId, params) => request(`/memory-candidates/${memoryId}/reject${qs(params)}`, { method: 'POST' }),
+};
+
 // ===== Memories =====
 export const memoriesApi = {
   list: (params) => request(`/memories${qs(params)}`),
