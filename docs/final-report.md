@@ -1,16 +1,15 @@
 # MemoryBase：面向组织与团队的 AI-native 可追溯长期记忆数据库系统设计与实现
 
-> Gap 1 final-report integration draft.
-> Source baseline: local branch `jflin`, HEAD `dfa7adf` (`merge: integrate latest benchmark evaluation work from dev`).
-> 本文是可直接排版为课程最终报告的主体草稿；截图、完整 SQL、源码摘录和过程审计材料仍以仓库中的对应文件为准。
+**课程**：CS3321 数据库技术
+**小组成员**：林纪帆、杜卓轩、李昭成、王星睿
 
 ## 摘要
 
-AI Agent 和团队协作系统会持续产生会议纪要、讨论记录、项目文档、决策、偏好和变更日志。若这些长期知识只保存在聊天历史或 Markdown 文件中，后续很难进行结构化查询、来源追溯、权限过滤、版本审计和选择性遗忘。MemoryBase 以 PostgreSQL 为事实源，把组织级长期记忆建模为一套可查询、可追溯、可治理、可被人和 Agent 共同使用的数据库系统。
+AI Agent 和团队协作系统会持续产生会议纪要、讨论记录、项目文档、决策、偏好等多种多样的日志文档。这些长期知识通常只保存在聊天历史或 Markdown 文件中，这导致后续很难进行结构化查询、来源追溯、权限过滤、版本审计以及选择性遗忘。面对以上困境，MemoryBase 尝试以 PostgreSQL 为事实源，把长期记忆建模为一套可查询、可追溯、可治理、可被人和 Agent 共同使用的数据库系统。
 
-系统采用“文件—数据库双态”架构：文件侧保留 Markdown / txt source 和可导出的 Markdown Wiki，服务人类阅读、迁移和审阅；数据库侧用 `source_document`、`source_chunk`、`memory_item`、`memory_evidence`、`memory_revision`、`audit_log`、`access_policy`、`wiki_page` 等关系表管理记忆生命周期。系统已实现 source 导入、chunk 切分、memory 创建与候选抽取、evidence 追溯、revision/audit 自动记录、全文检索、agent-aware visibility、冲突/遗忘治理、Wiki 投影、Graph Explorer、CLI/Agent Runtime、hybrid recall fallback 和 evaluation framework。
+具体来说，我们的系统采用“文件—数据库双态”架构：文件侧保留 Markdown / txt source 和可导出的 Markdown Wiki，以服务人类阅读、迁移和审阅；数据库侧则使用 `source_document`、`source_chunk`、`memory_item`、`memory_evidence`、`memory_revision`、`audit_log`、`access_policy`、`wiki_page` 等关系表管理记忆生命周期，以针对具体功能。系统已实现 source 导入、chunk 切分、memory 创建与候选抽取、evidence 追溯、revision/audit 自动记录、全文检索、agent-aware visibility、冲突/遗忘治理、Wiki 投影、Graph Explorer、CLI/Agent Runtime、hybrid recall fallback 和 evaluation framework等多种功能。
 
-从数据库课程角度，项目重点不在于做一个普通聊天助手，而在于完整展示概念结构设计、E-R 图、关系模式转换、范式分析、物理结构设计、索引、视图、触发器、完整性约束、SQL 查询、EXPLAIN 证据和带注释源程序。LongMemEval 500-case 工程评测显示当前系统在 semantic judge 下通过率为 58.4%，说明它具备长期记忆任务验证能力；同时 multi-session reasoning 和 preference following 仍是后续优化重点。因此，evaluation 在本项目中定位为验证层和限制分析，而不是替代数据库设计主线。
+我们的项目展示了完整的概念结构设计、E-R 图、关系模式转换、范式分析、物理结构设计、索引、视图、触发器、完整性约束、SQL 查询、EXPLAIN 证据，并提供带注释源程序。LongMemEval 500-case 工程评测显示当前系统在 semantic judge 下通过率为 58.4%，说明我们的系统具备长期记忆任务验证能力；当然，我们的系统也仍有值得提升之处： multi-session reasoning 和 preference following 仍是后续优化重点。
 
 **关键词**：长期记忆数据库；PostgreSQL；Provenance；Governance；Agent Visibility；Audit Log；Hybrid Recall；Graph Explorer；Evaluation
 
@@ -18,7 +17,7 @@ AI Agent 和团队协作系统会持续产生会议纪要、讨论记录、项�
 
 ### 1.1 项目定位
 
-MemoryBase 是一个面向组织与团队的 AI-native 可追溯长期记忆数据库系统。它不是从零实现 DBMS，也不是普通 RAG 问答应用，而是选择数据库应用系统方向：使用成熟关系数据库作为底座，重点设计和实现长期记忆的关系模型、完整性约束、检索路径、权限治理、审计和人机协作入口。
+MemoryBase 是一个面向组织与团队的 AI-native 可追溯长期记忆数据库系统。它不是从零实现 DBMS，也不是普通 RAG 问答应用，而是数据库应用系统：以成熟关系数据库作为底座，专注于设计和实现长期记忆的关系模型、完整性约束、检索路径、权限治理、审计和人机协作入口。
 
 系统的一句话介绍是：
 
@@ -52,9 +51,9 @@ SourceDocument
 
 这条链路体现了项目的主线：长期记忆不是孤立文本，而是带来源、版本、权限、审计和表达投影的数据库对象。
 
-### 1.3 已交付能力
+### 1.3 已实现功能
 
-P0 核心能力不依赖外部 LLM，也不依赖向量数据库：
+核心能力（不依赖外部 LLM，也不依赖向量数据库）：
 
 - 导入 Markdown / txt source；
 - 自动切分 source chunk；
@@ -65,12 +64,12 @@ P0 核心能力不依赖外部 LLM，也不依赖向量数据库：
 - Markdown Wiki 导出；
 - 前端基础页面和 SQL 演示数据。
 
-P1 / 扩展能力包括：
+扩展能力包括：
 
 - agent-aware visibility 和 policy 过滤；
 - ConflictRecord 冲突治理；
 - ForgetRequest 遗忘/归档审批；
-- rule-based candidate memory extraction；
+- rule-based + optional LLM candidate memory extraction；
 - local hashing embedding cache 与 hybrid recall fallback；
 - Graph Explorer（PostgreSQL preview + 可选 Neo4j sync）；
 - CLI / Agent Runtime sessions、observe、remember、search、recall；
@@ -78,7 +77,7 @@ P1 / 扩展能力包括：
 
 ### 1.4 报告材料入口
 
-本报告正文整合以下已完成材料：
+如果想对本项目有更全面了解，可以参考以下报告：
 
 | 材料 | 用途 |
 |---|---|
@@ -104,7 +103,7 @@ Retrieval-Augmented Generation（RAG）通过“文档切分、embedding、向�
 
 但普通 RAG 更关注 chunk 检索和回答效果，较少把 chunk、memory、evidence、revision、audit、policy、wiki projection 建模为有完整生命周期的业务对象。它能返回相关片段，却不一定能回答：这条 memory 来自哪份 source？谁修改过？Agent 是否有权限看？source 被遗忘后是否还会被召回？一次 hybrid recall 为什么降级到 keyword？
 
-MemoryBase 保留 RAG 的检索思想，但以 PostgreSQL 关系模型为核心：source、chunk、memory、evidence、recall log 和 audit 都是可查询对象；embedding cache 只是可选增强，不是唯一事实源。
+MemoryBase 保留 RAG 的检索思想，但以 PostgreSQL 关系模型为核心：source、chunk、memory、evidence、recall log 和 audit 都是可查询对象；而embedding cache 只是可选增强，不是唯一事实源。
 
 ### 2.2 Agent 长期记忆系统
 
@@ -114,15 +113,15 @@ MemGPT / Letta、Mem0、MemoryBank、LongMem、Generative Agents 等系统说明
 
 ### 2.3 产品化记忆和企业知识库
 
-ChatGPT Memory 代表消费者产品中的记忆能力，用户可以管理 saved memories 和 reference chat history；Confluence AI / Atlassian Rovo 与 Notion AI Enterprise Search 代表企业知识管理中的 AI search、chat、agents 和 workspace automation；Obsidian / Logseq 代表本地文件型知识库。
+ChatGPT Memory 代表消费者产品中的记忆能力，用户可以管理 saved memories 和 reference chat history；Confluence AI / Atlassian Rovo 与 Notion AI Enterprise Search 代表企业知识管理中的 AI search、chat、agents 和 workspace automation；Obsidian / Logseq 则代表本地文件型知识库。
 
-这些产品说明长期记忆和知识管理是实际需求，但它们大多不开放底层关系 schema、触发器、SQL EXPLAIN、审计表和多租户权限策略。MemoryBase 吸收它们在人类可读、wiki、搜索和引用方面的优点，同时补充数据库课程要求的可建模、可约束、可审计和可复现。
+这些产品既说明长期记忆和知识管理是实际需求，也显示一大问题：这些产品大多不开放底层关系 schema、触发器、SQL EXPLAIN、审计表和多租户权限策略等内容。MemoryBase 吸收了它们在人类可读、wiki、搜索和引用方面的优点，同时也满足数据库课程所要求的可建模、可约束、可审计和可复现。
 
 ### 2.4 长期记忆评测与 GraphRAG
 
 LoCoMo、LongMemEval、MemoryAgentBench 等 benchmark 从多 session、长期对话、时间推理、信息更新、选择性遗忘等角度评估 memory agent 能力。GraphRAG 则强调在 chunk / vector 之外构建实体关系图和社区摘要，提升跨文档关系理解。
 
-MemoryBase 已接入 evaluation framework，并实现 Graph Explorer。但项目定位需要保持清晰：evaluation 用于验证和暴露系统边界，不替代数据库设计主线；graph 用于 provenance 和 governance 可视化，PostgreSQL 仍是权威事实源。当前 LongMemEval 结果显示系统已有长期记忆工程验证路径，但 raw accuracy 并不适合作为主卖点，报告重点仍应放在 provenance、governance、visibility、audit 和 SQL-verifiable lifecycle。
+MemoryBase 已接入 evaluation framework，并实现 Graph Explorer。graph 用于 provenance 和 governance 可视化，PostgreSQL 是权威事实源。当前 LongMemEval 结果显示系统已有长期记忆工程验证路径。
 
 ### 2.5 现有方案的共同不足
 
@@ -182,7 +181,7 @@ MemoryBase 的切入点正是把长期记忆作为数据库应用系统来建模
 
 ### 4.1 0 层数据流图
 
-外部实体包括普通用户/小组成员、Agent、管理员、Markdown/会议纪要文件和 Markdown Wiki 文件系统。核心处理过程是 MemoryBase 长期记忆数据库系统。主要数据存储包括 Source Store、Memory Store、Governance Store、Wiki Store 和 Audit Store。
+外部实体包括普通用户/小组成员、Agent、管理员、Markdown/会议纪要文件和 Markdown Wiki 文件系统。核心内容是 MemoryBase 长期记忆数据库系统。主要数据存储包括 Source Store、Memory Store、Governance Store、Wiki Store 和 Audit Store。
 
 ```text
 User / Agent / Admin / Source files
@@ -545,7 +544,7 @@ React Frontend        MemoryBase CLI (`mb` / `memorybase`)
 | Health | `GET /api/health` | 服务和数据库状态 |
 | Source | `POST /api/sources`、`GET /api/sources/{id}` | source 导入、列表、详情 |
 | Memory | `POST /api/memories`、`PATCH /api/memories/{id}`、`POST /api/memories/batch` | memory CRUD、批量创建、supersession |
-| Memory Extraction | `POST /api/memory-extraction/from-chunks`、`/api/memory-candidates/{memory_id}/approve` | candidate extraction 和审批 |
+| Memory Extraction | `POST /api/memory-extraction/from-chunks`、`/api/memory-candidates/{memory_id}/approve` | rule-based / optional LLM candidate extraction 和审批 |
 | Recall | `POST /api/recall`、`POST /api/recall/context-pack` | keyword/vector/hybrid recall 和 context pack |
 | Search | `POST /api/search` | lexical search |
 | Wiki | `POST /api/wiki/export` | Markdown Wiki 投影 |
@@ -562,7 +561,7 @@ React Frontend        MemoryBase CLI (`mb` / `memorybase`)
 |---|---|---|---|
 | Source / Ingest | Markdown / txt / meeting text | 校验、checksum、切 chunk、生成 search text | SourceDocument、SourceChunk |
 | Memory / Evidence | chunk、表单、Agent 写回 | 创建 memory、绑定 evidence、必要时创建 inline evidence | MemoryItem、MemoryEvidence |
-| Memory Extraction | workspace_id、chunk_ids、max_candidates | rule-based 抽取、分类、创建 candidate、记录 run audit | Candidate Memory |
+| Memory Extraction | workspace_id、chunk_ids、max_candidates、method、llm options | rule-based 或 optional LLM 抽取、分类、创建 candidate、记录 run audit | Candidate Memory |
 | Recall | query、filters、agent_id、retrieval_mode | visibility filter、FTS/trigram、可选 embedding、fallback metadata | RecallResponse、Context Pack |
 | Policy / Visibility | principal、resource、scope、effect | allow/deny 策略和 per-agent visibility view | AccessPolicy、visible memory |
 | Wiki | memory / scene / workspace | 渲染 Markdown frontmatter/body、写 revision | WikiPage、Markdown 文件 |
@@ -581,7 +580,7 @@ React Frontend        MemoryBase CLI (`mb` / `memorybase`)
 
 1. `POST /api/sources` 导入原始文档；
 2. service 计算 checksum 并切分 source chunk；
-3. 手动创建 memory 或从 chunk rule-based 生成 candidate；
+3. 手动创建 memory 或从 chunk 通过 rule-based / optional LLM 生成 candidate；
 4. approve candidate 后进入 active lifecycle；
 5. `memory_evidence` 保证 memory 可追溯；
 6. trigger 写 revision / audit；
@@ -593,13 +592,29 @@ React Frontend        MemoryBase CLI (`mb` / `memorybase`)
 
 Recall 支持 keyword、vector、hybrid 三种模式。未配置 embedding 或没有 embedding records 时，hybrid 会透明降级到 keyword，并在 `retrieval_info` 中返回 requested mode、effective mode、candidate count 和 fallback reason。前端 Recall 页面默认使用 keyword 以保证 demo 稳定，后端 API 默认保留 hybrid 合约。
 
-### 11.3 Governance Lifecycle
+### 11.3 当前已实现的 AI 功能与边界
+
+当前项目已经实现的 AI 相关能力，主要集中在“可选增强层”而不是“事实源主链路”：
+
+1. `Memory Extraction` 支持两条候选抽取路径：默认 `rule_based`，以及 `method='llm'` 的 optional OpenAI-compatible analysis path。
+2. 两条路径都会先写入 `memory_item(status='candidate')`，并绑定 `memory_evidence`、记录 `memory_extraction.run.start/complete` 审计事件；新候选不会直接进入默认 recall，仍需人工 approve / reject。
+3. `Recall` 支持 keyword / vector / hybrid 三种模式；embedding 默认是本地 hashing cache，未配置外部 embedding provider 或没有匹配 embedding records 时，会透明 fallback 到 keyword。
+4. `QA` 支持基于 recall context 的 optional LLM answer path；只有配置兼容 provider 后才启用，不影响离线 demo 主路径。
+5. 前端 `Sources -> Source Detail` 已支持勾选 `Use LLM` 触发候选抽取；CLI 也提供 `mb extract --method llm` 入口。
+
+这部分能力的设计边界也需要明确说明：
+
+- 默认演示链路仍是本地可运行的 `rule_based extraction + keyword recall`，不依赖外部 API key。
+- LLM 当前只参与“候选记忆草拟”和“可选 QA 回答”，不直接写入 `active` facts，也不绕过 evidence / approval / audit。
+- 当前尚未实现更完整的 `analysis_run`、`analysis_memory_draft`、`analysis_draft_evidence` 草稿表工作流；optional LLM extraction 是在现有 candidate lifecycle 上的增强，而不是替代现有 schema。
+
+### 11.4 Governance Lifecycle
 
 ![Governance sequence](final-assets/diagrams/05-governance.svg)
 
 治理链路覆盖 memory update/delete、conflict create/resolve、forget request approve/verify、wiki revision 等事件。数据库触发器负责 revision、audit、soft delete 和 conflict status，同步到前端 governance 页面和 SQL demo 查询。
 
-### 11.4 Memory 状态机
+### 11.5 Memory 状态机
 
 ![Memory status lifecycle](final-assets/diagrams/06-memory-status.svg)
 
@@ -628,31 +643,96 @@ npm run db:setup
 
 1. 打开 Dashboard，展示 workspace 统计。
 2. 进入 Sources，展示 seeded discussion documents。
-3. 打开 Source detail，查看 chunk 行号。
-4. 进入 Memories，展示 memory type/status/importance。
-5. 打开 Memory detail，展示 evidence 和 revision。
-6. 在 Recall 搜索“为什么放弃校园食堂系统”。
-7. 生成 Context Pack，展示 Agent-ready Markdown。
-8. 展示 Governance：audit、policies、conflicts、forget requests、timeline。
-9. 展示 Wiki export。
-10. 展示 Graph Explorer。
-11. 展示 SQL 查询结果和 EXPLAIN 证据。
+3. 打开 Source detail，查看 chunk 行号并选择待抽取的 chunk。
+4. 先运行默认 rule-based candidate extraction，再勾选 `Use LLM` 运行 optional LLM extraction，对比候选类型与置信度。
+5. 进入 Memories，展示 memory type/status/importance。
+6. 打开 Memory detail，展示 evidence 和 revision。
+7. 在 Recall 搜索“为什么放弃校园食堂系统”。
+8. 生成 Context Pack，展示 Agent-ready Markdown。
+9. 如配置 LLM provider，点击 Ask，展示 optional QA answer。
+10. 展示 Governance：audit、policies、conflicts、forget requests、timeline。
+11. 展示 Graph Explorer。
+12. 展示 SQL 查询结果和 EXPLAIN 证据。
 
-### 12.3 截图证据
+### 12.3 具体演示示例
 
-截图与命令日志集中在 `docs/final-assets/screenshots/`。推荐正文使用：
 
-| 章节 | 图片 |
-|---|---|
-| 项目概览 | `ui/01-dashboard.png` |
-| Source / provenance | `ui/02-sources-list.png`、`ui/03-source-detail-project-pivot.png` |
-| Memory evidence / revision | `ui/05-memory-detail-evidence-revisions.png` |
-| Recall / context pack | `ui/06-recall-search-results.png`、`ui/07-recall-context-pack.png` |
-| Optional QA | `ui/08-recall-qa-answer-or-config-state.png` |
-| Governance | `ui/10-governance-audit.png`、`ui/12-governance-conflicts.png`、`ui/13-governance-forget-requests.png` |
-| Graph | `ui/15-graph-explorer-demo-workspace.png` |
-| SQL evidence | `sql/04-focused-sql-evidence.png` |
-| Test evidence | `tests/01-pytest-core.png`、`tests/02-frontend-build.png` |
+
+#### 12.3.1 Source 详情、chunk 行号与候选抽取入口
+
+![Source detail with chunk selection and LLM toggle](final-assets/screenshots/ui/03-source-detail-project-pivot.png)
+
+*图 12-1 Source detail 页面同时展示原始文本、chunk 行号，以及 `Use LLM` 候选抽取入口。*
+
+这张图说明 source 导入后并不是黑盒切分；用户可以明确看到文档内容、chunk 的边界与行号，并在同一页面选择哪些 chunk 进入 candidate extraction 流程。
+
+#### 12.3.2 Memory detail 的 evidence 与 revision
+
+![Memory detail with evidence and revisions](final-assets/screenshots/ui/05-memory-detail-evidence-revisions.png)
+
+*图 12-2 Memory detail 页面展示 memory 内容、evidence、revision、entity 和 scene。*
+
+这张图对应本系统“provenance-first”的核心设计：每条 memory 都能向下追溯到 source chunk，并能向后查看 revision 历史，而不是只保留一段不可解释的摘要文本。
+
+#### 12.3.3 Recall 结果与 retrieval metadata
+
+![Recall search results](final-assets/screenshots/ui/06-recall-search-results.png)
+
+*图 12-3 Recall 页面返回与“为什么放弃校园食堂系统”相关的记忆结果，并显示 requested / effective retrieval mode。*
+
+该图展示了数据库事实源上的 recall 能力：不仅返回答案相关 memory，还把 `retrieval_info` 暴露给前端，说明实际使用了什么检索模式，以及是否发生了 fallback。
+
+#### 12.3.4 Context Pack 投影
+
+![Context pack view](final-assets/screenshots/ui/07-recall-context-pack.png)
+
+*图 12-4 Recall 结果可进一步投影为 Agent-ready Markdown Context Pack。*
+
+这张图说明 Recall 并不止于“查到结果”，而是能够把 memory、evidence、citation 和 retrieval metadata 组织成可供 Agent 继续使用的上下文包。
+
+#### 12.3.5 Optional LLM candidate extraction 对比
+
+为验证 optional LLM extraction 的价值，我们对同一组三条 chunk 分别运行默认 rule-based 路径和 Qwen-compatible analysis path。
+
+![Rule-based candidate extraction](final-assets/screenshots/ui/19-llm-not-used.png)
+
+*图 12-5 默认 rule-based candidate extraction 结果。*
+
+![Qwen LLM candidate extraction](final-assets/screenshots/ui/19-llm-used.png)
+
+*图 12-6 启用 Qwen-compatible optional LLM extraction 后的结果。*
+
+| Chunk 内容（缩写） | Rule-based 结果 | Qwen LLM 结果 |
+|---|---|---|
+| `abandoned cafeteria` | `decision`，confidence `0.65`，importance `4` | `decision`，confidence `0.90`，importance `4` |
+| `PostgreSQL source of truth` | `task`，confidence `0.65`，importance `3` | `decision`，confidence `0.90`，importance `5` |
+| `private budget notes hidden` | `constraint`，confidence `0.65`，importance `4` | `policy`，confidence `0.90`，importance `4` |
+
+这组对比很好地验证了 rule-based 路径的局限与 optional LLM 路径的优势。第一句两条路径都能识别为 `decision`，但 LLM 给出了更高的 confidence；第二句没有再被 `should` 误判成 `task`，而是更准确地识别为架构 / 数据库方向的 `decision`；第三句也从较宽泛的 `constraint` 收敛为更贴近权限治理语义的 `policy`。同时，两条路径都只把结果写入 `status='candidate'`，仍然需要人工 approve / reject，因此语义增强并没有破坏 provenance、audit 和 human-in-the-loop 的主链路。
+
+#### 12.3.6 Optional QA answer
+
+![Optional QA answer](final-assets/screenshots/ui/08-recall-qa-answer-or-config-state.png)
+
+*图 12-7 配置 optional LLM provider 后，Recall 页面可直接生成带引用的回答。*
+
+这里展示的是基于 recall context 的 optional QA path。它不是演示主链路所必需的能力，但在配置兼容 provider 后，可以把已召回的 memory 组织成最终回答，并显示使用的模型和 supporting memories 数量。
+
+#### 12.3.7 Governance 冲突治理
+
+![Governance conflicts](final-assets/screenshots/ui/12-governance-conflicts.png)
+
+*图 12-8 Governance 页面展示 open / resolved conflict 的生命周期。*
+
+这张图说明 conflict governance 并不是文档中的概念，而是落在了可浏览、可 resolve / ignore / reopen 的具体工作流中，并与后端 trigger / audit 逻辑对应。
+
+#### 12.3.8 Graph Explorer
+
+![Graph Explorer demo workspace](final-assets/screenshots/ui/15-graph-explorer-demo-workspace.png)
+
+*图 12-9 Graph Explorer 基于 PostgreSQL 事实源渲染 workspace knowledge graph。*
+
+该图一方面展示了 source、chunk、entity、scene、wiki 等节点的可视化关系，另一方面也清楚显示 Neo4j 是 optional 的；即使 Neo4j disabled，PostgreSQL preview 仍可独立完成图谱展示。
 
 完整截图索引见 `docs/final-assets/screenshots/README.md`。
 
@@ -728,7 +808,7 @@ Agent 不是普通用户别名，而是独立 principal。系统通过 `access_p
 
 ### 14.6 AI-assisted candidate extraction
 
-rule-based extraction 将候选记忆写入 `memory_item(status='candidate')`，并绑定 evidence、记录 run-level audit。它避免了“LLM 直接写事实”的风险，也避免了“大量文档完全靠人工处理”的低效。
+MemoryBase 先用 rule-based 路径交付了稳定的 candidate extraction，随后又增加了 optional LLM analysis path。两条路径都会把候选记忆写入 `memory_item(status='candidate')`，并绑定 evidence、记录 run-level audit。这样既避免了“LLM 直接写事实”的风险，也避免了“大量文档完全靠人工处理”的低效。
 
 ### 14.7 Graph as provenance visualization
 
@@ -740,21 +820,19 @@ Evaluation framework 让系统不只做 UI demo，还能用 LoCoMo / LongMemEval
 
 ## 15. 小组分工与个人完成情况
 
-> 本节基于 `docs/gap6-contribution-ledger.md` 的 Git commit 审计。第四位成员仍需由团队补充 Git 身份或非 Git 证据。
+> 本节基于 `docs/gap6-contribution-ledger.md` 在 2026-06-14 的 Git commit 审计刷新。
 
 | 成员 | 主要负责 | 交付成果 |
 |---|---|---|
-| hopecommon / jflin | 数据库 schema、治理与溯源模型、lexical search / context-pack formatter / CLI dogfood、Graph hardening、审查合并/集成补强、最终报告证据资产 | SQL schema、views、triggers、indexes、seed/demo data；governance/provenance workflows；CLI recall/context/eval/sessions/observe/remember；Graph visibility/sync/audit hardening；ER/sequence diagrams；截图和报告材料 |
-| dzx0902 / dzx | P0 backend/tests、evaluation benchmark framework、LoCoMo / LongMemEval / MemoryAgentBench adapters、LongMemEval full-run evidence、embedding/hybrid recall、memory extraction、QA、CI/tooling | FastAPI 后端基础、测试体系、evaluation datasets/adapters/metrics/runners/reports、semantic judging、checkpoint/resume、embedding/cache/hybrid recall、batch memory write、supersession |
-| huiyijian / lywzc0419 / lzc | 前端 API 集成、runtime/governance UI、多页面联调、Neo4j Graph Explorer 初版集成 | Dashboard、sources、memories、recall、governance、wiki、runtime、graph 等页面联调；graph API/service/model、Neo4j demo SQL、依赖配置和 lint/import 修复 |
-| Member 4 | 待补充 | 待团队根据非 Git 证据或实际分工填写 |
+| 林纪帆 (hopecommon / jflin) | 数据库 schema、治理与溯源模型、lexical search / context-pack formatter / CLI dogfood、Graph hardening、审查合并/集成补强、最终报告证据资产 | SQL schema、views、triggers、indexes、seed/demo data；governance/provenance workflows；CLI recall/context/eval/sessions/observe/remember；Graph visibility/sync/audit hardening；ER/sequence diagrams；截图、final report 和 final defense slides |
+| 杜卓轩 (dzx0902 / dzx) | P0 backend/tests、evaluation benchmark framework、LoCoMo / LongMemEval / MemoryAgentBench adapters、LongMemEval full-run evidence、embedding/hybrid recall、memory extraction、QA、CI/tooling | FastAPI 后端基础、测试体系、evaluation datasets/adapters/metrics/runners/reports、semantic judging、checkpoint/resume、embedding/cache/hybrid recall、batch memory write、supersession |
+| 李昭成 (huiyijian / lywzc0419 / lzc) | 前端 API 集成、runtime/governance UI、多页面联调、Neo4j Graph Explorer 初版集成 | Dashboard、sources、memories、recall、governance、wiki、runtime、graph 等页面联调；graph API/service/model、Neo4j demo SQL、依赖配置和 lint/import 修复 |
+| 王星睿 (Cofstars) | source extraction workflow、chunking/test additions、source UI creation/detail flow、optional LLM-backed candidate extraction、相关 CLI/API/tests、final report 与 PPT | source extraction candidate workflow；chunking 逻辑与测试；`SourceCreate.jsx` / `SourceDetail.jsx` 抽取交互；`backend/app/services/llm_analysis.py`；`mb extract` CLI；memory extraction API/service/tests；final report 与 final defense slides |
 
-分工边界说明：recall/search/context pack 是协作模块。hopecommon 主要负责 lexical search、context-pack formatter 和 CLI/dogfood；dzx0902 主要负责 hybrid recall、embedding、QA 和 structured context metadata。Graph 初版由 lywzc0419 集成，后续 visibility/sync/audit hardening 由 hopecommon 完成。
+分工边界说明：recall/search/context pack 是协作模块。hopecommon 主要负责 lexical search、context-pack formatter 和 CLI/dogfood；dzx0902 主要负责 hybrid recall、embedding、QA 和 structured context metadata；Graph 初版由 lywzc0419 集成，后续 visibility/sync/audit hardening 由 hopecommon 完成；Cofstars 工作集中在 source extraction、optional LLM extraction、PPT 和报告。
 
-## 16. 带注释源程序与附录安排
 
-老师要求提交“具有注释的源程序，包括高级语言、SQL”。本项目按两类组织：
-
+## 16. 带注释源程序与附录
 ### 16.1 SQL 源程序
 
 | 文件 | 内容 |
@@ -787,7 +865,7 @@ Evaluation framework 让系统不只做 UI demo，还能用 LoCoMo / LongMemEval
 
 ## 17. 总结与展望
 
-MemoryBase 已完成一个数据库课程要求完整、工程上可运行、演示闭环清晰的组织级长期记忆系统。它把 AI memory 从“聊天产品里的黑盒功能”转化为 PostgreSQL 中可建模、可约束、可审计、可追溯、可被 Agent 调用的数据库应用。
+MemoryBase 完成了一个工程上可运行、演示闭环清晰的组织级长期记忆系统。它把 AI memory 从“聊天产品里的黑盒功能”转化为 PostgreSQL 中可建模、可约束、可审计、可追溯、可被 Agent 调用的数据库应用。
 
 已完成的核心价值：
 
@@ -799,13 +877,13 @@ MemoryBase 已完成一个数据库课程要求完整、工程上可运行、演
 
 当前边界：
 
-- 自动抽取是 rule-based v1，不是完整 LLM analysis pipeline；
+- 自动抽取已支持 rule-based 和 optional LLM 两条路径，但还不是完整的 LLM analysis draft-table workflow；
 - JSONB embedding cache 适合课程规模，不替代大规模 pgvector / ANN；
 - LongMemEval 结果适合作为工程验证，不适合作为高分榜单 claim；
 - memory-level visibility 已实现，source/wiki 的更细粒度策略仍可扩展；
 - Graph Explorer 是 provenance 可视化，不是默认 GraphRAG 检索主路径。
 
-未来可以继续增强：
+未来的可能拓展方向：
 
 1. 引入 pgvector / HNSW / IVFFlat 支撑大规模向量检索；
 2. 引入 LLM-backed `analysis_run` / `analysis_memory_draft` / `analysis_draft_evidence` 草稿表；

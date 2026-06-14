@@ -141,15 +141,40 @@ page_size
 
 ### POST /api/memory-extraction/from-chunks
 
-使用 rule-based extractor 从已有 source chunks 生成 `candidate` memory，并自动绑定 source evidence。候选记忆不会进入默认 recall，必须 approve 后才会转为 `active`。
+从已有 source chunks 生成 `candidate` memory，并自动绑定 source evidence。默认走 `rule_based` extractor；也可传 `method = llm` 调用 OpenAI-compatible LLM analysis path。候选记忆不会进入默认 recall，必须 approve 后才会转为 `active`。
 
 ```json
 {
   "workspace_id": "uuid",
   "chunk_ids": ["uuid"],
-  "max_candidates": 10
+  "max_candidates": 10,
+  "method": "rule_based"
 }
 ```
+
+LLM mode example:
+
+```json
+{
+  "workspace_id": "uuid",
+  "chunk_ids": ["uuid"],
+  "max_candidates": 10,
+  "method": "llm",
+  "llm": {
+    "api_key": "sk-...",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "model": "qwen-plus",
+    "provider": "dashscope"
+  }
+}
+```
+
+说明：
+
+- `method` 支持 `rule_based` 和 `llm`，默认 `rule_based`。
+- `llm` 字段仅在 `method = llm` 时需要。
+- `provider` 当前主要作为 audit/debug 元数据标签；真正的调用由 `api_key`、`base_url`、`model` 决定。
+- 响应会额外返回 `method`，表示本次候选抽取实际使用的路径。
 
 ### GET /api/memory-candidates
 

@@ -58,7 +58,7 @@ SourceDocument
 - AccessPolicy 权限过滤
 - ConflictRecord 冲突治理
 - Memory statistics 统计视图
-- rule-based candidate memory extraction
+- rule-based + optional LLM candidate memory extraction
 - local hashing embedding cache 与 hybrid recall fallback
 - Graph Explorer（PostgreSQL preview + 可选 Neo4j sync）
 - CLI / Agent Runtime sessions、observe、remember、search
@@ -67,7 +67,7 @@ SourceDocument
 ## 8. 未来扩展
 
 - pgvector / ANN 大规模语义检索
-- LLM 高质量自动抽取与分析草稿表
+- LLM-backed analysis draft tables and richer review workflow
 - 复杂 temporal knowledge graph
 - 多 Agent 自动协作
 - Obsidian 插件

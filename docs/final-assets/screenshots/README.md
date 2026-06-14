@@ -38,6 +38,8 @@ workspace on 2026-06-09.
 | `ui/16-runtime-sessions.png` | `/runtime/sessions` | Agent runtime sessions and messages are persisted. | Agent runtime |
 | `ui/17-runtime-messages.png` | `/runtime/messages` | Runtime message recording UI is available. | Agent runtime write path |
 | `ui/18-runtime-hybrid-search-results.png` | `/runtime/search`, query `why abandoned cafeteria project`, Run Hybrid Search | Search returns chunk/memory results with RRF-style strategies such as `memory_fts`, `chunk_fts`, `trigram_fuzzy`. | Hybrid search / retrieval |
+| `ui/19-llm-not-used.png` | `/sources/{id}`, select 3 chunks, keep `Use LLM` unchecked, Extract Candidates | Default rule-based extraction classifies the demo sentences into `decision` / `task` / `constraint` with lower confidence. | Report AI comparison |
+| `ui/19-llm-used.png` | Same page, check `Use LLM`, fill Qwen-compatible provider fields, Extract Candidates | Optional LLM extraction classifies the same sentences into `decision` / `decision` / `policy` with higher confidence while keeping the same candidate-review workflow. | Report AI comparison |
 
 Additional raw pre-interaction captures are kept as `ui/15-graph-explorer.png` and
 `ui/18-runtime-hybrid-search.png`; prefer the `*-demo-workspace` and `*-results`
@@ -72,6 +74,11 @@ command output instead of relying on clipped thumbnail previews.
   The API key was supplied out-of-band for the capture and is not stored in this
   repository. Without an LLM provider, the stable demo path remains Recall +
   Context Pack.
+- `ui/19-llm-used.png` was captured with an optional Qwen-compatible analysis
+  provider (`base_url=https://dashscope.aliyuncs.com/compatible-mode/v1`,
+  `model=qwen-plus`, `provider=qwen`).
+  The API key was also supplied out-of-band. Without an external provider,
+  `ui/19-llm-not-used.png` remains the default stable extraction path.
 - Neo4j is disabled in the local capture. This is expected: Graph Explorer falls back
   to PostgreSQL graph preview and displays the disabled state explicitly.
 - The `logs/` directory contains the full command outputs. SQL/test PNG files are

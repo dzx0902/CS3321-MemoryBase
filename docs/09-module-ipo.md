@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | Source / Ingest | Markdown / txt / meeting text | 校验、checksum、切 chunk、生成 search_text_zh | SourceDocument、SourceChunk | `source_document`、`source_chunk` |
 | Memory / Evidence | chunk、人工表单、Agent 写回 | 创建 memory、绑定 evidence、必要时创建 inline_agent_note | MemoryItem、MemoryEvidence | `memory_item`、`memory_evidence` |
-| Memory Extraction | workspace_id、chunk_ids、max_candidates | rule-based 句子抽取、分类、创建 candidate、记录 run audit | Candidate Memory | `memory_item(status='candidate')`、`memory_evidence`、`audit_log` |
+| Memory Extraction | workspace_id、chunk_ids、max_candidates、method、llm options | rule-based 或 optional OpenAI-compatible LLM 抽取、分类、创建 candidate、记录 run audit | Candidate Memory | `memory_item(status='candidate')`、`memory_evidence`、`audit_log` |
 | Revision / Audit | memory / wiki / governance 修改 | 触发器或 service 写 revision 与 before/after JSON | MemoryRevision、AuditLog | `memory_revision`、`wiki_page_revision`、`audit_log` |
 | Recall | query、filters、agent_id、retrieval_mode | 权限过滤、FTS/trigram、可选 embedding scoring、fallback metadata | RecallResponse、Context Pack | `recall_log`、`memory_item`、`source_chunk`、embedding tables |
 | Search | query、scope、agent_id | chunk/memory/source 多路 lexical search、RRF 融合 | Search results | `source_chunk`、`memory_item`、`source_document` |

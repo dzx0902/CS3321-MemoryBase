@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>MemoryBase · 课程答辩 PPT</title>
-<meta name="author" content="CS3321 MemoryBase 课程组">
+<meta name="author" content="林纪帆, 杜卓轩, 李昭成, 王星睿">
 <meta name="description" content="面向组织与团队的 AI-native 可追溯长期记忆数据库系统设计与实现 · 课程最终答辩 PPT 主体。">
 <meta name="keywords" content="MemoryBase, PostgreSQL, Provenance, Governance, Agent Visibility, Audit Log, Hybrid Recall, Graph Explorer, LongMemEval">
 <meta name="generator" content="Kami">
@@ -275,7 +275,7 @@
 <section class="slide cover">
   <h1>MemoryBase</h1>
   <div class="sub">面向组织与团队的 AI-native 可追溯长期记忆数据库系统<br>设计与实现</div>
-  <div class="meta">CS3321 数据库系统课程小组 · 2026 年 6 月</div>
+  <div class="meta">CS3321 数据库系统课程小组 · 2026 年 6 月<br>林纪帆 · 杜卓轩 · 李昭成 · 王星睿</div>
 </section>
 
 <!-- 2 · 项目背景与定位 -->
@@ -301,7 +301,7 @@
         把人类可读的 Markdown、会议纪要与项目文档，编译为人和 Agent 都能访问、<strong>可追溯、可权限控制、可审计、可版本化</strong>的<strong>长期记忆数据库</strong>。
       </p>
       <p class="mb">
-        从课程角度，重点不是新做一个聊天助手，而是完整呈现概念结构、ER、范式、物理设计、索引、视图、触发器与 SQL 证据。
+        同时, 我们完整呈现了其概念结构、ER、范式、物理设计、索引、视图、触发器与 SQL 证据。
       </p>
     </div>
   </div>
@@ -313,7 +313,7 @@
 <section class="slide">
   <span class="eyebrow">02 · 研究现状</span>
   <h2>对照四类已有路线</h2>
-  <p class="lead">我们吸收它们的强项；差异只发生在数据库这一层。</p>
+  <p class="lead">我们吸收它们的强项；差异主要发生在数据库这一层。</p>
 
   <table class="data">
     <tr>
@@ -560,10 +560,36 @@ Human / Admin / Agent / Evaluation Runner
   <div class="page-num">10</div>
 </section>
 
-<!-- 11 · 演示 2 · Recall + Context Pack -->
+<!-- 11 · 演示 2 · Optional LLM extraction comparison -->
 <section class="slide">
   <span class="eyebrow">10 · 系统演示</span>
-  <h2>演示二 · Recall + Context Pack 与透明 fallback</h2>
+  <h2>演示二 · Rule-based vs Qwen LLM 候选抽取</h2>
+  <p class="lead">同一组三条 chunk，默认 <code>rule_based</code> 与 optional Qwen-compatible LLM 给出了不同的类型判断与 confidence。</p>
+
+  <div class="c2" style="gap: 16pt; align-items: start;">
+    <div>
+      <h3>默认 rule-based</h3>
+      <img src="../screenshots/ui/19-llm-not-used.png" alt="Rule-based candidate extraction" style="max-height: 64mm; max-width: 100%; width: 100%; object-fit: contain; display: block; border: 0.3pt solid var(--border);">
+    </div>
+    <div>
+      <h3>Qwen-compatible optional LLM</h3>
+      <img src="../screenshots/ui/19-llm-used.png" alt="Qwen LLM candidate extraction" style="max-height: 64mm; max-width: 100%; width: 100%; object-fit: contain; display: block; border: 0.3pt solid var(--border);">
+    </div>
+  </div>
+
+  <div class="mc">
+    `abandoned cafeteria`: `decision`, confidence `0.65` → `0.90`；`PostgreSQL source of truth`: `task` → `decision`；`private budget notes hidden`: `constraint` → `policy`。
+  </div>
+
+  <div class="co">默认仍是离线可演示的 <code>rule_based</code>；LLM 只提升 candidate 语义质量，结果仍写入 <code>status='candidate'</code> 并需要人工审批</div>
+
+  <div class="page-num">11</div>
+</section>
+
+<!-- 12 · 演示 3 · Recall + Context Pack -->
+<section class="slide">
+  <span class="eyebrow">11 · 系统演示</span>
+  <h2>演示三 · Recall + Context Pack 与透明 fallback</h2>
   <p class="lead">keyword / vector / hybrid 三种模式；无 embedding 时透明 fallback 到 keyword，并写入 <code>retrieval_info</code>。</p>
 
   <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
@@ -572,13 +598,13 @@ Human / Admin / Agent / Evaluation Runner
 
   <div class="co"><code>retrieval_info</code> 写明 effective_mode、fallback_reason、vector_used;Context Pack 投影为 Agent-ready Markdown</div>
 
-  <div class="page-num">11</div>
+  <div class="page-num">12</div>
 </section>
 
-<!-- 12 · 演示 3 · Governance + Graph -->
+<!-- 13 · 演示 4 · Governance + Graph -->
 <section class="slide">
-  <span class="eyebrow">11 · 系统演示</span>
-  <h2>演示三 · Governance lifecycle + Graph 可视化</h2>
+  <span class="eyebrow">12 · 系统演示</span>
+  <h2>演示四 · Governance lifecycle + Graph 可视化</h2>
 
   <div class="c2">
     <div>
@@ -593,12 +619,12 @@ Human / Admin / Agent / Evaluation Runner
 
   <div class="co">conflict · policy · forget · timeline · audit · graph — 全部从 schema 投影；Graph 是可视化层，PostgreSQL 仍是权威事实源</div>
 
-  <div class="page-num">12</div>
+  <div class="page-num">13</div>
 </section>
 
-<!-- 13 · 自动化测试覆盖 -->
+<!-- 14 · 自动化测试覆盖 -->
 <section class="slide">
-  <span class="eyebrow">12 · 测试与评估</span>
+  <span class="eyebrow">13 · 测试与评估</span>
   <h2>自动化测试覆盖</h2>
 
   <table class="data">
@@ -636,12 +662,12 @@ Human / Admin / Agent / Evaluation Runner
 
   <div class="co">最近一次合并后：pytest <strong>197 passed · 1 skipped</strong> · ruff 通过 · frontend lint + build 通过 · PostgreSQL integration 2/2 passed</div>
 
-  <div class="page-num">13</div>
+  <div class="page-num">14</div>
 </section>
 
-<!-- 14 · LongMemEval 评测结果与诚实定位 -->
+<!-- 15 · LongMemEval 评测结果与诚实定位 -->
 <section class="slide">
-  <span class="eyebrow">13 · 测试与评估</span>
+  <span class="eyebrow">14 · 测试与评估</span>
   <h2>LongMemEval 500-case 工程评测</h2>
   <p class="lead">评测在我们这里只用来<strong>验证工程能力、暴露弱项</strong>，不是榜单卖点。</p>
 
@@ -671,12 +697,12 @@ Human / Admin / Agent / Evaluation Runner
 
   <div class="co">主价值在 provenance · governance · agent visibility · audit · SQL-verifiable lifecycle；弱项 (multi-session、preference) 已写入 future work</div>
 
-  <div class="page-num">14</div>
+  <div class="page-num">15</div>
 </section>
 
-<!-- 15 · 八大创新点 -->
+<!-- 16 · 八大创新点 -->
 <section class="slide">
-  <span class="eyebrow">14 · 创新点</span>
+  <span class="eyebrow">15 · 创新点</span>
   <h2>八大创新点</h2>
 
   <div class="c2" style="gap: 28pt;">
@@ -705,7 +731,7 @@ Human / Admin / Agent / Evaluation Runner
       </div>
       <div style="margin-bottom: 11pt;">
         <div style="font-family: var(--serif); font-size: 12.5pt; font-weight: 500; color: var(--brand); margin-bottom: 3pt;"><span style="font-size: 18pt; margin-right: 6pt;">F</span>AI-assisted candidate extraction</div>
-        <p style="font-size: 10pt; line-height: 1.5; color: var(--dark-warm);">rule-based 抽取写入 <code>status='candidate'</code>,绑定 evidence,记录 run-level audit。LLM 不直接落事实,人也不必逐条手抄。</p>
+        <p style="font-size: 10pt; line-height: 1.5; color: var(--dark-warm);">默认是离线可演示的 <code>rule_based</code> 抽取；可选 LLM 只负责生成 <code>status='candidate'</code> 草稿,仍要绑定 evidence、记录 run-level audit,并经人工审批后才进入 active。</p>
       </div>
       <div style="margin-bottom: 11pt;">
         <div style="font-family: var(--serif); font-size: 12.5pt; font-weight: 500; color: var(--brand); margin-bottom: 3pt;"><span style="font-size: 18pt; margin-right: 6pt;">G</span>Graph as provenance visualization</div>
@@ -718,28 +744,28 @@ Human / Admin / Agent / Evaluation Runner
     </div>
   </div>
 
-  <div class="page-num">15</div>
+  <div class="page-num">16</div>
 </section>
 
-<!-- 16 · 分工 + 未来工作 -->
+<!-- 17 · 分工 + 未来工作 -->
 <section class="slide">
-  <span class="eyebrow">15 · 分工与展望</span>
+  <span class="eyebrow">16 · 分工与展望</span>
   <h2>分工、贡献与未来工作</h2>
 
   <div class="c2">
     <div>
       <h3>小组分工 (基于 Git commit 审计)</h3>
       <p class="mb">
-        · <strong>hopecommon / jflin</strong> — DB schema、治理与溯源模型、lexical search、context-pack formatter、CLI dogfood、Graph hardening、最终报告与材料 (75 commits)<br>
-        · <strong>dzx0902 / dzx</strong> — P0 backend、evaluation framework、LoCoMo / LongMemEval / MemoryAgentBench adapters、embedding / hybrid recall、QA、CI / tooling (42 commits)<br>
-        · <strong>huiyijian / lywzc0419</strong> — 前端 API 集成、Runtime / Governance UI、Neo4j Graph Explorer 初版集成 (8 commits)<br>
-        · <strong>Member 4</strong> — 待团队根据非 Git 证据补充
+        · <strong>林纪帆 (hopecommon / jflin)</strong> — DB schema、治理与溯源模型、lexical search、context-pack formatter、CLI dogfood、Graph hardening、最终报告与答辩材料 <br>
+        · <strong>杜卓轩 (dzx0902 / dzx)</strong> — P0 backend、evaluation framework、LoCoMo / LongMemEval / MemoryAgentBench adapters、embedding / hybrid recall、QA、CI / tooling <br>
+        · <strong>李昭成 (huiyijian / lywzc0419)</strong> — 前端 API 集成、Runtime / Governance UI、Neo4j Graph Explorer 初版集成 <br>
+        · <strong>王星睿 (Cofstars)</strong> — source extraction workflow、optional LLM candidate extraction、相关 source UI , CLI , API , tests / final report 和 ppt
       </p>
     </div>
     <div>
       <h3>当前边界 → 未来工作</h3>
       <p class="mb">
-        · rule-based extraction → 引入 LLM-backed <code>analysis_run</code> 草稿表<br>
+        · 当前仅实现 optional LLM candidate extraction → 后续引入 <code>analysis_run</code> / <code>analysis_memory_draft</code> / <code>analysis_draft_evidence</code> 草稿表<br>
         · JSONB embedding cache → 引入 pgvector / HNSW / IVFFlat 支撑大规模向量<br>
         · LongMemEval 弱项 → 增强 multi-session reasoning、preference following<br>
         · memory-level visibility → 扩展 source / wiki 资源 policy<br>
@@ -751,7 +777,7 @@ Human / Admin / Agent / Evaluation Runner
 
   <div class="co">MemoryBase 把 AI memory 从产品黑盒搬进 PostgreSQL — 每条都<strong>带来源、可审计、可被 Agent 调用</strong></div>
 
-  <div class="page-num">16</div>
+  <div class="page-num">17</div>
 </section>
 
 </body>

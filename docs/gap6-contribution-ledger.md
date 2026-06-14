@@ -2,30 +2,32 @@
 
 > Scope: this ledger audits commits authored by `hopecommon` / `jflin` identities
 > across local and remote branches. It is evidence for the final report section
-> "小组分工与个人完成情况"; it is not yet the full four-person member matrix.
+> "小组分工与个人完成情况". As of the 2026-06-14 refresh, the ledger also
+> records Git-backed evidence for the other three observed identities.
 
 ## 1. Audit Baseline
 
-Audit date: 2026-06-10
+Audit date: 2026-06-14
 
 Repository state at audit time:
 
-- Branch: `jflin`
-- HEAD: `6620abf docs(gap6): contribution ledger with per-member commit audits`, plus an in-progress merge of latest `origin/dev` benchmark work for review
+- Branch: `dev`
+- HEAD: `ee623c7 Add optional LLM memory extraction pipeline`
 - Remote refresh command: `git fetch --all --prune`
-- Branch status before this merge review: local `jflin` was ahead of `origin/jflin` by 10 final-deliverable commits.
+- Branch status at refresh time: local `dev` is ahead of `origin/dev` by 2 commits (`c2b8cd9`, `ee623c7`), both authored by `Cofstars <2089039907@qq.com>`.
+- Known tooling limitation during this refresh: `gh` is not installed in the current environment, so live GitHub issue state could not be rechecked from the terminal.
 
 Refs considered:
 
-- Local: `jflin`, `dev`, `main`, `feat/entity-memory-scene`, `fix/backend-api-contract-demo`, `tmp/eval-squash-check`
-- Remote: `origin/jflin`, `origin/dev`, `origin/main`, `origin/feat/evaluation-benchmark-framework`, `origin/feat/entity-memory-scene`, `origin/frontend-api-integration`, `origin/backend-p0`, and other fetched refs
+- Local: `dev`, `main`
+- Remote: `origin/dev`, `origin/main`, `origin/jflin`, `origin/feat/evaluation-benchmark-framework`, `origin/feat/entity-memory-scene`, `origin/frontend-api-integration`, `origin/backend-p0`, `origin/fix/backend-api-contract-demo`, `origin/fix/db-cli-windows-encoding`
 
 Author identities included:
 
 | Identity | Treatment |
 |---|---|
-| `hopecommon <1841778349@qq.com>` | Primary direct author identity; 63 author commits in the all-ref audit |
-| `evanlin257 <143060834+hopecommon@users.noreply.github.com>` | GitHub noreply identity tied to hopecommon; 13 GitHub merge / PR-integration commits |
+| `hopecommon <1841778349@qq.com>` | Primary direct author identity; 65 non-merge commits in the refreshed all-ref audit |
+| `evanlin257 <143060834+hopecommon@users.noreply.github.com>` | GitHub noreply identity tied to hopecommon; 14 merge / PR-integration commits plus 2 authored merge-style delivery commits in the refreshed all-ref audit |
 
 Important counting rule:
 
@@ -61,11 +63,10 @@ git log --all \
 Branch-contained direct commit counts:
 
 ```text
-jflin                                                62
-origin/jflin                                         52
-dev                                                  49
-origin/dev                                           52
-main                                                 23
+dev                                                  65
+origin/dev                                           65
+origin/jflin                                         65
+main                                                 46
 origin/main                                          52
 origin/feat/evaluation-benchmark-framework           52
 origin/feat/entity-memory-scene                      23
@@ -77,20 +78,20 @@ Aggregate result across all refs:
 
 | Metric | Count / value |
 |---|---:|
-| Related commits across all refs, de-duplicated | 76 |
-| Direct non-merge commits | 62 |
-| Merge / PR integration commits | 14 |
-| Approx. changed files touched by related commits | 282 |
-| Approx. aggregate diff across related commits | +47,600 / -2,300 |
+| Related commits across all refs, de-duplicated | 81 |
+| Direct non-merge commits | 65 |
+| Merge / PR integration commits | 16 |
+| Approx. changed files touched by related commits | 301 |
+| Approx. aggregate diff across related commits | +59,100 / -3,000 |
 
 The aggregate diff is a rough audit signal, not a grading claim: merges, generated
 assets, docs, and reworked lines can inflate totals. The module-level evidence
 below is the safer source for the final report.
 
-Local-only note: 10 final-deliverable commits are present only on local `jflin`
-at audit time (`6620abf`, `1302a5e`, `02e51e8`, `072c376`, `b70f789`,
-`9c2594d`, `055f89c`, `8883161`, `ddf1d93`, `db7c101`). Push or merge
-them before using GitHub remote history as the sole grading evidence.
+Refresh note: compared with the 2026-06-10 ledger snapshot, this refresh now
+includes the final report body (`3e5c51f`), final defense slides (`251013e`),
+the latest benchmark-integration merge (`dfa7adf`), and the two new `Cofstars`
+commits on local `dev`.
 
 ## 3. Module-Level Contribution Summary
 
@@ -152,6 +153,7 @@ them before using GitHub remote history as the sole grading evidence.
 
 | Commit | Date | Evidence |
 |---|---|---|
+| `3e5c51f` / `251013e` | 2026-06-10 | Integrated the final report body and added the 16-page final defense slide deck. |
 | `db7c101` | 2026-06-08 | Gap 9 re-audit pass aligned deliverables with merged HEAD. |
 | `ddf1d93` / `8883161` / `055f89c` | 2026-06-08 | Added and reviewed final ER/sequence diagrams, including SVG renderings and schema/API corrections. |
 | `9c2594d` | 2026-06-08 | Added research landscape analysis. |
@@ -165,6 +167,7 @@ them before using GitHub remote history as the sole grading evidence.
 |---|---|---|
 | `c20afcc` / `a49fe14` | 2026-05-22 | Added earlier recall/search evaluation CLI entry points and gold data. |
 | `2dd0d64` | 2026-06-03 | Integrated the teammate evaluation branch with hybrid retrieval and memory extraction into the main `jflin`/`dev` line; count this as integration, review, and alignment evidence rather than original authorship of the whole framework. |
+| `dfa7adf` / `1e9419e` | 2026-06-10 | Performed the later benchmark merge/update pass and merged refreshed `jflin` work back into `origin/dev`; count as integration/review evidence, not sole authorship of the benchmark stack. |
 | `origin/dev` `50609db` / `767eb29` / `965ea4a` | 2026-06-06 to 2026-06-09 | Teammate branch added end-to-end benchmark pipeline, official adapters, semantic judging, and resumable LongMemEval evaluation. Hopecommon's role in this ledger is merge review, conflict resolution, and final-report positioning, not original benchmark implementation. |
 
 ## 5. Report-Ready Personal Contribution Statement
@@ -189,9 +192,9 @@ Do not overstate these points:
 
 1. The evaluation framework was integrated into `jflin`/`dev`, but its original implementation should be credited primarily to `dzx0902`. In personal contribution text, count hopecommon's role as integration, review, and alignment unless citing specific hopecommon-authored commits.
 2. GitHub merge commits by `evanlin257 <143060834+hopecommon@users.noreply.github.com>` often have no direct file diff relative to the merged branch. They are useful process evidence, not implementation-line evidence.
-3. Local `jflin` currently contains 10 final-deliverable commits not yet present on `origin/jflin` at audit time. These include Gap 2/3/4/5/6/8/9 final-deliverable work and should be pushed or merged before using remote GitHub history as the sole grading evidence.
-4. This ledger covers hopecommon only. The final report still needs equivalent rows for other members, even if their rows are shorter or based on branch/PR ownership rather than deep commit archaeology.
-5. Current GitHub issue state is not a reliable completion source because some older issues remain open. Use code/docs artifacts and commit history as the primary evidence.
+3. Local `dev` currently contains 2 commits not yet present on `origin/dev` at audit time: `c2b8cd9` and `ee623c7`, both by `Cofstars`. If the final report cites them, keep the evidence source explicitly local unless they are later merged.
+4. This refresh now includes raw Git-backed rows for the other observed members, but their responsibility wording is still lighter-weight than the hopecommon deep audit and should not be over-claimed.
+5. Current GitHub issue state could not be revalidated in this terminal because `gh` is unavailable. Use code/docs artifacts and commit history as the primary evidence for this refresh.
 
 ## 7. Other Member Audit Notes
 
@@ -206,9 +209,10 @@ Raw audit files created so far:
 
 | Member identity | Raw audit file | Direct commits | Merge / integration commits | Notes |
 |---|---|---:|---:|---|
-| `hopecommon <1841778349@qq.com>` / `evanlin257 <143060834+hopecommon@users.noreply.github.com>` | `docs/gap6-hopecommon-commit-audit.tsv` | 62 non-merge | 14 merge / PR integration | Project lead, database/governance/provenance, lexical search/context-pack formatter/CLI dogfood, graph hardening, review/merge/integration, final evidence. |
+| `hopecommon <1841778349@qq.com>` / `evanlin257 <143060834+hopecommon@users.noreply.github.com>` | `docs/gap6-hopecommon-commit-audit.tsv` | 65 non-merge | 16 merge / PR integration | Project lead, database/governance/provenance, lexical search/context-pack formatter/CLI dogfood, graph hardening, review/merge/integration, final evidence. |
 | `lywzc0419 <lzc050419@sjtu.edu.cn>` | `docs/gap6-lywzc0419-commit-audit.tsv` | 8 non-merge | 0 direct merge | Mainly frontend API integration, runtime/governance UI, Neo4j Graph Explorer integration, graph lint/import fixes. |
 | `dzx0902 <3575895791@qq.com>` / `dzx0902 <145189098+dzx0902@users.noreply.github.com>` | `docs/gap6-dzx0902-commit-audit.tsv` | 35 non-merge | 15 merge / PR integration | Project bootstrap, P0 backend/tests, evaluation framework, official benchmark adapters/runners, LongMemEval full-run evidence, embedding/hybrid recall, QA, memory extraction, CI/tooling, and integration merges. |
+| `Cofstars <2089039907@qq.com>` | `docs/gap6-cofstars-commit-audit.tsv` | 2 non-merge | 0 direct merge | Added source extraction candidate workflow and optional LLM-backed memory extraction pipeline on top of the existing source/memory path. |
 
 Recommended responsibility split for the final report:
 
@@ -217,7 +221,7 @@ Recommended responsibility split for the final report:
 | hopecommon / jflin | Database schema, governance/provenance model, SQL evidence, lexical search + recall context-pack formatter + CLI dogfood, agent-runtime CLI/sessions/observe/remember, graph hardening over lywzc0419's Neo4j integration, final report assets | Reviewed and integrated teammate frontend/evaluation/QA work; strengthened cross-module consistency and demo readiness. |
 | dzx0902 / dzx | P0 backend, tests, evaluation benchmark framework including LoCoMo / LongMemEval / MemoryAgentBench adapters and LongMemEval full-run evidence, embedding/hybrid recall, memory extraction, QA, CI/tooling | Also contributed project bootstrap, batch memory writes / supersession support, and integration merges. |
 | huiyijian / lywzc0419 / lzc | Frontend API integration, runtime/governance UI, multi-page UI wiring, Neo4j Graph Explorer integration | Also fixed graph lint/Ruff import issues and supporting dependencies/config. |
-| Member 4 | No Git-backed contribution filled yet | Leave blank or fill from non-Git evidence if the team provides it. |
+| Cofstars | Source extraction workflow, chunking/test additions, source UI creation/detail flow, optional LLM-backed candidate extraction and related CLI/API/tests | Current Git evidence is limited to two local `dev` commits on 2026-06-14; keep the statement proportional to that visible scope. |
 
 Boundary note: the recall/search path is collaborative. Hopecommon mainly owns
 lexical search, the recall context-pack formatter, and CLI/dogfood flows; dzx0902
@@ -241,8 +245,10 @@ docs, and frontend support changes; do not describe all benchmark branch commits
 it is later merged.
 
 Identity note: the teammate previously referred to as `huiyijian` maps to the
-Git identity `lywzc0419 <lzc050419@sjtu.edu.cn>` in this repository. The fourth
-member remains blank until another Git identity or non-Git artifact is provided.
+Git identity `lywzc0419 <lzc050419@sjtu.edu.cn>` in this repository. As of the
+2026-06-14 refresh, the previously blank fourth-member slot now has Git-backed
+evidence under `Cofstars <2089039907@qq.com>`, but only for the two local `dev`
+commits currently ahead of `origin/dev`.
 
 ## 8. Suggested Appendix Snippet
 
@@ -251,10 +257,10 @@ Evidence command:
 git log --all --regexp-ignore-case --author='hopecommon\|1841778349' --no-merges --oneline
 
 Audit result:
-62 direct non-merge commits, primarily across database/governance/provenance,
+65 direct non-merge commits, primarily across database/governance/provenance,
 agent-facing backend/CLI, graph hardening, review/integration, and final-report
 evidence materials.
-14 merge / PR integration commits tracked separately.
+16 merge / PR integration commits tracked separately.
 ```
 
 For the final report, use the module table in §3 and the paragraph in §5 rather
