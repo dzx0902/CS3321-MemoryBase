@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import http.server
+import socket
+import socketserver
 import subprocess
+import threading
 from pathlib import Path
 
 import markdown
@@ -15,6 +20,8 @@ REPORT_HTML = DOCS_DIR / "final-report.print.html"
 REPORT_PDF = DOCS_DIR / "final-report.pdf"
 SLIDES_HTML = DOCS_DIR / "final-assets" / "slides" / "gap7-final-defense.html"
 SLIDES_PDF = DOCS_DIR / "final-assets" / "slides" / "gap7-final-defense.pdf"
+REPORT_PDF_TITLE = "MemoryBase Final Report"
+SLIDES_PDF_TITLE = "MemoryBase Final Defense Slides"
 
 EDGE_CANDIDATES = (
     Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
@@ -218,6 +225,28 @@ def _pick_browser() -> Path:
     raise FileNotFoundError("No Edge/Chrome executable found for PDF export.")
 
 
+class _SilentHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+
+@contextlib.contextmanager
+def _docs_server():
+    docs_root = str(DOCS_DIR)
+    handler = lambda *args, **kwargs: _SilentHandler(*args, directory=docs_root, **kwargs)
+
+    with socketserver.TCPServer(("127.0.0.1", 0), handler) as httpd:
+        httpd.allow_reuse_address = True
+        port = int(httpd.server_address[1])
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            yield port
+        finally:
+            httpd.shutdown()
+            thread.join(timeout=5)
+
+
 def _promote_figures(soup: BeautifulSoup) -> None:
     for paragraph in list(soup.find_all("p")):
         if len(paragraph.contents) != 1:
@@ -334,7 +363,7 @@ def _render_report_html() -> None:
     REPORT_HTML.write_text(html, encoding="utf-8")
 
 
-def _print_to_pdf(html_path: Path, pdf_path: Path) -> None:
+def _print_to_pdf(url: str, pdf_path: Path) -> None:
     browser = _pick_browser()
     subprocess.run(
         [
@@ -342,25 +371,59 @@ def _print_to_pdf(html_path: Path, pdf_path: Path) -> None:
             "--headless",
             "--disable-gpu",
             "--allow-file-access-from-files",
+            "--no-pdf-header-footer",
             "--print-to-pdf-no-header",
             f"--print-to-pdf={pdf_path}",
-            html_path.resolve().as_uri(),
+            url,
         ],
         check=True,
     )
 
 
+def _sanitize_pdf_metadata(pdf_path: Path, *, title: str) -> None:
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError as exc:  # pragma: no cover - depends on local export env.
+        raise RuntimeError("pypdf is required to sanitize exported PDF metadata.") from exc
+
+    reader = PdfReader(str(pdf_path))
+    writer = PdfWriter()
+    for page in reader.pages:
+        writer.add_page(page)
+
+    writer.add_metadata(
+        {
+            "/Title": title,
+            "/Creator": "MemoryBase export",
+            "/Producer": "MemoryBase export",
+            "/CreationDate": "",
+            "/ModDate": "",
+        }
+    )
+
+    temp_pdf = pdf_path.with_suffix(".tmp.pdf")
+    with temp_pdf.open("wb") as handle:
+        writer.write(handle)
+    temp_pdf.replace(pdf_path)
+
+
 def export_report() -> None:
     _render_report_html()
     try:
-        _print_to_pdf(REPORT_HTML, REPORT_PDF)
+        with _docs_server() as port:
+            report_url = f"http://127.0.0.1:{port}/{REPORT_HTML.relative_to(DOCS_DIR).as_posix()}"
+            _print_to_pdf(report_url, REPORT_PDF)
+            _sanitize_pdf_metadata(REPORT_PDF, title=REPORT_PDF_TITLE)
     finally:
         if REPORT_HTML.exists():
             REPORT_HTML.unlink()
 
 
 def export_slides() -> None:
-    _print_to_pdf(SLIDES_HTML, SLIDES_PDF)
+    with _docs_server() as port:
+        slides_url = f"http://127.0.0.1:{port}/{SLIDES_HTML.relative_to(DOCS_DIR).as_posix()}"
+        _print_to_pdf(slides_url, SLIDES_PDF)
+        _sanitize_pdf_metadata(SLIDES_PDF, title=SLIDES_PDF_TITLE)
 
 
 def main() -> None:
