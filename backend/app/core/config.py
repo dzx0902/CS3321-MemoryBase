@@ -40,6 +40,14 @@ class Settings(BaseModel):
     llm_provider: str = os.getenv("LLM_PROVIDER", "")
     llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.2"))
     llm_max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "800"))
+    llm_analysis_api_key: str = os.getenv("LLM_ANALYSIS_API_KEY", "") or os.getenv(
+        "OPENAI_API_KEY", ""
+    )
+    llm_analysis_base_url: str = os.getenv(
+        "LLM_ANALYSIS_BASE_URL", "https://api.openai.com/v1"
+    )
+    llm_analysis_model: str = os.getenv("LLM_ANALYSIS_MODEL", "gpt-4o-mini")
+    llm_analysis_provider: str = os.getenv("LLM_ANALYSIS_PROVIDER", "openai-compatible")
     deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
     deepseek_chat_model: str = os.getenv("DEEPSEEK_CHAT_MODEL", "deepseek-chat")

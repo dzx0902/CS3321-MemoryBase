@@ -14,6 +14,13 @@ export default function SourceDetail() {
   const [extracting, setExtracting] = useState(false);
   const [decidingId, setDecidingId] = useState(null);
   const [maxCandidates, setMaxCandidates] = useState(10);
+  const [useLlm, setUseLlm] = useState(false);
+  const [llmConfig, setLlmConfig] = useState({
+    api_key: '',
+    base_url: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+    provider: 'openai-compatible',
+  });
   const toast = useToast();
 
   useEffect(() => {
@@ -71,19 +78,33 @@ export default function SourceDetail() {
     }
     setExtracting(true);
     try {
-      const result = await memoryExtractionApi.extractFromChunks({
+      const body = {
         workspace_id: workspaceId,
         chunk_ids: selectedChunkIds,
         max_candidates: Number(maxCandidates) || 10,
-      });
+        method: useLlm ? 'llm' : 'rule_based',
+      };
+      if (useLlm) {
+        body.llm = {
+          api_key: llmConfig.api_key.trim() || undefined,
+          base_url: llmConfig.base_url.trim() || undefined,
+          model: llmConfig.model.trim() || undefined,
+          provider: llmConfig.provider.trim() || undefined,
+        };
+      }
+      const result = await memoryExtractionApi.extractFromChunks(body);
       const detailedCandidates = await hydrateCandidates(result.candidates || []);
       setCandidates(detailedCandidates);
-      toast.success(`Created ${result.created_count || 0} candidate memories`);
+      toast.success(`Created ${result.created_count || 0} candidate memories via ${result.method || body.method}`);
     } catch (err) {
       toast.error(err.message || 'Failed to extract candidates');
     } finally {
       setExtracting(false);
     }
+  }
+
+  function updateLlmConfig(field, value) {
+    setLlmConfig((current) => ({ ...current, [field]: value }));
   }
 
   async function decideCandidate(candidate, decision) {
@@ -162,29 +183,97 @@ export default function SourceDetail() {
         <div className="card" style={{ marginBottom: 24 }}>
           <div className="card__header">
             <h3 className="card__title">Chunks ({chunks.length})</h3>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span className="badge badge--default">{selectedChunkIds.length} selected</span>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 0, cursor: 'pointer' }}>
-                <input type="checkbox" checked={allSelected} onChange={toggleAllChunks} />
-                Select all
-              </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <label style={{ marginBottom: 0 }}>Max</label>
+          </div>
+          <div style={{
+            display: 'flex',
+            gap: 10,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            marginBottom: 16,
+            padding: 12,
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+          }}>
+            <span className="badge badge--default">{selectedChunkIds.length} selected</span>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 0, cursor: 'pointer' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAllChunks} />
+              Select all
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label style={{ marginBottom: 0 }}>Max</label>
+              <input
+                className="input"
+                type="number"
+                min="1"
+                max="50"
+                value={maxCandidates}
+                onChange={(event) => setMaxCandidates(event.target.value)}
+                style={{ width: 76 }}
+              />
+            </div>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 0, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={useLlm}
+                onChange={(event) => setUseLlm(event.target.checked)}
+              />
+              Use LLM
+            </label>
+            <button className="btn btn--primary" onClick={handleExtract} disabled={extracting || selectedChunkIds.length === 0}>
+              {extracting ? 'Extracting...' : 'Extract Candidates'}
+            </button>
+          </div>
+          {useLlm && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: 12,
+              marginBottom: 16,
+              padding: 14,
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+            }}>
+              <div>
+                <label>API Key</label>
                 <input
                   className="input"
-                  type="number"
-                  min="1"
-                  max="50"
-                  value={maxCandidates}
-                  onChange={(event) => setMaxCandidates(event.target.value)}
-                  style={{ width: 76 }}
+                  type="password"
+                  value={llmConfig.api_key}
+                  onChange={(event) => updateLlmConfig('api_key', event.target.value)}
+                  placeholder="sk-..."
                 />
               </div>
-              <button className="btn btn--primary" onClick={handleExtract} disabled={extracting || selectedChunkIds.length === 0}>
-                {extracting ? 'Extracting...' : 'Extract Candidates'}
-              </button>
+              <div>
+                <label>Base URL</label>
+                <input
+                  className="input"
+                  value={llmConfig.base_url}
+                  onChange={(event) => updateLlmConfig('base_url', event.target.value)}
+                  placeholder="https://api.openai.com/v1"
+                />
+              </div>
+              <div>
+                <label>Model</label>
+                <input
+                  className="input"
+                  value={llmConfig.model}
+                  onChange={(event) => updateLlmConfig('model', event.target.value)}
+                  placeholder="gpt-4o-mini"
+                />
+              </div>
+              <div>
+                <label>Provider</label>
+                <input
+                  className="input"
+                  value={llmConfig.provider}
+                  onChange={(event) => updateLlmConfig('provider', event.target.value)}
+                  placeholder="openai-compatible"
+                />
+              </div>
             </div>
-          </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {chunks.map((chunk) => (
               <div key={chunk.chunk_id} style={{

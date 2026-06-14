@@ -131,6 +131,7 @@ def test_cli_help_includes_agent_facing_command_descriptions() -> None:
     assert result.exit_code == 0
     assert "Configure CLI defaults" in result.stdout
     assert "Render agent context" in result.stdout
+    assert "Extract candidate memories from chunks" in result.stdout
     assert "Write conversation messages" in result.stdout
     assert "Recall governed memories" in result.stdout
     assert "Write a memory" in result.stdout
@@ -245,3 +246,57 @@ def test_health_rejects_unknown_format() -> None:
     result = runner.invoke(app, ["health", "--format", "xml"])
 
     assert result.exit_code == 2
+
+
+def test_extract_cli_sends_llm_options(monkeypatch) -> None:
+    chunk_id = str(uuid4())
+    captured = {}
+
+    class FakeClient:
+        def health_detail(self, *, workspace=None, agent=None):
+            return {
+                "workspace": {
+                    "found": True,
+                    "workspace_id": "00000000-0000-0000-0000-000000000201",
+                }
+            }
+
+        def extract_candidates(self, payload, *, actor_type, actor_id):
+            captured["payload"] = payload
+            captured["actor_type"] = actor_type
+            captured["actor_id"] = actor_id
+            return {
+                "workspace_id": payload["workspace_id"],
+                "method": payload["method"],
+                "created_count": 0,
+                "candidates": [],
+            }
+
+    monkeypatch.setattr(
+        "app.cli.commands.extract.build_client",
+        lambda *args, **kwargs: FakeClient(),
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "extract",
+            "--workspace",
+            "demo",
+            "--chunk",
+            chunk_id,
+            "--method",
+            "llm",
+            "--llm-api-key",
+            "test-key",
+            "--llm-model",
+            "analysis-model",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["payload"]["method"] == "llm"
+    assert captured["payload"]["chunk_ids"] == [chunk_id]
+    assert captured["payload"]["llm"]["api_key"] == "test-key"
+    assert captured["payload"]["llm"]["model"] == "analysis-model"

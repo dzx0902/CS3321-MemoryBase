@@ -20,6 +20,7 @@ from ..services.graph_service import (
     PostgresGraphRepository,
     PostgresGraphVisibilityRepository,
 )
+from ..services.llm_analysis import LlmAnalysisDefaults, OpenAICompatibleAnalysisClient
 from ..services.llm_service import AnswerService, ChatProvider, OpenAICompatibleChatProvider
 from ..services.memory_extraction_service import MemoryExtractionService
 from ..services.memory_service import MemoryService, PostgresMemoryRepository
@@ -55,9 +56,19 @@ def get_memory_service() -> MemoryService:
 
 
 def get_memory_extraction_service() -> MemoryExtractionService:
+    settings = get_settings()
     return MemoryExtractionService(
         database=get_database(),
         memory_service=get_memory_service(),
+        llm_client=OpenAICompatibleAnalysisClient(),
+        llm_defaults=LlmAnalysisDefaults(
+            api_key=settings.llm_analysis_api_key,
+            base_url=settings.llm_analysis_base_url,
+            model=settings.llm_analysis_model,
+            provider=settings.llm_analysis_provider,
+            temperature=settings.llm_temperature,
+            max_tokens=settings.llm_max_tokens,
+        ),
     )
 
 
