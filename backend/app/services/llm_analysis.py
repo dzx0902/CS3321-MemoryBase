@@ -1,3 +1,15 @@
+"""Optional LLM-backed candidate extraction.
+
+This is the opt-in counterpart to the rule-based extraction path. It calls an
+OpenAI-compatible chat-completions endpoint, asks the model to return strict
+JSON, and turns that JSON into candidate-memory drafts. The output stays
+compatible with the rule-based pipeline: every draft is meant to become a
+``status='candidate'`` MemoryItem bound to exactly one source chunk and still
+needs human approval before it enters the active lifecycle. The model never
+writes facts directly, so all responses are validated and clamped here rather
+than trusted as-is.
+"""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +22,8 @@ import httpx
 from ..models.memory import MemoryType
 from ..models.memory_extraction import LlmAnalysisOptions
 
+# Memory types we accept back from the model. Any value outside this set is
+# coerced to "fact" so a hallucinated label can never reach the database.
 ALLOWED_MEMORY_TYPES: tuple[MemoryType, ...] = (
     "episodic",
     "semantic",
@@ -27,11 +41,17 @@ ALLOWED_MEMORY_TYPES: tuple[MemoryType, ...] = (
 
 
 class LlmAnalysisError(Exception):
-    pass
+    """Raised for any failure in the LLM analysis path (config, transport, JSON)."""
 
 
 @dataclass(frozen=True, slots=True)
 class LlmAnalysisDefaults:
+    """Fallback options sourced from settings/env (the ``LLM_ANALYSIS_*`` vars).
+
+    ``api_key`` is empty by default: the feature is off until a key is supplied
+    either here (from env) or per-request.
+    """
+
     api_key: str = ""
     base_url: str = "https://api.openai.com/v1"
     model: str = "gpt-4o-mini"
@@ -42,6 +62,8 @@ class LlmAnalysisDefaults:
 
 @dataclass(frozen=True, slots=True)
 class SourceChunkForAnalysis:
+    """A single source chunk handed to the model, with optional line range."""
+
     chunk_id: UUID
     chunk_no: int
     text: str
@@ -51,6 +73,8 @@ class SourceChunkForAnalysis:
 
 @dataclass(frozen=True, slots=True)
 class LlmCandidateDraft:
+    """One validated candidate memory parsed from the model response."""
+
     chunk_id: UUID
     canonical_text: str
     memory_type: MemoryType
@@ -61,6 +85,8 @@ class LlmCandidateDraft:
 
 @dataclass(frozen=True, slots=True)
 class ResolvedLlmAnalysisOptions:
+    """Effective options after merging per-request overrides with defaults."""
+
     api_key: str
     base_url: str
     model: str
@@ -70,6 +96,8 @@ class ResolvedLlmAnalysisOptions:
 
 
 class OpenAICompatibleAnalysisClient:
+    """Thin client over any OpenAI-compatible ``/chat/completions`` endpoint."""
+
     def __init__(self, *, timeout: float = 60.0) -> None:
         self._timeout = timeout
 
@@ -80,6 +108,7 @@ class OpenAICompatibleAnalysisClient:
         max_candidates: int,
         options: ResolvedLlmAnalysisOptions,
     ) -> list[LlmCandidateDraft]:
+        """Send chunks to the model and return validated candidate drafts."""
         if not chunks:
             return []
         content = self._complete_json(
@@ -96,6 +125,7 @@ class OpenAICompatibleAnalysisClient:
         user_prompt: str,
         options: ResolvedLlmAnalysisOptions,
     ) -> str:
+        """POST one chat completion and return the raw message content string."""
         with httpx.Client(timeout=self._timeout) as client:
             response = client.post(
                 f"{options.base_url.rstrip('/')}/chat/completions",
@@ -111,6 +141,8 @@ class OpenAICompatibleAnalysisClient:
                     ],
                     "temperature": options.temperature,
                     "max_tokens": options.max_tokens,
+                    # Ask the endpoint for a JSON object; we still parse defensively
+                    # below since not every compatible provider honors this.
                     "response_format": {"type": "json_object"},
                 },
             )
@@ -119,6 +151,7 @@ class OpenAICompatibleAnalysisClient:
         except httpx.HTTPStatusError as exc:
             raise LlmAnalysisError(f"LLM analysis request failed: {exc}") from exc
         data = response.json()
+        # Pull choices[0].message.content without assuming the shape is present.
         content = data.get("choices", [{}])[0].get("message", {}).get("content")
         if not isinstance(content, str) or not content.strip():
             raise LlmAnalysisError("LLM analysis response did not contain JSON content.")
@@ -129,6 +162,12 @@ def resolve_llm_options(
     requested: LlmAnalysisOptions | None,
     defaults: LlmAnalysisDefaults,
 ) -> ResolvedLlmAnalysisOptions:
+    """Merge per-request options over env defaults and validate the result.
+
+    Per-request values win when set, otherwise the env-backed defaults apply.
+    A missing API key / base URL / model raises ``LlmAnalysisError`` so callers
+    fail fast instead of sending an unauthenticated request.
+    """
     api_key = (requested.api_key if requested and requested.api_key else defaults.api_key).strip()
     base_url = (
         requested.base_url if requested and requested.base_url else defaults.base_url
@@ -171,6 +210,13 @@ def parse_llm_candidates(
     chunks: list[SourceChunkForAnalysis],
     max_candidates: int,
 ) -> list[LlmCandidateDraft]:
+    """Parse model JSON into validated drafts, dropping anything unusable.
+
+    Every candidate is anchored to a real source chunk, deduplicated by
+    normalized text, length-filtered, and has its type/confidence/importance
+    coerced into valid ranges. Malformed entries are skipped rather than raising,
+    so one bad item never discards the whole response.
+    """
     try:
         payload = json.loads(_strip_json_fence(content))
     except json.JSONDecodeError as exc:
@@ -186,12 +232,14 @@ def parse_llm_candidates(
     for raw in raw_candidates:
         if not isinstance(raw, dict):
             continue
+        # Drop candidates we cannot anchor back to one of the input chunks.
         chunk_id = _resolve_chunk_id(raw.get("chunk_id"), raw.get("chunk_no"), chunks, chunk_ids)
         if chunk_id is None:
             continue
         text = _coerce_text(raw.get("canonical_text") or raw.get("text"))
-        if len(text) < 12:
+        if len(text) < 12:  # too short to be a meaningful memory
             continue
+        # Deduplicate on case/whitespace-insensitive text.
         normalized = " ".join(text.lower().split())
         if normalized in seen_text:
             continue
@@ -212,6 +260,8 @@ def parse_llm_candidates(
 
 
 def _system_prompt() -> str:
+    # Pins the model to the rule-based pipeline's contract: JSON only, candidate
+    # semantics, allowed types, and the same confidence/importance conventions.
     return (
         "You are MemoryBase's optional LLM analysis pipeline. Extract candidate memories "
         "from source chunks for later human review. Keep behavior compatible with the "
@@ -229,6 +279,8 @@ def _system_prompt() -> str:
 
 
 def _user_prompt(*, chunks: list[SourceChunkForAnalysis], max_candidates: int) -> str:
+    # Serializes each chunk as one JSON line and spells out the exact response
+    # shape, so the model echoes back chunk_id values we can re-anchor against.
     chunk_lines = []
     for chunk in chunks:
         line_range = (
@@ -271,6 +323,7 @@ def _user_prompt(*, chunks: list[SourceChunkForAnalysis], max_candidates: int) -
 
 
 def _strip_json_fence(content: str) -> str:
+    # Some providers wrap JSON in a ```json ... ``` markdown fence; remove it.
     stripped = content.strip()
     if stripped.startswith("```"):
         stripped = re.sub(r"^```(?:json)?\s*", "", stripped, flags=re.IGNORECASE)
@@ -284,6 +337,9 @@ def _resolve_chunk_id(
     chunks: list[SourceChunkForAnalysis],
     chunk_ids: dict[str, UUID],
 ) -> UUID | None:
+    # Prefer an exact chunk_id match, then fall back to chunk_no. If neither is
+    # given but only one chunk was sent, attribute it to that chunk; otherwise
+    # we cannot anchor the candidate and return None so the caller drops it.
     if isinstance(raw_chunk_id, str) and raw_chunk_id in chunk_ids:
         return chunk_ids[raw_chunk_id]
     chunk_no = _coerce_int_or_none(raw_chunk_no)
@@ -292,6 +348,11 @@ def _resolve_chunk_id(
             if chunk.chunk_no == chunk_no:
                 return chunk.chunk_id
     return chunks[0].chunk_id if len(chunks) == 1 else None
+
+
+# The helpers below defensively coerce untrusted model output: collapse text
+# whitespace, cap summary length, validate the memory type, and clamp numeric
+# fields into their allowed ranges so a bad value never reaches the database.
 
 
 def _coerce_text(value: object) -> str:
