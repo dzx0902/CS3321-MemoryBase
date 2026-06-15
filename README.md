@@ -26,19 +26,25 @@ SourceDocument
 - Frontend: React + Vite
 - Database: PostgreSQL
 - Graph Database: Neo4j（可选，用于知识图谱同步与可视化）
-- Search: PostgreSQL Full Text Search
+- Search: PostgreSQL Full Text Search（GIN tsvector / trigram）+ 可选 embedding 的 hybrid recall
+- AI（可选）: OpenAI-compatible LLM 用于候选记忆抽取与 QA；本地 hashing embedding cache，未配置外部 provider 时透明 fallback 到 keyword
+- CLI: `mb` / `memorybase`（sessions / observe / remember / search / recall）
 - SQL: views, triggers, indexes
 - Deployment: Docker Compose
 
-## P0 MVP
+## 功能模块
 
-- SourceDocument / SourceChunk
-- MemoryItem / MemoryEvidence
-- MemoryRevision / AuditLog
-- RecallLog
-- WikiPage / WikiPageRevision
-- TimelineEntry
-- Dashboard / Source / Memory / Recall / Wiki 页面
+- Source 导入与 chunk 切分：SourceDocument / SourceChunk
+- 记忆与证据链：MemoryItem / MemoryEvidence / MemoryRevision
+- 治理与溯源：AuditLog、ConflictRecord 冲突治理、ForgetRequest 遗忘/归档审批、TimelineEntry
+- 检索：lexical（FTS / trigram）+ 可选 embedding 的 hybrid recall（无 embedding 时透明 fallback 到 keyword），并投影为 Context Pack
+- 权限与可见性：AccessPolicy、agent-aware visibility
+- 候选记忆抽取：rule-based + 可选 LLM（结果写入 `status='candidate'`，需人工审批后进入 active）
+- Wiki 投影：WikiPage / WikiPageRevision，可导出 Markdown
+- Graph Explorer：PostgreSQL preview + 可选 Neo4j 同步的 provenance 图谱
+- CLI / Agent Runtime：`mb` sessions / observe / remember / search / recall
+- 评测：LoCoMo / LongMemEval / MemoryAgentBench adapters 与 evaluation framework
+- 前端页面：Dashboard / Source / Memory / Recall / Governance / Wiki / Runtime / Graph
 
 ## 本地运行
 
