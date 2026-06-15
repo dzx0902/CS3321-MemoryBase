@@ -821,7 +821,7 @@ Evaluation framework 让系统不只做 UI demo，还能用 LoCoMo / LongMemEval
 
 ## 15. 小组分工与个人完成情况
 
-> 本节基于 `docs/contribution-ledger.md` 在 2026-06-14 的 Git commit 审计刷新。
+> 本节基于 `docs/contribution-ledger.md` 在 2026-06-15 的 Git commit 审计刷新。
 
 | 成员 | 主要负责 | 交付成果 |
 |---|---|---|

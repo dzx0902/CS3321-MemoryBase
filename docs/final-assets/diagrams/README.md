@@ -1,4 +1,4 @@
-# MemoryBase Diagrams (gap 5)
+# MemoryBase Diagrams
 
 Mermaid sources (`.mmd`) and rendered SVG outputs for the final report and PPT.
 
