@@ -1,4 +1,4 @@
-# Gap 6 — Contribution Ledger: hopecommon / jflin
+# Contribution Ledger
 
 > Scope: this ledger audits commits authored by `hopecommon` / `jflin` identities
 > across local and remote branches. It is evidence for the final report section
@@ -7,15 +7,14 @@
 
 ## 1. Audit Baseline
 
-Audit date: 2026-06-14
+Audit date: 2026-06-15 (refreshed from the 2026-06-14 snapshot)
 
 Repository state at audit time:
 
 - Branch: `dev`
-- HEAD: `ee623c7 Add optional LLM memory extraction pipeline`
+- HEAD: `b038e1b docs: organize final submission package`
 - Remote refresh command: `git fetch --all --prune`
-- Branch status at refresh time: local `dev` is ahead of `origin/dev` by 2 commits (`c2b8cd9`, `ee623c7`), both authored by `Cofstars <2089039907@qq.com>`.
-- Known tooling limitation during this refresh: `gh` is not installed in the current environment, so live GitHub issue state could not be rechecked from the terminal.
+- Branch status at refresh time: local `dev` == `origin/dev` == `b038e1b` (in sync). All five `Cofstars <2089039907@qq.com>` non-merge commits (`c2b8cd9`, `ee623c7`, `89ca761`, `899530e`, `fa6ecd3`) are now on `origin/dev`.
 
 Refs considered:
 
@@ -90,8 +89,9 @@ below is the safer source for the final report.
 
 Refresh note: compared with the 2026-06-10 ledger snapshot, this refresh now
 includes the final report body (`3e5c51f`), final defense slides (`251013e`),
-the latest benchmark-integration merge (`dfa7adf`), and the two new `Cofstars`
-commits on local `dev`.
+the latest benchmark-integration merge (`dfa7adf`), and the five `Cofstars`
+non-merge commits now merged to `origin/dev` (source/LLM extraction plus final
+report, slides, and audit-artifact refreshes).
 
 ## 3. Module-Level Contribution Summary
 
@@ -100,7 +100,7 @@ commits on local `dev`.
 | Database schema, SQL, views, triggers, seed/demo data | ~26 commits | `database/01_schema_core.sql`, `database/02_schema_memory.sql`, `database/03_schema_governance.sql`, `database/04_indexes.sql`, `database/05_views.sql`, `database/06_triggers.sql`, `database/07_seed.sql`, `database/08_demo_queries.sql`, `database/10_governance_demo_fixture.sql` | Built and hardened the relational foundation: workspace/user/agent ownership, memory/evidence/revision/audit, conflict/forget governance, semantic entities/scenes, views, indexes, triggers, reproducible seed data, and SQL demo queries. |
 | Backend API, services, CLI, tests | ~20 commits | `backend/app/services/*`, `backend/app/api/*`, `backend/app/cli/*`, `backend/tests/test_postgres_integration.py`, `backend/tests/test_graph_service.py`, `backend/tests/test_recall_query.py` | Implemented or hardened source/memory/recall/governance/search/runtime/graph service paths, CLI dogfood flows, context pack generation, agent session writeback, and focused backend tests. |
 | Frontend UI and demo polish | ~5 commits | `frontend/src/pages/recall/Recall.jsx`, `frontend/src/pages/wiki/WikiExport.jsx`, `frontend/src/pages/graph/*`, `frontend/src/index.css`, `frontend/src/api/client.js` | Delivered theme polish and targeted UX fixes; integrated graph and recall surfaces needed for final demo evidence. The low count is intentional: core multi-page frontend work is mainly credited to other teammates, while this ledger only claims theme/demo polish and final-report screenshot support. |
-| Agent runtime and agent-facing database substrate | ~12 commits across backend/database/docs | `agent_session`, `message`, `backend/app/cli/commands/*`, `backend/app/services/context_pack_service.py`, `docs/16-agent-runtime-gap-analysis.md`, `docs/17-agent-runtime-plan.md` | Added agent registration, sessions/messages, observe/remember writeback, context pack export, and CLI entry points so MemoryBase can be used by both humans and agents. |
+| Agent runtime and agent-facing database substrate | ~12 commits across backend/database/docs | `agent_session`, `message`, `backend/app/cli/commands/*`, `backend/app/services/context_pack_service.py`, `docs/process/16-agent-runtime-gap-analysis.md`, `docs/process/17-agent-runtime-plan.md` | Added agent registration, sessions/messages, observe/remember writeback, context pack export, and CLI entry points so MemoryBase can be used by both humans and agents. |
 | Governance, provenance, and access-control workflows | ~12 commits across SQL/backend/tests/docs | `memory_evidence`, `memory_revision`, `audit_log`, `access_policy`, `forget_request`, `conflict_record`, `v_agent_visible_memory`, governance API/tests/docs | Implemented the project’s main differentiator: evidence-backed memories, revision/audit trail, conflict/forget governance, and agent-aware visibility. |
 | Graph explorer / graph sync hardening | ~1 large feature commit | `backend/app/services/graph_service.py`, `backend/app/api/graph.py`, `frontend/src/pages/graph/*`, `backend/tests/test_graph_service.py` | Added agent-aware graph visibility, Neo4j driver singleton lifecycle, batch `UNWIND` sync, sync audit attribution, frontend graph module split, and graph tests. |
 | Search, recall, and context-pack retrieval | ~8 commits | `backend/app/services/recall_service.py`, `backend/app/services/search_service.py`, `backend/app/cli/commands/eval.py`, `data/eval/*`, `frontend/src/pages/recall/Recall.jsx` | Added lexical search infrastructure, recall API/CLI, context pack formatter, retrieval/evaluation seed data, and UI evidence for recall and QA. |
@@ -154,12 +154,12 @@ commits on local `dev`.
 | Commit | Date | Evidence |
 |---|---|---|
 | `3e5c51f` / `251013e` | 2026-06-10 | Integrated the final report body and added the 16-page final defense slide deck. |
-| `db7c101` | 2026-06-08 | Gap 9 re-audit pass aligned deliverables with merged HEAD. |
+| `db7c101` | 2026-06-08 | Deliverable re-audit pass aligned deliverables with merged HEAD. |
 | `ddf1d93` / `8883161` / `055f89c` | 2026-06-08 | Added and reviewed final ER/sequence diagrams, including SVG renderings and schema/API corrections. |
 | `9c2594d` | 2026-06-08 | Added research landscape analysis. |
 | `b70f789` | 2026-06-08 | Expanded innovation analysis. |
 | `072c376` | 2026-06-08 | Mapped annotated source and SQL appendix. |
-| `02e51e8` / `1302a5e` | 2026-06-09 | Added screenshot/evidence inventory and complete command-log renderings for Gap 4. |
+| `02e51e8` / `1302a5e` | 2026-06-09 | Added screenshot/evidence inventory and complete command-log renderings for the final evidence inventory. |
 
 ### 4.5 Evaluation / Benchmark Integration
 
@@ -192,9 +192,9 @@ Do not overstate these points:
 
 1. The evaluation framework was integrated into `jflin`/`dev`, but its original implementation should be credited primarily to `dzx0902`. In personal contribution text, count hopecommon's role as integration, review, and alignment unless citing specific hopecommon-authored commits.
 2. GitHub merge commits by `evanlin257 <143060834+hopecommon@users.noreply.github.com>` often have no direct file diff relative to the merged branch. They are useful process evidence, not implementation-line evidence.
-3. Local `dev` currently contains 2 commits not yet present on `origin/dev` at audit time: `c2b8cd9` and `ee623c7`, both by `Cofstars`. If the final report cites them, keep the evidence source explicitly local unless they are later merged.
+3. The five `Cofstars` non-merge commits (`c2b8cd9`, `ee623c7`, `89ca761`, `899530e`, `fa6ecd3`) are now merged to `origin/dev`, so they are remote-backed evidence and can be cited directly.
 4. This refresh now includes raw Git-backed rows for the other observed members, but their responsibility wording is still lighter-weight than the hopecommon deep audit and should not be over-claimed.
-5. Current GitHub issue state could not be revalidated in this terminal because `gh` is unavailable. Use code/docs artifacts and commit history as the primary evidence for this refresh.
+5. GitHub issue state was not re-pulled for this refresh; code/docs artifacts and commit history remain the primary evidence.
 
 ## 7. Other Member Audit Notes
 
@@ -212,7 +212,7 @@ Raw audit files created so far:
 | `hopecommon <1841778349@qq.com>` / `evanlin257 <143060834+hopecommon@users.noreply.github.com>` | `docs/contribution-audit-hopecommon.tsv` | 65 non-merge | 16 merge / PR integration | Project lead, database/governance/provenance, lexical search/context-pack formatter/CLI dogfood, graph hardening, review/merge/integration, final evidence. |
 | `lywzc0419 <lzc050419@sjtu.edu.cn>` | `docs/contribution-audit-lywzc0419.tsv` | 8 non-merge | 0 direct merge | Mainly frontend API integration, runtime/governance UI, Neo4j Graph Explorer integration, graph lint/import fixes. |
 | `dzx0902 <3575895791@qq.com>` / `dzx0902 <145189098+dzx0902@users.noreply.github.com>` | `docs/contribution-audit-dzx0902.tsv` | 35 non-merge | 15 merge / PR integration | Project bootstrap, P0 backend/tests, evaluation framework, official benchmark adapters/runners, LongMemEval full-run evidence, embedding/hybrid recall, QA, memory extraction, CI/tooling, and integration merges. |
-| `Cofstars <2089039907@qq.com>` | `docs/contribution-audit-cofstars.tsv` | 2 non-merge | 0 direct merge | Added source extraction candidate workflow and optional LLM-backed memory extraction pipeline on top of the existing source/memory path. |
+| `Cofstars <2089039907@qq.com>` | `docs/contribution-audit-cofstars.tsv` | 5 non-merge | 0 direct merge | Added source extraction candidate workflow and optional LLM-backed memory extraction pipeline on top of the existing source/memory path, then refreshed final report, slides, and audit artifacts. |
 
 Recommended responsibility split for the final report:
 
@@ -221,7 +221,7 @@ Recommended responsibility split for the final report:
 | hopecommon / jflin | Database schema, governance/provenance model, SQL evidence, lexical search + recall context-pack formatter + CLI dogfood, agent-runtime CLI/sessions/observe/remember, graph hardening over lywzc0419's Neo4j integration, final report assets | Reviewed and integrated teammate frontend/evaluation/QA work; strengthened cross-module consistency and demo readiness. |
 | dzx0902 / dzx | P0 backend, tests, evaluation benchmark framework including LoCoMo / LongMemEval / MemoryAgentBench adapters and LongMemEval full-run evidence, embedding/hybrid recall, memory extraction, QA, CI/tooling | Also contributed project bootstrap, batch memory writes / supersession support, and integration merges. |
 | huiyijian / lywzc0419 / lzc | Frontend API integration, runtime/governance UI, multi-page UI wiring, Neo4j Graph Explorer integration | Also fixed graph lint/Ruff import issues and supporting dependencies/config. |
-| Cofstars | Source extraction workflow, chunking/test additions, source UI creation/detail flow, optional LLM-backed candidate extraction and related CLI/API/tests | Current Git evidence is limited to two local `dev` commits on 2026-06-14; keep the statement proportional to that visible scope. |
+| Cofstars | Source extraction workflow, chunking/test additions, source UI creation/detail flow, optional LLM-backed candidate extraction and related CLI/API/tests, plus final report / slides / audit-artifact refreshes | Git evidence is five non-merge commits on `origin/dev` (2026-06-14); keep the statement proportional to that visible scope. |
 
 Boundary note: the recall/search path is collaborative. Hopecommon mainly owns
 lexical search, the recall context-pack formatter, and CLI/dogfood flows; dzx0902
@@ -246,9 +246,9 @@ it is later merged.
 
 Identity note: the teammate previously referred to as `huiyijian` maps to the
 Git identity `lywzc0419 <lzc050419@sjtu.edu.cn>` in this repository. As of the
-2026-06-14 refresh, the previously blank fourth-member slot now has Git-backed
-evidence under `Cofstars <2089039907@qq.com>`, but only for the two local `dev`
-commits currently ahead of `origin/dev`.
+refresh, the previously blank fourth-member slot now has Git-backed evidence
+under `Cofstars <2089039907@qq.com>`, covering five non-merge commits now on
+`origin/dev`.
 
 ## 8. Suggested Appendix Snippet
 

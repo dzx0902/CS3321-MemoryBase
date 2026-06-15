@@ -1,4 +1,4 @@
-# Gap 4 Screenshot and Evidence Inventory
+# Screenshot and Evidence Inventory
 
 This directory contains report/PPT-ready screenshots captured from the final demo
 workspace on 2026-06-09.
