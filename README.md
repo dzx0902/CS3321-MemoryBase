@@ -271,29 +271,16 @@ psql postgresql://memorybase:memorybase@localhost:5432/memorybase_db -c "\dt"
 npm run db:check
 ```
 
-## 文档目录
+## 文档与材料
 
-- docs/00-project-overview\.md
-- docs/01-requirements.md
-- docs/02-data-flow\.md
-- docs/03-data-dictionary.md
-- docs/04-er-design.md
-- docs/05-logical-design.md
-- docs/06-physical-design.md
-- docs/07-system-architecture.md
-- docs/08-api-design.md
-- docs/09-module-ipo.md
-- docs/10-test-plan.md
-- docs/11-demo-script.md
-- docs/12-github-workflow\.md
-- docs/13-final-report-outline.md
-- docs/14-initial-issues.md
-- docs/15-api-contract-plan.md
-- docs/16-agent-runtime-gap-analysis.md
-- docs/17-agent-runtime-plan.md
-- docs/18-pr4-lexical-search-design.md
-- docs/19-repo-session-aware-context-design.md
-- docs/20-course-alignment-risk-and-recovery-plan.md
+项目的设计文档、演示材料、源程序说明与参考资料统一放在 [`docs/`](docs/) 目录下：
+
+- 整合后的主报告：[`docs/final-report.md`](docs/final-report.md) / [`docs/final-report.pdf`](docs/final-report.pdf)
+- 答辩 PPT：[`docs/final-assets/slides/final-defense.pdf`](docs/final-assets/slides/final-defense.pdf)
+- 流程图 / ER / 时序图与系统演示截图：[`docs/final-assets/`](docs/final-assets/)
+- 需求 / 概念 / 逻辑 / 物理设计、范式、索引、API、分工等专项文档：见 [`docs/`](docs/)
+
+完整的文档导览与主题索引见 [`docs/README.md`](docs/README.md)；开发过程中的规划与记录归档在 [`docs/process/`](docs/process/)。
 
 ## GitHub Workflows
 

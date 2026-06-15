@@ -34,7 +34,7 @@ Important counting rule:
 - Non-merge commits are treated as direct implementation / documentation contributions.
 - Merge commits and PR integration commits are tracked separately as integration evidence.
 - The large evaluation branch merge is counted as integration/curation unless individual files are authored by hopecommon commits. This avoids overstating original implementation ownership of teammate work.
-- Raw commit audit is stored in `docs/gap6-hopecommon-commit-audit.tsv`.
+- Raw commit audit is stored in `docs/contribution-audit-hopecommon.tsv`.
 
 ## 2. Reproducible Commands
 
@@ -105,7 +105,7 @@ commits on local `dev`.
 | Graph explorer / graph sync hardening | ~1 large feature commit | `backend/app/services/graph_service.py`, `backend/app/api/graph.py`, `frontend/src/pages/graph/*`, `backend/tests/test_graph_service.py` | Added agent-aware graph visibility, Neo4j driver singleton lifecycle, batch `UNWIND` sync, sync audit attribution, frontend graph module split, and graph tests. |
 | Search, recall, and context-pack retrieval | ~8 commits | `backend/app/services/recall_service.py`, `backend/app/services/search_service.py`, `backend/app/cli/commands/eval.py`, `data/eval/*`, `frontend/src/pages/recall/Recall.jsx` | Added lexical search infrastructure, recall API/CLI, context pack formatter, retrieval/evaluation seed data, and UI evidence for recall and QA. |
 | Evaluation / benchmark integration | Integration plus limited earlier eval CLI work | `backend/app/cli/commands/eval.py`, `data/eval/*`, merged `evaluation/` assets | Teammate-owned area. Hopecommon's contribution is limited to early eval CLI/gold-data support plus final review, merge, conflict resolution, and alignment into the main demo/report story. |
-| Final-report materials and evidence assets | ~36 commits | `docs/gap2-research-landscape.md`, `docs/gap3-innovation-analysis.md`, `docs/final-assets/diagrams/*`, `docs/final-assets/screenshots/*`, `docs/gap8-source-sql-appendix-map.md`, `docs/gap9-audit-findings.md` | Produced final report support materials and evidence packages: research landscape, innovation analysis, ER/sequence diagrams, screenshot inventory, source/SQL appendix map, and deliverable re-audit. |
+| Final-report materials and evidence assets | ~36 commits | `docs/research-landscape.md`, `docs/innovation-analysis.md`, `docs/final-assets/diagrams/*`, `docs/final-assets/screenshots/*`, `docs/source-sql-appendix.md`, `docs/process/audit-findings.md` | Produced final report support materials and evidence packages: research landscape, innovation analysis, ER/sequence diagrams, screenshot inventory, source/SQL appendix map, and deliverable re-audit. |
 | Tooling and reproducibility | 6 commits | `scripts/db_cli.py`, `scripts/import_demo_sources.py`, `pyproject.toml`, `uv.lock`, `AGENTS.md` | Improved reproducible database setup/demo execution, CLI packaging, dependency lockfile, and project workflow guardrails. |
 
 ## 4. Representative Commit Evidence
@@ -209,10 +209,10 @@ Raw audit files created so far:
 
 | Member identity | Raw audit file | Direct commits | Merge / integration commits | Notes |
 |---|---|---:|---:|---|
-| `hopecommon <1841778349@qq.com>` / `evanlin257 <143060834+hopecommon@users.noreply.github.com>` | `docs/gap6-hopecommon-commit-audit.tsv` | 65 non-merge | 16 merge / PR integration | Project lead, database/governance/provenance, lexical search/context-pack formatter/CLI dogfood, graph hardening, review/merge/integration, final evidence. |
-| `lywzc0419 <lzc050419@sjtu.edu.cn>` | `docs/gap6-lywzc0419-commit-audit.tsv` | 8 non-merge | 0 direct merge | Mainly frontend API integration, runtime/governance UI, Neo4j Graph Explorer integration, graph lint/import fixes. |
-| `dzx0902 <3575895791@qq.com>` / `dzx0902 <145189098+dzx0902@users.noreply.github.com>` | `docs/gap6-dzx0902-commit-audit.tsv` | 35 non-merge | 15 merge / PR integration | Project bootstrap, P0 backend/tests, evaluation framework, official benchmark adapters/runners, LongMemEval full-run evidence, embedding/hybrid recall, QA, memory extraction, CI/tooling, and integration merges. |
-| `Cofstars <2089039907@qq.com>` | `docs/gap6-cofstars-commit-audit.tsv` | 2 non-merge | 0 direct merge | Added source extraction candidate workflow and optional LLM-backed memory extraction pipeline on top of the existing source/memory path. |
+| `hopecommon <1841778349@qq.com>` / `evanlin257 <143060834+hopecommon@users.noreply.github.com>` | `docs/contribution-audit-hopecommon.tsv` | 65 non-merge | 16 merge / PR integration | Project lead, database/governance/provenance, lexical search/context-pack formatter/CLI dogfood, graph hardening, review/merge/integration, final evidence. |
+| `lywzc0419 <lzc050419@sjtu.edu.cn>` | `docs/contribution-audit-lywzc0419.tsv` | 8 non-merge | 0 direct merge | Mainly frontend API integration, runtime/governance UI, Neo4j Graph Explorer integration, graph lint/import fixes. |
+| `dzx0902 <3575895791@qq.com>` / `dzx0902 <145189098+dzx0902@users.noreply.github.com>` | `docs/contribution-audit-dzx0902.tsv` | 35 non-merge | 15 merge / PR integration | Project bootstrap, P0 backend/tests, evaluation framework, official benchmark adapters/runners, LongMemEval full-run evidence, embedding/hybrid recall, QA, memory extraction, CI/tooling, and integration merges. |
+| `Cofstars <2089039907@qq.com>` | `docs/contribution-audit-cofstars.tsv` | 2 non-merge | 0 direct merge | Added source extraction candidate workflow and optional LLM-backed memory extraction pipeline on top of the existing source/memory path. |
 
 Recommended responsibility split for the final report:
 

@@ -1,7 +1,7 @@
 # Gap 9 — Audit Review (claude pass on codex findings)
 
 **Reviewer**: claude
-**Auditee**: codex (`docs/gap9-audit-findings.md`)
+**Auditee**: codex (`docs/process/audit-findings.md`)
 **HEAD**: `2dd0d64`
 **Verdict**: **APPROVED — accurate findings, ready for fix execution after addressing supplements below.**
 

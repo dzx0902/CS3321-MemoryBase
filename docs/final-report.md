@@ -83,7 +83,7 @@ SourceDocument
 | 材料 | 用途 |
 |---|---|
 | `docs/00-project-overview.md` | 项目总览和核心链路 |
-| `docs/gap2-research-landscape.md` | 研究现状分析 |
+| `docs/research-landscape.md` | 研究现状分析 |
 | `docs/01-requirements.md` | 需求分析 |
 | `docs/02-data-flow.md` | 数据流图 |
 | `docs/03-data-dictionary.md` | 数据字典 |
@@ -92,9 +92,9 @@ SourceDocument
 | `docs/06-physical-design.md` / `docs/index-rationale.md` / `docs/explain-analyze.md` | 物理设计、索引和 EXPLAIN |
 | `docs/07-system-architecture.md` / `docs/08-api-design.md` / `docs/09-module-ipo.md` | 系统架构、API 和模块 IPO |
 | `docs/10-test-plan.md` / `docs/final-assets/screenshots/` | 测试与截图证据 |
-| `docs/gap3-innovation-analysis.md` | 创新点展开 |
-| `docs/gap6-contribution-ledger.md` | 小组分工和个人贡献 |
-| `docs/gap8-source-sql-appendix-map.md` | 带注释 SQL / 高级语言源程序附录 |
+| `docs/innovation-analysis.md` | 创新点展开 |
+| `docs/contribution-ledger.md` | 小组分工和个人贡献 |
+| `docs/source-sql-appendix.md` | 带注释 SQL / 高级语言源程序附录 |
 
 ## 2. 研究现状分析
 
@@ -821,7 +821,7 @@ Evaluation framework 让系统不只做 UI demo，还能用 LoCoMo / LongMemEval
 
 ## 15. 小组分工与个人完成情况
 
-> 本节基于 `docs/gap6-contribution-ledger.md` 在 2026-06-14 的 Git commit 审计刷新。
+> 本节基于 `docs/contribution-ledger.md` 在 2026-06-14 的 Git commit 审计刷新。
 
 | 成员 | 主要负责 | 交付成果 |
 |---|---|---|
@@ -862,7 +862,7 @@ Evaluation framework 让系统不只做 UI demo，还能用 LoCoMo / LongMemEval
 | `evaluation/` | benchmark adapters、metrics、runners、reports |
 | `backend/tests/` | 测试 |
 
-详细源码清单和建议摘录见 `docs/gap8-source-sql-appendix-map.md`。
+详细源码清单和建议摘录见 `docs/source-sql-appendix.md`。
 
 ## 17. 总结与展望
 

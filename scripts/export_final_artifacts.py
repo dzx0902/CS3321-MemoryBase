@@ -18,16 +18,26 @@ DOCS_DIR = ROOT / "docs"
 REPORT_MD = DOCS_DIR / "final-report.md"
 REPORT_HTML = DOCS_DIR / "final-report.print.html"
 REPORT_PDF = DOCS_DIR / "final-report.pdf"
-SLIDES_HTML = DOCS_DIR / "final-assets" / "slides" / "gap7-final-defense.html"
-SLIDES_PDF = DOCS_DIR / "final-assets" / "slides" / "gap7-final-defense.pdf"
+SLIDES_HTML = DOCS_DIR / "final-assets" / "slides" / "final-defense.html"
+SLIDES_PDF = DOCS_DIR / "final-assets" / "slides" / "final-defense.pdf"
 REPORT_PDF_TITLE = "MemoryBase Final Report"
 SLIDES_PDF_TITLE = "MemoryBase Final Defense Slides"
 
 EDGE_CANDIDATES = (
+    # Windows
     Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
     Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
     Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
     Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+    # macOS
+    Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+    Path("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
+    Path("/Applications/Chromium.app/Contents/MacOS/Chromium"),
+    # Linux
+    Path("/usr/bin/google-chrome"),
+    Path("/usr/bin/chromium"),
+    Path("/usr/bin/chromium-browser"),
+    Path("/usr/bin/microsoft-edge"),
 )
 
 REPORT_STYLE = """

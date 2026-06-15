@@ -20,9 +20,9 @@ docs/final-report.md
 
 | 章节 | 内容 | 主要素材来源 |
 |---|---|---|
-| 摘要 | 项目定位、数据库主线、评测边界 | `docs/00-project-overview.md`、`docs/gap3-innovation-analysis.md` |
+| 摘要 | 项目定位、数据库主线、评测边界 | `docs/00-project-overview.md`、`docs/innovation-analysis.md` |
 | 1 项目概述 | 项目定位、核心链路、已交付能力 | `docs/00-project-overview.md` |
-| 2 研究现状分析 | RAG、Agent memory、企业知识库、GraphRAG、benchmark | `docs/gap2-research-landscape.md` |
+| 2 研究现状分析 | RAG、Agent memory、企业知识库、GraphRAG、benchmark | `docs/research-landscape.md` |
 | 3 需求分析 | 角色、功能需求、非功能需求 | `docs/01-requirements.md` |
 | 4 数据流设计 | 0 层、1 层、Source/Recall/Wiki 2 层流程 | `docs/02-data-flow.md` |
 | 5 数据字典 | 核心数据项、数据结构 | `docs/03-data-dictionary.md` |
@@ -34,10 +34,10 @@ docs/final-report.md
 | 11 系统实现 | Source→Wiki、Recall、Governance、状态机 | `docs/final-assets/diagrams/` |
 | 12 系统演示 | demo setup、操作流程、截图索引 | `docs/11-demo-script.md`、`docs/final-assets/screenshots/README.md` |
 | 13 测试与评估 | 自动化测试、SQL 测试、LongMemEval 解释 | `docs/10-test-plan.md`、`docs/27-longmemeval-full-evaluation-20260609.md` |
-| 14 创新点总结 | DB-first、provenance、governance、visibility、fallback、evaluation | `docs/gap3-innovation-analysis.md` |
-| 15 小组分工 | 成员贡献表和边界说明 | `docs/gap6-contribution-ledger.md` |
-| 16 带注释源程序 | SQL 和高级语言源程序清单 | `docs/gap8-source-sql-appendix-map.md` |
-| 17 总结与展望 | 已完成、边界、future work | `docs/gap3-innovation-analysis.md`、`docs/22-backend-memory-roadmap.md` |
+| 14 创新点总结 | DB-first、provenance、governance、visibility、fallback、evaluation | `docs/innovation-analysis.md` |
+| 15 小组分工 | 成员贡献表和边界说明 | `docs/contribution-ledger.md` |
+| 16 带注释源程序 | SQL 和高级语言源程序清单 | `docs/source-sql-appendix.md` |
+| 17 总结与展望 | 已完成、边界、future work | `docs/innovation-analysis.md`、`docs/process/22-backend-memory-roadmap.md` |
 
 ## 3. 图表插入清单
 
@@ -86,8 +86,8 @@ docs/final-assets/screenshots/
 
 | 附录 | 内容 | 入口 |
 |---|---|---|
-| 附录 A SQL 源程序 | DDL、indexes、views、triggers、seed、demo queries | `database/*.sql`、`docs/gap8-source-sql-appendix-map.md` |
-| 附录 B 高级语言源程序说明 | FastAPI、React、CLI、evaluation、tests | `docs/gap8-source-sql-appendix-map.md` |
+| 附录 A SQL 源程序 | DDL、indexes、views、triggers、seed、demo queries | `database/*.sql`、`docs/source-sql-appendix.md` |
+| 附录 B 高级语言源程序说明 | FastAPI、React、CLI、evaluation、tests | `docs/source-sql-appendix.md` |
 | 附录 C 演示数据 | seed workspace、governance fixture、graph demo data | `database/07_seed.sql`、`database/09_graph_demo.sql`、`database/10_governance_demo_fixture.sql` |
 | 附录 D 测试与命令日志 | backend tests、frontend build、SQL outputs、EXPLAIN | `docs/final-assets/screenshots/logs/` |
 | 附录 E 评测结果 | LongMemEval summary 和 CSV | `docs/27-longmemeval-full-evaluation-20260609.md`、`evaluation/results/longmemeval_full_20260609.csv` |
