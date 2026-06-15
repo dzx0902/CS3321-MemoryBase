@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { memoriesApi } from '../../api/client';
 import { useToast } from '../../components/Toast';
 
-const MEMORY_TYPES = ['episodic', 'semantic', 'profile', 'procedural', 'decision', 'preference', 'task', 'risk'];
+const MEMORY_TYPES = ['episodic', 'semantic', 'fact', 'profile', 'procedural', 'decision', 'preference', 'task', 'risk', 'constraint', 'policy', 'summary'];
 const ACCESS_LEVELS = ['public', 'project', 'team', 'private'];
 const STATUSES = ['active', 'archived', 'forgotten', 'superseded', 'conflicted'];
 

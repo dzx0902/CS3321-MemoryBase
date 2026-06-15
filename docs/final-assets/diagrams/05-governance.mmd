@@ -1,0 +1,68 @@
+%% MemoryBase — Governance lifecycle sequences
+%% Covers: (A) conflict create/resolve, (B) forget request approval, (C) revision audit
+%% Use in report §7 创新点 / 治理章节.
+
+sequenceDiagram
+    autonumber
+    actor       Editor       as Editor / Admin
+    participant API          as FastAPI governance router
+    participant Service      as Service Layer
+    participant DB           as PostgreSQL
+    participant Trig         as Triggers
+    participant Audit        as audit_log
+
+    rect rgb(255, 245, 245)
+        Note over Editor,Audit: (A) Conflict — create, trigger flag, resolve/ignore
+        Editor->>API: POST /api/conflicts {left_memory_id, right_memory_id, conflict_type}
+        API->>Service: GovernanceService.create_conflict(payload)
+        Service->>DB: INSERT conflict_record (status='open', left/right_memory_id)
+        DB-->>Trig: trg_conflict_after_insert marks active endpoints conflicted
+        DB-->>Trig: trg_memory_after_update writes memory_revision + audit_log
+        Service->>Audit: INSERT audit_log (conflict.create)
+        Service-->>API: ConflictRecord (open)
+
+        Editor->>API: PATCH /api/conflicts/{id}?workspace_id=... {status, resolution_note}
+        API->>Service: GovernanceService.update_conflict(conflict_id, payload)
+        Service->>DB: UPDATE conflict_record SET status='resolved' or 'ignored'
+        DB-->>Trig: trg_conflict_after_update checks remaining open conflicts
+        alt no remaining open conflicts
+            DB-->>Trig: restore conflicted endpoints to active
+            DB-->>Trig: trg_memory_after_update writes memory_revision + audit_log
+        else still conflicted elsewhere
+            DB-->>Trig: keep endpoint status unchanged
+        end
+        Service->>Audit: INSERT audit_log (conflict.update)
+    end
+
+    rect rgb(245, 255, 247)
+        Note over Editor,Audit: (B) Forget — request, review, soft-delete
+        Editor->>API: POST /api/forget-requests {target_type, target_id, reason}
+        API->>Service: GovernanceService.create_forget_request(payload)
+        Service->>DB: INSERT forget_request (status='pending')
+        Service->>Audit: INSERT audit_log (forget_request.create)
+
+        Editor->>API: PATCH /api/forget-requests/{id}?workspace_id=... {status='approved'|'done'}
+        API->>Service: GovernanceService.update_forget_request(request_id, payload)
+        alt target_type = 'memory_item'
+            Service->>DB: UPDATE memory_item SET status='forgotten' WHERE id = target_id
+            DB-->>Trig: trg_memory_after_update writes memory_revision + audit_log
+            Service->>DB: UPDATE generated wiki_page SET status='forgotten'
+        else target_type = 'source_document' or 'wiki_page' or 'entity'
+            Service->>DB: UPDATE <target_table> SET status='forgotten', forgotten_at=now()
+            Service->>Audit: INSERT audit_log (<target_type>.forget)
+        end
+        Service->>DB: UPDATE forget_request SET requested status, reviewed_by_user_id, resolved_at
+        Service->>Audit: INSERT audit_log (forget_request.update)
+        Service-->>API: ForgetRequest
+    end
+
+    rect rgb(245, 247, 255)
+        Note over Editor,Audit: (C) Revision — edit memory, immutable history
+        Editor->>API: PATCH /api/memories/{id} (canonical_text or governance fields)
+        API->>Service: MemoryService.update_memory(memory_id, patch)
+        Service->>DB: UPDATE memory_item SET ...
+        DB-->>Trig: trg_memory_before_update increments current_revision_no
+        DB-->>Trig: trg_memory_after_update INSERT memory_revision (immutable)
+        DB-->>Trig: trg_memory_after_update INSERT audit_log (before_json, after_json)
+        Service-->>API: MemoryItem (new current_revision_no)
+    end

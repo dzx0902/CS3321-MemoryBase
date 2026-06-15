@@ -1,3 +1,5 @@
+-- A logical work session for meetings, chats, imports, manual edits, or CLI runs.
+-- Messages and imported sources can point back to the session that produced them.
 CREATE TABLE IF NOT EXISTS agent_session (
   session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -10,6 +12,8 @@ CREATE TABLE IF NOT EXISTS agent_session (
   ended_at TIMESTAMPTZ
 );
 
+-- Conversation message log. It preserves Agent Runtime inputs/outputs without
+-- forcing every message to become long-term memory.
 CREATE TABLE IF NOT EXISTS message (
   message_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL REFERENCES agent_session(session_id) ON DELETE CASCADE,
@@ -21,6 +25,8 @@ CREATE TABLE IF NOT EXISTS message (
   reply_to_message_id UUID REFERENCES message(message_id) ON DELETE SET NULL
 );
 
+-- Raw imported document or inline agent note. Source rows are the provenance
+-- root for chunks, memories, evidence, and wiki citations.
 CREATE TABLE IF NOT EXISTS source_document (
   doc_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -39,6 +45,8 @@ CREATE TABLE IF NOT EXISTS source_document (
   UNIQUE(workspace_id, checksum)
 );
 
+-- Searchable chunks derived from a source document. search_vector is generated
+-- from pre-tokenized search_text_zh so PostgreSQL GIN can serve lexical recall.
 CREATE TABLE IF NOT EXISTS source_chunk (
   chunk_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   doc_id UUID NOT NULL REFERENCES source_document(doc_id) ON DELETE CASCADE,
@@ -54,6 +62,8 @@ CREATE TABLE IF NOT EXISTS source_chunk (
   UNIQUE(doc_id, chunk_no)
 );
 
+-- Long-term memory unit. Candidate extraction, access control, validity windows,
+-- conflict lifecycle, and revision pointers all converge on this table.
 CREATE TABLE IF NOT EXISTS memory_item (
   memory_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -108,6 +118,8 @@ CREATE TABLE IF NOT EXISTS memory_item (
   UNIQUE(memory_id, workspace_id)
 );
 
+-- Immutable version history for each memory. Triggers insert revision rows when
+-- memory content or governance fields change.
 CREATE TABLE IF NOT EXISTS memory_revision (
   memory_id UUID NOT NULL REFERENCES memory_item(memory_id) ON DELETE CASCADE,
   revision_no INT NOT NULL,
@@ -121,6 +133,8 @@ CREATE TABLE IF NOT EXISTS memory_revision (
   PRIMARY KEY (memory_id, revision_no)
 );
 
+-- Many-to-many evidence bridge between memories and source chunks. evidence_role
+-- distinguishes supporting, refuting, contextual, and inline source evidence.
 CREATE TABLE IF NOT EXISTS memory_evidence (
   evidence_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   memory_id UUID NOT NULL REFERENCES memory_item(memory_id) ON DELETE CASCADE,
@@ -133,6 +147,8 @@ CREATE TABLE IF NOT EXISTS memory_evidence (
   UNIQUE(memory_id, chunk_id, evidence_role)
 );
 
+-- Optional memory-level embedding cache. The project stores vectors in JSONB to
+-- avoid a hard pgvector dependency while still supporting hybrid recall demos.
 CREATE TABLE IF NOT EXISTS memory_embedding (
   embedding_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   memory_id UUID NOT NULL REFERENCES memory_item(memory_id) ON DELETE CASCADE,
@@ -148,6 +164,8 @@ CREATE TABLE IF NOT EXISTS memory_embedding (
     REFERENCES memory_item(memory_id, workspace_id) ON DELETE CASCADE
 );
 
+-- Optional source-chunk embedding cache. Chunk embeddings can contribute vector
+-- candidates through memory_evidence during hybrid recall.
 CREATE TABLE IF NOT EXISTS source_chunk_embedding (
   embedding_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   chunk_id UUID NOT NULL REFERENCES source_chunk(chunk_id) ON DELETE CASCADE,
@@ -162,6 +180,8 @@ CREATE TABLE IF NOT EXISTS source_chunk_embedding (
   UNIQUE(chunk_id, provider, model, embedding_text_hash)
 );
 
+-- Lightweight semantic entity inside a workspace, used for memory organization
+-- and final-report/wiki inspection rather than a full knowledge graph.
 CREATE TABLE IF NOT EXISTS entity (
   entity_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -178,6 +198,8 @@ CREATE TABLE IF NOT EXISTS entity (
   UNIQUE(workspace_id, canonical_name)
 );
 
+-- Memory-to-entity bridge. workspace_id participates in composite FKs so the
+-- database rejects cross-workspace associations.
 CREATE TABLE IF NOT EXISTS memory_entity (
   memory_id UUID NOT NULL,
   entity_id UUID NOT NULL,
@@ -192,6 +214,8 @@ CREATE TABLE IF NOT EXISTS memory_entity (
     REFERENCES entity(entity_id, workspace_id) ON DELETE CASCADE
 );
 
+-- A named scene groups memories into a topic, decision, or narrative unit for
+-- demo pages and wiki projection.
 CREATE TABLE IF NOT EXISTS memory_scene (
   scene_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID NOT NULL REFERENCES workspace(workspace_id) ON DELETE CASCADE,
@@ -204,6 +228,8 @@ CREATE TABLE IF NOT EXISTS memory_scene (
   UNIQUE(workspace_id, scene_slug)
 );
 
+-- Scene membership bridge with ordering and narrative role metadata.
+-- Composite FKs enforce that scene and memory belong to the same workspace.
 CREATE TABLE IF NOT EXISTS memory_scene_cell (
   scene_id UUID NOT NULL,
   memory_id UUID NOT NULL,

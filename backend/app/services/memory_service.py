@@ -8,6 +8,8 @@ from uuid import UUID
 from ..core.database import Database
 from ..models.memory import (
     ActorContext,
+    MemoryBatchCreateRequest,
+    MemoryBatchCreateResponse,
     MemoryCreateRequest,
     MemoryDeleteResponse,
     MemoryDetailResponse,
@@ -19,6 +21,8 @@ from ..models.memory import (
 from .chunking import _estimate_token_count
 from .tokenizer import build_search_text
 
+# Lifecycle rules live in service code while database triggers record revisions
+# and audit rows. This split keeps invalid transitions out before SQL executes.
 ALLOWED_STATUS_TRANSITIONS = {
     "candidate": {"active", "rejected"},
     "active": {"superseded", "archived", "conflicted", "forgotten"},
@@ -40,6 +44,13 @@ class MemoryRepository(Protocol):
     def create_memory(
         self, payload: MemoryCreateRequest, actor: ActorContext | None = None
     ) -> MemorySummaryResponse:
+        ...
+
+    def create_memories(
+        self,
+        payloads: list[MemoryCreateRequest],
+        actor: ActorContext | None = None,
+    ) -> list[MemorySummaryResponse]:
         ...
 
     def list_memories(
@@ -80,8 +91,25 @@ class MemoryService:
     def create_memory(
         self, payload: MemoryCreateRequest, actor: ActorContext | None = None
     ) -> MemorySummaryResponse:
-        _validate_initial_status(payload.status)
+        _validate_create_payload(payload)
         return self.repository.create_memory(payload, actor)
+
+    def create_memories(
+        self,
+        payload: MemoryBatchCreateRequest,
+        actor: ActorContext | None = None,
+    ) -> MemoryBatchCreateResponse:
+        workspace_ids = {item.workspace_id for item in payload.items}
+        if len(workspace_ids) != 1:
+            raise MemoryValidationError("batch memory items must use one workspace_id")
+        for item in payload.items:
+            _validate_create_payload(item)
+        items = self.repository.create_memories(payload.items, actor)
+        return MemoryBatchCreateResponse(
+            workspace_id=next(iter(workspace_ids)),
+            count=len(items),
+            items=items,
+        )
 
     def list_memories(
         self,
@@ -138,113 +166,143 @@ class PostgresMemoryRepository:
     def create_memory(
         self, payload: MemoryCreateRequest, actor: ActorContext | None = None
     ) -> MemorySummaryResponse:
+        return self.create_memories([payload], actor)[0]
+
+    def create_memories(
+        self,
+        payloads: list[MemoryCreateRequest],
+        actor: ActorContext | None = None,
+    ) -> list[MemorySummaryResponse]:
         actor = actor or ActorContext(actor_type="system", revision_reason="initial create")
         with self._database.connection() as conn:
             with conn.cursor() as cur:
                 self._set_actor_context(cur, actor)
-                evidence_items = list(payload.evidence)
-                created_from_doc_id = payload.created_from_doc_id
-                if not evidence_items and actor.actor_type == "agent":
-                    inline_evidence = self._create_inline_evidence_chunk(cur, payload, actor)
-                    evidence_items = [
-                        MemoryEvidenceInput(
-                            chunk_id=inline_evidence["chunk_id"],
-                            evidence_role="source",
-                            weight=1.0,
-                            note="Inline agent note created by MemoryBase CLI.",
-                        )
-                    ]
-                    if created_from_doc_id is None:
-                        created_from_doc_id = inline_evidence["doc_id"]
-
-                cur.execute(
-                    """
-                    INSERT INTO memory_item (
-                        workspace_id,
-                        created_from_doc_id,
-                        memory_type,
-                        canonical_text,
-                        summary,
-                        search_text_zh,
-                        confidence,
-                        importance,
-                        status,
-                        access_level,
-                        owner_user_id,
-                        owner_agent_id
-                    )
-                    VALUES (
-                        %(workspace_id)s,
-                        %(created_from_doc_id)s,
-                        %(memory_type)s,
-                        %(canonical_text)s,
-                        %(summary)s,
-                        %(search_text_zh)s,
-                        %(confidence)s,
-                        %(importance)s,
-                        %(status)s,
-                        %(access_level)s,
-                        %(owner_user_id)s,
-                        %(owner_agent_id)s
-                    )
-                    RETURNING memory_id
-                    """,
-                    {
-                        "workspace_id": payload.workspace_id,
-                        "created_from_doc_id": created_from_doc_id,
-                        "memory_type": payload.memory_type,
-                        "canonical_text": payload.canonical_text,
-                        "summary": payload.summary,
-                        "search_text_zh": build_search_text(
-                            payload.canonical_text,
-                            payload.summary,
-                        ),
-                        "confidence": payload.confidence,
-                        "importance": payload.importance,
-                        "status": payload.status,
-                        "access_level": payload.access_level,
-                        "owner_user_id": payload.owner_user_id,
-                        "owner_agent_id": payload.owner_agent_id,
-                    },
-                )
-                row = cur.fetchone()
-                if row is None:
-                    raise RuntimeError("failed to create memory")
-                memory_id = row["memory_id"]
-
-                self._validate_evidence_chunks(cur, payload.workspace_id, evidence_items)
-                for evidence in evidence_items:
-                    cur.execute(
-                        """
-                        INSERT INTO memory_evidence (
-                            memory_id,
-                            chunk_id,
-                            evidence_role,
-                            weight,
-                            note
-                        )
-                        VALUES (
-                            %(memory_id)s,
-                            %(chunk_id)s,
-                            %(evidence_role)s,
-                            %(weight)s,
-                            %(note)s
-                        )
-                        """,
-                        {
-                            "memory_id": memory_id,
-                            "chunk_id": evidence.chunk_id,
-                            "evidence_role": evidence.evidence_role,
-                            "weight": evidence.weight,
-                            "note": evidence.note,
-                        },
-                    )
-
+                memory_ids = [self._insert_memory(cur, payload, actor) for payload in payloads]
+                rows = self._fetch_memory_summaries(cur, memory_ids)
             conn.commit()
-        summary = self._get_memory_summary(memory_id)
-        if summary is None:
-            raise RuntimeError("created memory cannot be loaded")
-        return summary
+        rows_by_id = {row["memory_id"]: row for row in rows}
+        if len(rows_by_id) != len(memory_ids):
+            raise RuntimeError("one or more created memories could not be loaded")
+        return [MemorySummaryResponse(**rows_by_id[memory_id]) for memory_id in memory_ids]
+
+    def _insert_memory(
+        self,
+        cur,
+        payload: MemoryCreateRequest,
+        actor: ActorContext,
+    ) -> UUID:
+        if payload.supersedes_memory_id is not None:
+            cur.execute(
+                """
+                SELECT status
+                FROM memory_item
+                WHERE memory_id = %(memory_id)s
+                  AND workspace_id = %(workspace_id)s
+                FOR UPDATE
+                """,
+                {
+                    "memory_id": payload.supersedes_memory_id,
+                    "workspace_id": payload.workspace_id,
+                },
+            )
+            superseded = cur.fetchone()
+            if superseded is None:
+                raise MemoryValidationError(
+                    f"superseded memory {payload.supersedes_memory_id} does not belong "
+                    f"to workspace {payload.workspace_id}"
+                )
+            if superseded["status"] not in {"active", "conflicted"}:
+                raise MemoryValidationError(
+                    f"memory {payload.supersedes_memory_id} with status "
+                    f"{superseded['status']} cannot be superseded"
+                )
+
+        evidence_items = list(payload.evidence)
+        created_from_doc_id = payload.created_from_doc_id
+        if not evidence_items and actor.actor_type == "agent":
+            # Agent-created memories still receive provenance: an inline source
+            # document/chunk is created so memory_evidence is never empty.
+            inline_evidence = self._create_inline_evidence_chunk(cur, payload, actor)
+            evidence_items = [
+                MemoryEvidenceInput(
+                    chunk_id=inline_evidence["chunk_id"],
+                    evidence_role="source",
+                    weight=1.0,
+                    note="Inline agent note created by MemoryBase CLI.",
+                )
+            ]
+            if created_from_doc_id is None:
+                created_from_doc_id = inline_evidence["doc_id"]
+
+        cur.execute(
+            """
+            INSERT INTO memory_item (
+                workspace_id, created_from_doc_id, memory_type, canonical_text,
+                summary, search_text_zh, confidence, importance, status,
+                access_level, owner_user_id, owner_agent_id, valid_from
+            )
+            VALUES (
+                %(workspace_id)s, %(created_from_doc_id)s, %(memory_type)s,
+                %(canonical_text)s, %(summary)s, %(search_text_zh)s,
+                %(confidence)s, %(importance)s, %(status)s, %(access_level)s,
+                %(owner_user_id)s, %(owner_agent_id)s,
+                COALESCE(%(valid_from)s, now())
+            )
+            RETURNING memory_id, valid_from
+            """,
+            {
+                **payload.model_dump(
+                    exclude={"evidence", "supersedes_memory_id"},
+                ),
+                "created_from_doc_id": created_from_doc_id,
+                "search_text_zh": build_search_text(
+                    payload.canonical_text,
+                    payload.summary,
+                ),
+            },
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise RuntimeError("failed to create memory")
+        memory_id = row["memory_id"]
+        if payload.supersedes_memory_id is not None:
+            cur.execute(
+                """
+                UPDATE memory_item
+                SET status = 'superseded',
+                    valid_to = %(valid_to)s,
+                    superseded_by_memory_id = %(new_memory_id)s
+                WHERE memory_id = %(old_memory_id)s
+                  AND workspace_id = %(workspace_id)s
+                """,
+                {
+                    "valid_to": row["valid_from"],
+                    "new_memory_id": memory_id,
+                    "old_memory_id": payload.supersedes_memory_id,
+                    "workspace_id": payload.workspace_id,
+                },
+            )
+        self._validate_evidence_chunks(cur, payload.workspace_id, evidence_items)
+        for evidence in evidence_items:
+            cur.execute(
+                """
+                INSERT INTO memory_evidence (
+                    memory_id, chunk_id, evidence_role, weight, note
+                )
+                VALUES (
+                    %(memory_id)s, %(chunk_id)s, %(evidence_role)s,
+                    %(weight)s, %(note)s
+                )
+                """,
+                {
+                    "memory_id": memory_id,
+                    "chunk_id": evidence.chunk_id,
+                    "evidence_role": evidence.evidence_role,
+                    "weight": evidence.weight,
+                    "note": evidence.note,
+                },
+            )
+        return memory_id
 
     def _set_actor_context(self, cur, actor: ActorContext) -> None:
         cur.execute(
@@ -639,14 +697,25 @@ class PostgresMemoryRepository:
     def _get_memory_summary(
         self, memory_id: UUID, workspace_id: UUID | None = None
     ) -> MemorySummaryResponse | None:
+        with self._database.connection() as conn:
+            with conn.cursor() as cur:
+                row = self._fetch_memory_summary(cur, memory_id, workspace_id)
+        if row is None:
+            return None
+        return MemorySummaryResponse(**row)
+
+    def _fetch_memory_summary(
+        self,
+        cur,
+        memory_id: UUID,
+        workspace_id: UUID | None = None,
+    ) -> dict[str, object] | None:
         workspace_filter = "AND mi.workspace_id = %(workspace_id)s" if workspace_id else ""
         params: dict[str, object] = {"memory_id": memory_id}
         if workspace_id:
             params["workspace_id"] = workspace_id
-        with self._database.connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    f"""
+        cur.execute(
+            f"""
                     SELECT
                         mi.memory_id,
                         mi.workspace_id,
@@ -680,13 +749,54 @@ class PostgresMemoryRepository:
                         mi.current_revision_no,
                         mi.created_at,
                         mi.updated_at
-                    """,
-                    params,
-                )
-                row = cur.fetchone()
-        if row is None:
-            return None
-        return MemorySummaryResponse(**row)
+            """,
+            params,
+        )
+        return cur.fetchone()
+
+    def _fetch_memory_summaries(
+        self,
+        cur,
+        memory_ids: list[UUID],
+    ) -> list[dict[str, object]]:
+        cur.execute(
+            """
+            SELECT
+                mi.memory_id,
+                mi.workspace_id,
+                mi.created_from_doc_id,
+                mi.memory_type,
+                mi.canonical_text,
+                mi.summary,
+                mi.confidence,
+                mi.importance,
+                mi.status,
+                mi.access_level,
+                mi.current_revision_no,
+                mi.created_at,
+                mi.updated_at,
+                COUNT(me.evidence_id) AS evidence_count
+            FROM memory_item mi
+            LEFT JOIN memory_evidence me ON me.memory_id = mi.memory_id
+            WHERE mi.memory_id = ANY(%(memory_ids)s::uuid[])
+            GROUP BY
+                mi.memory_id,
+                mi.workspace_id,
+                mi.created_from_doc_id,
+                mi.memory_type,
+                mi.canonical_text,
+                mi.summary,
+                mi.confidence,
+                mi.importance,
+                mi.status,
+                mi.access_level,
+                mi.current_revision_no,
+                mi.created_at,
+                mi.updated_at
+            """,
+            {"memory_ids": memory_ids},
+        )
+        return cur.fetchall()
 
     def _get_memory_detail(
         self, memory_id: UUID, workspace_id: UUID | None = None
@@ -901,3 +1011,9 @@ def _validate_initial_status(status: str) -> None:
         raise MemoryValidationError(
             f"illegal initial memory status: {status}. Use active or candidate."
         )
+
+
+def _validate_create_payload(payload: MemoryCreateRequest) -> None:
+    _validate_initial_status(payload.status)
+    if payload.supersedes_memory_id is not None and payload.status != "active":
+        raise MemoryValidationError("a superseding memory must start with active status")

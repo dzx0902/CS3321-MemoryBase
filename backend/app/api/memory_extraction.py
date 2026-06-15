@@ -36,13 +36,14 @@ def extract_from_chunks(
         actor = ActorContext(
             actor_type=x_actor_type,
             actor_id=x_actor_id,
-            revision_reason="rule-based memory extraction",
+            revision_reason=f"{payload.method} memory extraction",
         )
         candidates = service.extract_from_chunks(payload, actor)
     except MemoryExtractionValidationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return MemoryExtractionResponse(
         workspace_id=payload.workspace_id,
+        method=payload.method,
         created_count=len(candidates),
         candidates=candidates,
     )

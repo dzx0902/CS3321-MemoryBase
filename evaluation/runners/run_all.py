@@ -33,6 +33,9 @@ def main() -> None:
             "summary_memory",
             "db_memory",
             "db_extraction",
+            "db_qa",
+            "vector_qa",
+            "db_extraction_qa",
         ],
     )
     parser.add_argument(
@@ -48,6 +51,16 @@ def main() -> None:
     parser.add_argument("--api-base", default=None)
     parser.add_argument("--workspace", default=None)
     parser.add_argument("--agent", default=None)
+    parser.add_argument(
+        "--preserve-eval-data",
+        action="store_true",
+        help="Do not soft-delete memories created by live evaluation cases.",
+    )
+    parser.add_argument(
+        "--shared-workspace",
+        action="store_true",
+        help="Reuse --workspace instead of creating an isolated per-case workspace.",
+    )
     args = parser.parse_args()
 
     run_id = args.run_id or new_run_id()
@@ -77,6 +90,8 @@ def main() -> None:
                 api_base_url=args.api_base,
                 workspace=args.workspace,
                 agent=args.agent,
+                cleanup=not args.preserve_eval_data,
+                isolate=not args.shared_workspace,
             )
             print_summary(results, output)
     report_path = generate_report(outputs_dir=args.outputs_dir)
@@ -94,6 +109,9 @@ def _resolve_modes(mode: str, modes: str | None) -> list[str]:
         "summary_memory",
         "db_memory",
         "db_extraction",
+        "db_qa",
+        "vector_qa",
+        "db_extraction_qa",
     }
     invalid = sorted(set(resolved) - allowed)
     if invalid:

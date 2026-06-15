@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import SourceList from './pages/sources/SourceList';
 import SourceDetail from './pages/sources/SourceDetail';
+import SourceCreate from './pages/sources/SourceCreate';
 import MemoryList from './pages/memories/MemoryList';
 import MemoryDetail from './pages/memories/MemoryDetail';
 import MemoryCreate from './pages/memories/MemoryCreate';
@@ -28,6 +29,7 @@ export default function App() {
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="sources" element={<SourceList />} />
+            <Route path="sources/new" element={<SourceCreate />} />
             <Route path="sources/:docId" element={<SourceDetail />} />
             <Route path="memories" element={<MemoryList />} />
             <Route path="memories/new" element={<MemoryCreate />} />

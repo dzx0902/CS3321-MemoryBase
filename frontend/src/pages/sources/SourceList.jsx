@@ -36,6 +36,7 @@ export default function SourceList() {
     <div>
       <div className="section-header">
         <h1><span className="icon">▤</span> Sources</h1>
+        <Link to="/sources/new" className="btn btn--primary">+ New Source</Link>
       </div>
 
       <div className="filter-bar">
@@ -62,6 +63,7 @@ export default function SourceList() {
           <div className="empty-state__icon">▤</div>
           <div className="empty-state__title">No sources found</div>
           <p className="text-muted">Import source documents via the API to see them here.</p>
+          <Link to="/sources/new" className="btn btn--primary" style={{ marginTop: 16 }}>+ New Source</Link>
         </div>
       ) : (
         <>

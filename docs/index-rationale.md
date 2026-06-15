@@ -21,7 +21,7 @@ PostgreSQL 文档统一使用 "B-tree" 这个历史名称，但**真实实现是
 
 ## 1. 本项目使用的索引类别一览
 
-`database/04_indexes.sql` 共维护以下 **8 类**索引，覆盖经典关系数据库 + 现代 PostgreSQL 专属能力：
+`database/04_indexes.sql` 共维护以下 **9 类**索引，覆盖经典关系数据库 + 现代 PostgreSQL 专属能力：
 
 | 类别 | PostgreSQL 实现 | 教学意义 | 本项目案例 |
 |---|---|---|---|

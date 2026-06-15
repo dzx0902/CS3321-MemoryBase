@@ -1,0 +1,99 @@
+exit_code: 0
+
+> memorybase-workspace@0.1.0 db:run
+> python scripts/db_cli.py run /tmp/memorybase_gap4_explain.sql
+
+psql:/tmp/memorybase_gap4_explain.sql:1: WARNING:  permission denied to vacuum "pg_authid", skipping it
+psql:/tmp/memorybase_gap4_explain.sql:1: WARNING:  permission denied to vacuum "pg_subscription", skipping it
+psql:/tmp/memorybase_gap4_explain.sql:1: WARNING:  permission denied to vacuum "pg_database", skipping it
+psql:/tmp/memorybase_gap4_explain.sql:1: WARNING:  permission denied to vacuum "pg_db_role_setting", skipping it
+psql:/tmp/memorybase_gap4_explain.sql:1: WARNING:  permission denied to vacuum "pg_tablespace", skipping it
+psql:/tmp/memorybase_gap4_explain.sql:1: WARNING:  permission denied to vacuum "pg_auth_members", skipping it
+psql:/tmp/memorybase_gap4_explain.sql:1: WARNING:  permission denied to vacuum "pg_shdepend", skipping it
+psql:/tmp/memorybase_gap4_explain.sql:1: WARNING:  permission denied to vacuum "pg_shdescription", skipping it
+psql:/tmp/memorybase_gap4_explain.sql:1: WARNING:  permission denied to vacuum "pg_replication_origin", skipping it
+psql:/tmp/memorybase_gap4_explain.sql:1: WARNING:  permission denied to vacuum "pg_shseclabel", skipping it
+psql:/tmp/memorybase_gap4_explain.sql:1: WARNING:  permission denied to vacuum "pg_parameter_acl", skipping it
+VACUUM
+CASE 1: covering partial composite index for active memory ranking
+BEGIN
+SET
+                                                                     QUERY PLAN                                                                      
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..4.12 rows=10 width=48) (actual time=0.003..0.005 rows=10 loops=1)
+   Buffers: shared hit=2
+   ->  Index Only Scan using idx_memory_active_ranking on memory_item  (cost=0.14..8.51 rows=21 width=48) (actual time=0.002..0.003 rows=10 loops=1)
+         Index Cond: (workspace_id = '00000000-0000-0000-0000-000000000201'::uuid)
+         Heap Fetches: 0
+         Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=74
+ Planning Time: 0.123 ms
+ Execution Time: 0.015 ms
+(10 rows)
+
+ROLLBACK
+
+CASE 2: GIN FTS plus trigram bitmap OR path
+BEGIN
+SET
+SET
+                                                                   QUERY PLAN                                                                   
+------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=48.10..51.25 rows=3 width=147) (actual time=0.049..0.054 rows=3 loops=1)
+   Buffers: shared hit=22
+   ->  Bitmap Heap Scan on source_chunk sc  (cost=48.10..51.25 rows=3 width=147) (actual time=0.049..0.053 rows=3 loops=1)
+         Recheck Cond: ((search_vector @@ '''memorybase'''::tsquery) OR (chunk_text ~~* '%memorybase%'::text))
+         Heap Blocks: exact=3
+         Buffers: shared hit=22
+         ->  BitmapOr  (cost=48.10..48.10 rows=3 width=0) (actual time=0.042..0.042 rows=0 loops=1)
+               Buffers: shared hit=19
+               ->  Bitmap Index Scan on idx_source_chunk_fts  (cost=0.00..8.55 rows=2 width=0) (actual time=0.006..0.006 rows=2 loops=1)
+                     Index Cond: (search_vector @@ '''memorybase'''::tsquery)
+                     Buffers: shared hit=2
+               ->  Bitmap Index Scan on idx_source_chunk_text_trgm  (cost=0.00..39.55 rows=1 width=0) (actual time=0.036..0.036 rows=3 loops=1)
+                     Index Cond: (chunk_text ~~* '%memorybase%'::text)
+                     Buffers: shared hit=17
+ Planning:
+   Buffers: shared hit=48
+ Planning Time: 1.695 ms
+ Execution Time: 0.069 ms
+(18 rows)
+
+ROLLBACK
+
+CASE 3: BRIN audit time-window path after dropping competing btree indexes in transaction
+BEGIN
+DROP INDEX
+DROP INDEX
+DROP INDEX
+SET
+                                                                QUERY PLAN                                                                 
+-------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=20.74..20.77 rows=12 width=30) (actual time=0.151..0.151 rows=5 loops=1)
+   Sort Key: (date_trunc('day'::text, created_at)) DESC, (count(*)) DESC
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=15
+   ->  HashAggregate  (cost=20.37..20.52 rows=12 width=30) (actual time=0.141..0.142 rows=5 loops=1)
+         Group Key: date_trunc('day'::text, created_at), action_type
+         Batches: 1  Memory Usage: 24kB
+         Buffers: shared hit=12
+         ->  Bitmap Heap Scan on audit_log  (cost=12.03..20.01 rows=49 width=22) (actual time=0.109..0.131 rows=48 loops=1)
+               Recheck Cond: (created_at >= (now() - '30 days'::interval))
+               Rows Removed by Index Recheck: 1
+               Heap Blocks: lossy=7
+               Buffers: shared hit=12
+               ->  Bitmap Index Scan on idx_audit_brin_time  (cost=0.00..12.01 rows=49 width=0) (actual time=0.011..0.012 rows=70 loops=1)
+                     Index Cond: (created_at >= (now() - '30 days'::interval))
+                     Buffers: shared hit=5
+ Planning:
+   Buffers: shared hit=45
+ Planning Time: 0.515 ms
+ Execution Time: 0.186 ms
+(20 rows)
+
+ROLLBACK
+Using .env.example because .env was not found.
+Using DATABASE_URL=postgresql://memorybase:memorybase@localhost:5432/memorybase_db
+==> Running /tmp/memorybase_gap4_explain.sql
+SQL file completed: /tmp/memorybase_gap4_explain.sql

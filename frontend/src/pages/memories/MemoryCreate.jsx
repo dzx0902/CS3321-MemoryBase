@@ -4,7 +4,7 @@ import { memoriesApi, sourcesApi } from '../../api/client';
 import { DEMO_WORKSPACE_ID } from '../../api/constants';
 import { useToast } from '../../components/Toast';
 
-const MEMORY_TYPES = ['episodic', 'semantic', 'profile', 'procedural', 'decision', 'preference', 'task', 'risk'];
+const MEMORY_TYPES = ['episodic', 'semantic', 'fact', 'profile', 'procedural', 'decision', 'preference', 'task', 'risk', 'constraint', 'policy', 'summary'];
 const ACCESS_LEVELS = ['public', 'project', 'team', 'private'];
 const emptyEvidence = () => ({ chunk_id: '', evidence_role: 'supports', note: '' });
 

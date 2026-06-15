@@ -2,11 +2,12 @@
 
 ## 1. 项目名称
 
-MemoryBase：面向 AI Agent 协作研发的文件—数据库双态长期记忆系统。
+MemoryBase：面向组织与团队的 AI-native 可追溯长期记忆数据库系统。
 
 ## 2. 一句话介绍
 
-把人类可读的 Markdown、会议纪要和项目文档，编译为 Agent 可检索、可追溯、可权限控制、可审计、可版本化的长期记忆数据库。
+把人类可读的 Markdown、会议纪要和项目文档，编译为人和 Agent 都能
+grep-style 访问、可追溯、可权限控制、可审计、可版本化的长期记忆数据库。
 
 ## 3. 项目定位
 
@@ -36,9 +37,9 @@ SourceDocument
 | 表达层 | WikiPage、WikiPageRevision、TimelineEntry | 生成可读 Wiki 与时间线 |
 | 治理层 | AccessPolicy、RecallLog、ConflictRecord、ForgetRequest、AuditLog | 权限、审计、冲突、遗忘 |
 
-## 6. P0 MVP
+## 6. 已交付核心能力
 
-P0 不依赖 LLM，也不依赖向量数据库。保底功能包括：
+核心能力不依赖外部 LLM，也不依赖向量数据库。保底功能包括：
 
 - 导入 Markdown / txt source
 - 自动切分 source chunk
@@ -50,20 +51,23 @@ P0 不依赖 LLM，也不依赖向量数据库。保底功能包括：
 - Markdown Wiki 导出
 - 基础前端页面
 
-## 7. P1 功能
+## 7. 已交付扩展能力
 
 - Timeline 决策时间线
 - Agent 可见视图
 - AccessPolicy 权限过滤
 - ConflictRecord 冲突治理
 - Memory statistics 统计视图
+- rule-based + optional LLM candidate memory extraction
+- local hashing embedding cache 与 hybrid recall fallback
+- Graph Explorer（PostgreSQL preview + 可选 Neo4j sync）
+- CLI / Agent Runtime sessions、observe、remember、search
+- evaluation framework（LoCoMo / LongMemEval / MemoryAgentBench 等适配器）
 
-## 8. P2 / Future
+## 8. 未来扩展
 
-- ForgetRequest 轻量治理流程（已实现：提交、审批、审计、memory forgotten）
-- Entity / MemoryScene 轻量语义组织（已实现：实体、场景与 M:N 关系）
-- pgvector 语义检索
-- LLM 自动抽取
+- pgvector / ANN 大规模语义检索
+- LLM-backed analysis draft tables and richer review workflow
 - 复杂 temporal knowledge graph
 - 多 Agent 自动协作
 - Obsidian 插件

@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>MemoryBase · 课程答辩 PPT</title>
+<meta name="author" content="林纪帆, 杜卓轩, 李昭成, 王星睿">
+<meta name="description" content="面向组织与团队的 AI-native 可追溯长期记忆数据库系统设计与实现 · 课程最终答辩 PPT 主体。">
+<meta name="keywords" content="MemoryBase, PostgreSQL, Provenance, Governance, Agent Visibility, Audit Log, Hybrid Recall, Graph Explorer, LongMemEval">
+<meta name="generator" content="Kami">
+<style>
+  @font-face { font-family: "TsangerJinKai02"; src: url("https://cdn.jsdelivr.net/gh/tw93/Kami@main/assets/fonts/TsangerJinKai02-W04.ttf") format("truetype"); font-weight: 400; }
+  @font-face { font-family: "TsangerJinKai02"; src: url("https://cdn.jsdelivr.net/gh/tw93/Kami@main/assets/fonts/TsangerJinKai02-W05.ttf") format("truetype"); font-weight: 500; }
+  @font-face { font-family: "JetBrains Mono"; src: url("https://cdn.jsdelivr.net/gh/tw93/Kami@main/assets/fonts/JetBrainsMono.woff2") format("woff2"); font-weight: 400; }
+
+  @page {
+    size: 280mm 158mm;
+    margin: 0;
+    background: #f5f4ed;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --parchment:  #f5f4ed;
+    --ivory:      #faf9f5;
+    --near-black: #141413;
+    --dark-warm:  #3d3d3a;
+    --olive:      #504e49;
+    --stone:      #6b6a64;
+    --brand:      #1B365D;
+    --brand-tint: #EEF2F7;
+    --border:     #e8e6dc;
+    --border-soft:#e5e3d8;
+
+    --serif: "TsangerJinKai02", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", Georgia, serif;
+    --sans:  var(--serif);
+    --mono:  "JetBrains Mono", "SF Mono", "Fira Code", Consolas, Monaco, "TsangerJinKai02", "Source Han Serif SC", monospace;
+
+    --rhythm-module:  14pt;
+    --rhythm-section: 18pt;
+  }
+
+  body {
+    color: var(--near-black);
+    font-family: var(--sans);
+    font-size: 13pt;
+    line-height: 1.55;
+    letter-spacing: 0.3pt;
+  }
+
+  .slide {
+    width: 280mm;
+    height: 158mm;
+    padding: 16mm 20mm;
+    background: var(--parchment);
+    break-after: page;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .slide:last-child { break-after: auto; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 9.5pt;
+    letter-spacing: 2pt;
+    text-transform: uppercase;
+    color: var(--stone);
+    margin-bottom: 2pt;
+  }
+
+  .page-num {
+    position: absolute;
+    bottom: 10mm;
+    right: 20mm;
+    font-family: var(--mono);
+    font-size: 9pt;
+    color: var(--stone);
+    letter-spacing: 0.5pt;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .footer-mark {
+    position: absolute;
+    bottom: 10mm;
+    left: 20mm;
+    font-family: var(--mono);
+    font-size: 9pt;
+    color: var(--stone);
+    letter-spacing: 1.5pt;
+  }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: 24pt;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0.3pt;
+    color: var(--near-black);
+    margin-bottom: var(--rhythm-module);
+  }
+
+  h3 {
+    font-family: var(--serif);
+    font-size: 15pt;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: 0.3pt;
+    color: var(--brand);
+    margin-bottom: 8pt;
+  }
+
+  .lead {
+    font-family: var(--sans);
+    font-size: 12pt;
+    font-weight: 400;
+    line-height: 1.55;
+    letter-spacing: 0.3pt;
+    color: var(--olive);
+    margin-bottom: 8pt;
+  }
+
+  .mt {
+    font-family: var(--serif);
+    font-size: 16pt;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: 0.3pt;
+    color: var(--near-black);
+    margin-bottom: 8pt;
+  }
+
+  .ml {
+    font-family: var(--serif);
+    font-size: 24pt;
+    font-weight: 500;
+    color: var(--brand);
+    margin-right: 6pt;
+  }
+
+  .ms {
+    font-family: var(--mono);
+    font-size: 7.5pt;
+    letter-spacing: 1.5pt;
+    text-transform: uppercase;
+    color: var(--stone);
+    border-bottom: 0.3pt solid var(--border);
+    padding-bottom: 4pt;
+    margin-bottom: var(--rhythm-module);
+  }
+
+  .mb {
+    font-family: var(--sans);
+    font-size: 11pt;
+    line-height: 1.55;
+    letter-spacing: 0.3pt;
+    color: var(--dark-warm);
+    margin-bottom: var(--rhythm-section);
+  }
+
+  .mi {
+    font-family: var(--sans);
+    font-size: 11pt;
+    line-height: 1.55;
+    letter-spacing: 0.3pt;
+    color: var(--dark-warm);
+    padding: 8pt 0;
+  }
+
+  .mc {
+    font-family: var(--sans);
+    font-size: 9.5pt;
+    line-height: 1.5;
+    letter-spacing: 0.3pt;
+    color: var(--olive);
+    border-top: 0.3pt solid var(--border);
+    padding-top: 8pt;
+    margin-top: var(--rhythm-section);
+  }
+
+  .co {
+    font-family: var(--sans);
+    font-size: 11pt;
+    font-weight: 500;
+    line-height: 1.55;
+    letter-spacing: 0.3pt;
+    color: var(--brand);
+    position: absolute;
+    bottom: 12mm;
+    left: 20mm;
+    right: 20mm;
+  }
+
+  .c2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 22pt;
+  }
+
+  .t2x2 {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 22pt 18pt;
+    margin: -18pt -22pt;
+  }
+  .t2x2 td {
+    vertical-align: top;
+    width: 50%;
+  }
+
+  table.data {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  table.data td {
+    padding: 8pt;
+    border-bottom: 0.3pt solid var(--border);
+    font-size: 11pt;
+    line-height: 1.55;
+    letter-spacing: 0.3pt;
+  }
+  table.data td:first-child {
+    font-weight: 500;
+    color: var(--brand);
+  }
+
+  svg {
+    max-height: 105mm;
+    width: auto;
+  }
+
+  .cover {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .cover h1 {
+    font-family: var(--serif);
+    font-size: 38pt;
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: 0.3pt;
+    color: var(--near-black);
+    margin-bottom: 12pt;
+  }
+  .cover .sub {
+    font-family: var(--sans);
+    font-size: 14pt;
+    line-height: 1.5;
+    letter-spacing: 0.3pt;
+    color: var(--olive);
+    max-width: 50ch;
+    margin-bottom: 32pt;
+  }
+  .cover .meta {
+    font-family: var(--sans);
+    font-size: 10pt;
+    color: var(--stone);
+    letter-spacing: 0.3pt;
+  }
+  .cover .brand-logo {
+    height: 72px;
+    width: auto;
+    max-width: 220px;
+    object-fit: contain;
+    margin-bottom: 24pt;
+  }
+</style>
+</head>
+<body>
+
+<!-- 1 · 封面 -->
+<section class="slide cover">
+  <h1>MemoryBase</h1>
+  <div class="sub">面向组织与团队的 AI-native 可追溯长期记忆数据库系统<br>设计与实现</div>
+  <div class="meta">CS3321 数据库系统课程小组 · 2026 年 6 月<br>林纪帆 · 杜卓轩 · 李昭成 · 王星睿</div>
+</section>
+
+<!-- 2 · 项目背景与定位 -->
+<section class="slide">
+  <span class="eyebrow">01 · 项目概述</span>
+  <h2>我们解决什么问题</h2>
+  <p class="lead">AI Agent 与团队协作系统持续产生会议纪要、讨论、决策、偏好与变更，传统做法把它们留在 Markdown、聊天历史或文件树里。</p>
+
+  <div class="c2">
+    <div>
+      <h3>普通文件 / 聊天的局限</h3>
+      <p class="mb">
+        · 信息散落，难统一查询<br>
+        · 修改无法回放、无 actor、无审计<br>
+        · Agent 缺可靠权限边界，只能靠 prompt 自律<br>
+        · 遗忘 / 冲突缺少审批链与可验证状态<br>
+        · 难以回答“这条结论来自哪一段原文”
+      </p>
+    </div>
+    <div>
+      <h3>MemoryBase 的一句话定位</h3>
+      <p class="mb">
+        把人类可读的 Markdown、会议纪要与项目文档，编译为人和 Agent 都能访问、<strong>可追溯、可权限控制、可审计、可版本化</strong>的<strong>长期记忆数据库</strong>。
+      </p>
+      <p class="mb">
+        同时, 我们完整呈现了其概念结构、ER、范式、物理设计、索引、视图、触发器与 SQL 证据。
+      </p>
+    </div>
+  </div>
+
+  <div class="page-num">02</div>
+</section>
+
+<!-- 3 · 研究现状与差异化 -->
+<section class="slide">
+  <span class="eyebrow">02 · 研究现状</span>
+  <h2>对照四类已有路线</h2>
+  <p class="lead">我们吸收它们的强项；差异主要发生在数据库这一层。</p>
+
+  <table class="data">
+    <tr>
+      <td>传统 RAG / 向量检索</td>
+      <td>LangChain、LlamaIndex、Pinecone、ChromaDB</td>
+      <td>语义召回强，但把 chunk / memory / evidence / revision / audit / policy 当业务对象建模的较少</td>
+    </tr>
+    <tr>
+      <td>Agent 长期记忆系统</td>
+      <td>MemGPT / Letta、Mem0、MemoryBank、LongMem</td>
+      <td>关心“模型记得并用上”，较少展示 schema、外键、范式、触发器、审计链与 SQL 可验证性</td>
+    </tr>
+    <tr>
+      <td>产品化记忆 / 企业知识库</td>
+      <td>ChatGPT Memory、Confluence AI / Rovo、Notion AI、Obsidian / Logseq</td>
+      <td>体验成熟，但不开放底层关系 schema、触发器、SQL EXPLAIN 与多租户权限策略</td>
+    </tr>
+    <tr>
+      <td>长期记忆评测 + GraphRAG</td>
+      <td>LoCoMo、LongMemEval、MemoryAgentBench、GraphRAG</td>
+      <td>提供基准与图增强思路；MemoryBase 把 evaluation 与 graph 作为验证与可视化层，不替代 DB 主线</td>
+    </tr>
+  </table>
+
+  <div class="co">差异点：长期记忆按<strong>数据库应用</strong>建模；provenance、governance、agent visibility、audit、SQL lifecycle 全部写在 schema 里。</div>
+
+  <div class="page-num">03</div>
+</section>
+
+<!-- 4 · 系统定位与核心数据链路 -->
+<section class="slide">
+  <span class="eyebrow">03 · 系统定位</span>
+  <h2>DB-first ：以 PostgreSQL 为事实源</h2>
+  <p class="lead">长期记忆不是孤立文本，而是带来源、版本、权限、审计与表达投影的数据库对象。</p>
+
+  <div class="c2">
+    <div>
+      <h3>核心数据链路</h3>
+      <pre style="font-family: var(--mono); font-size: 9.5pt; line-height: 1.55; color: var(--dark-warm); white-space: pre-wrap;">
+SourceDocument
+  └── SourceChunk
+        └── MemoryItem
+              ├── MemoryEvidence  (chunk + 行号)
+              ├── MemoryRevision  (版本)
+              ├── AuditLog        (操作回放)
+              ├── AccessPolicy    (权限过滤)
+              ├── RecallLog       (检索证据)
+              └── WikiPage
+                    └── WikiPageRevision
+      </pre>
+    </div>
+    <div>
+      <h3>关系骨架</h3>
+      <p class="mb">
+        · <strong>25 张核心关系表（主线 11 张节选）</strong>：source_document、source_chunk、memory_item、memory_evidence、memory_revision、audit_log、access_policy、wiki_page、conflict_record、forget_request、recall_log<br>
+        · <strong>8 个核心视图</strong>：v_active_memory / v_memory_with_source / v_agent_visible_memory / v_project_timeline / v_conflict_memory / v_wiki_page_sources / v_memory_statistics / v_memory_recall_statistics<br>
+        · <strong>7 个业务触发器</strong>（另有 7 个 _touch 维护 updated_at）：memory revision / audit / soft delete + conflict lifecycle + wiki revision<br>
+        · <strong>8 种索引</strong>：B+ tree / GIN tsvector / GIN trigram / partial / partial unique / composite / BRIN / covering
+      </p>
+    </div>
+  </div>
+
+  <div class="page-num">04</div>
+</section>
+
+<!-- 5 · 概念结构 · 核心 ER 图 -->
+<section class="slide">
+  <span class="eyebrow">04 · 概念结构设计</span>
+  <h2>核心 E-R 图</h2>
+
+  <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+    <img src="../diagrams/01-er-core.svg" alt="MemoryBase 核心 ER 图" style="max-height: 96mm; max-width: 100%; width: auto; display: block;">
+  </div>
+
+  <div class="co">13 个核心实体 · 60+ 关系 · 主键、外键、CHECK、UNIQUE、GENERATED 全约束 · provenance 与 governance 内嵌 schema</div>
+
+  <div class="page-num">05</div>
+</section>
+
+<!-- 6 · 范式分析与受控反规范化 -->
+<section class="slide">
+  <span class="eyebrow">05 · 逻辑结构设计</span>
+  <h2>范式分析与受控反规范化</h2>
+  <p class="lead">核心业务表以 3NF / BCNF 为主；少量派生字段做<strong>受控反规范化</strong>，显式标注并用 GENERATED 或 trigger 保持一致。</p>
+
+  <table class="data">
+    <tr>
+      <td>核心业务表（多数）</td>
+      <td>3NF / BCNF</td>
+      <td>source_document、memory_evidence、memory_revision、audit_log、access_policy、conflict_record、forget_request 等</td>
+    </tr>
+    <tr>
+      <td>memory_item.search_vector</td>
+      <td>⚠ 反规范化</td>
+      <td>tsvector，<code>GENERATED ALWAYS AS</code> 自动维护，供 GIN FTS</td>
+    </tr>
+    <tr>
+      <td>memory_item.current_revision_no</td>
+      <td>⚠ 反规范化</td>
+      <td>触发器自动维护，供短列表 Index Only Scan</td>
+    </tr>
+    <tr>
+      <td>source_chunk.search_text_zh</td>
+      <td>⚠ 反规范化</td>
+      <td>dirty-bit cache，避免每次召回再拼接原文</td>
+    </tr>
+    <tr>
+      <td>wiki_page.markdown_body</td>
+      <td>⚠ 反规范化</td>
+      <td>维度投影 / 人类可读输出，由 service 同步写</td>
+    </tr>
+    <tr>
+      <td>audit_log（追加写）</td>
+      <td>BCNF</td>
+      <td>append-only，BRIN 索引专属场景</td>
+    </tr>
+  </table>
+
+  <div class="page-num">06</div>
+</section>
+
+<!-- 7 · 物理设计 · 八种索引 + EXPLAIN -->
+<section class="slide">
+  <span class="eyebrow">06 · 物理结构设计</span>
+  <h2>八种索引策略 + EXPLAIN 证据</h2>
+
+  <div class="c2">
+    <div>
+      <h3>索引类型 (覆盖经典 / 现代 / Postgres 专属)</h3>
+      <p class="mb">
+        · <strong>B+ tree (B-link 变种)</strong> — 30+ composite，叶子兄弟指针<br>
+        · <strong>GIN tsvector</strong> — idx_memory_fts、idx_source_chunk_fts<br>
+        · <strong>GIN trigram</strong> — 任意位置子串模糊匹配<br>
+        · <strong>Partial</strong> — <code>WHERE status='active'</code> 过滤<br>
+        · <strong>Partial unique</strong> — idx_policy_global_unique<br>
+        · <strong>Composite leading-key</strong> — <code>workspace_id</code> 优先 (多租户标准)<br>
+        · <strong>BRIN</strong> — <code>audit_log(created_at)</code> append-only 教科书场景<br>
+        · <strong>Covering (INCLUDE)</strong> — idx_memory_active_ranking 走 Index Only Scan
+      </p>
+    </div>
+    <div>
+      <h3>EXPLAIN ANALYZE 证据</h3>
+      <img src="../screenshots/sql/03-explain-analyze.png" alt="EXPLAIN ANALYZE 执行计划" style="max-height: 78mm; max-width: 100%; width: auto; display: block; border: 0.3pt solid var(--border);">
+    </div>
+  </div>
+
+  <div class="co">EXPLAIN 已验证：Index Only Scan · Heap Fetches = 0 · BitmapOr · BRIN range scan · GIN FTS / trigram 命中</div>
+
+  <div class="page-num">07</div>
+</section>
+
+<!-- 8 · 物理设计 · 视图 + 触发器 + 完整性约束 -->
+<section class="slide">
+  <span class="eyebrow">07 · 物理结构设计</span>
+  <h2>视图、触发器与完整性约束</h2>
+
+  <div class="c2">
+    <div>
+      <h3>8 个核心视图</h3>
+      <p class="mb">
+        · <code>v_active_memory</code> — 排除 forgotten / archived<br>
+        · <code>v_memory_with_source</code> — provenance 拼接<br>
+        · <code>v_agent_visible_memory</code> — 权限过滤<br>
+        · <code>v_project_timeline</code> — 时间线投影<br>
+        · <code>v_conflict_memory</code> — 冲突状态<br>
+        · <code>v_wiki_page_sources</code> — wiki 引用追溯<br>
+        · <code>v_memory_statistics</code> — 课程指标<br>
+        · <code>v_memory_recall_statistics</code> — 召回统计
+      </p>
+    </div>
+    <div>
+      <h3>7 个触发器</h3>
+      <p class="mb">
+        · <code>trg_memory_before_update</code> — revision 累加<br>
+        · <code>trg_memory_after_insert</code> — 写 audit_log<br>
+        · <code>trg_memory_after_update</code> — 写 audit_log<br>
+        · <code>trg_memory_soft_delete</code> — 状态变更<br>
+        · <code>trg_conflict_after_insert</code> — 冲突初始化<br>
+        · <code>trg_conflict_after_update</code> — 冲突 lifecycle<br>
+        · <code>trg_wiki_revision_after_insert</code> — wiki 版本追加
+      </p>
+      <p style="font-family: var(--sans); font-size: 10pt; line-height: 1.55; color: var(--olive); margin-top: 4pt;">
+        完整性约束：PK / FK / UNIQUE / CHECK 枚举 (status × 7、evidence_role × 4、principal_type × 3、effect × 2) / NOT NULL / GENERATED ALWAYS。
+      </p>
+    </div>
+  </div>
+
+  <div class="page-num">08</div>
+</section>
+
+<!-- 9 · 系统总体架构 -->
+<section class="slide">
+  <span class="eyebrow">08 · 系统架构</span>
+  <h2>DB-first 多入口架构</h2>
+  <p class="lead">前端、CLI、Agent Runtime 与 evaluation runner 是围绕同一事实源的不同入口。</p>
+
+  <div class="c2">
+    <div>
+      <h3>分层与入口</h3>
+      <pre style="font-family: var(--mono); font-size: 9.5pt; line-height: 1.55; color: var(--dark-warm); white-space: pre-wrap;">
+Human / Admin / Agent / Evaluation Runner
+                |
+                v
+   React Frontend     mb / memorybase CLI
+                \    /
+                 v  v
+            FastAPI Backend
+       (API · Service · Repository)
+                |
+                v
+   PostgreSQL  &lt;--optional--&gt;  Neo4j
+                |
+                v
+   Markdown Wiki / Context Pack / Eval Report
+      </pre>
+    </div>
+    <div>
+      <h3>后端模块分层</h3>
+      <p class="mb">
+        · <strong>API layer</strong> — <code>backend/app/api/*.py</code>：HTTP endpoints + Pydantic contract<br>
+        · <strong>Service layer</strong> — <code>backend/app/services/*.py</code>：source / memory / recall / governance / graph / embedding / QA<br>
+        · <strong>Core</strong> — <code>backend/app/core/*.py</code>：配置、DB 连接<br>
+        · <strong>CLI</strong> — <code>backend/app/cli/</code>：<code>mb</code> / <code>memorybase</code> 命令，覆盖 health / context / recall / search / observe / remember / sessions / eval<br>
+        · <strong>Tests</strong> — <code>backend/tests/</code>：API、service、evaluation、PostgreSQL integration
+      </p>
+    </div>
+  </div>
+
+  <div class="page-num">09</div>
+</section>
+
+<!-- 10 · 演示 1 · Source → Memory → Evidence -->
+<section class="slide">
+  <span class="eyebrow">09 · 系统演示</span>
+  <h2>演示一 · Source → Memory → Evidence 端到端 provenance</h2>
+  <p class="lead">任意一条 memory 都可追到 SourceChunk 行号、改写历史与操作者。</p>
+
+  <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+    <img src="../screenshots/ui/05-memory-detail-evidence-revisions.png" alt="Memory 详情 · evidence + revision" style="max-height: 88mm; max-width: 100%; width: auto; display: block; border: 0.3pt solid var(--border);">
+  </div>
+
+  <div class="co">一条 memory · 多条 evidence · N 次 revision · 全部带 actor + 时间戳 · 由 <code>memory_evidence</code> + 触发器自动维护</div>
+
+  <div class="page-num">10</div>
+</section>
+
+<!-- 11 · 演示 2 · Optional LLM extraction comparison -->
+<section class="slide">
+  <span class="eyebrow">10 · 系统演示</span>
+  <h2>演示二 · Rule-based vs Qwen LLM 候选抽取</h2>
+  <p class="lead">同一组三条 chunk，默认 <code>rule_based</code> 与 optional Qwen-compatible LLM 给出了不同的类型判断与 confidence。</p>
+
+  <div class="c2" style="gap: 16pt; align-items: start;">
+    <div>
+      <h3>默认 rule-based</h3>
+      <img src="../screenshots/ui/19-llm-not-used.png" alt="Rule-based candidate extraction" style="max-height: 64mm; max-width: 100%; width: 100%; object-fit: contain; display: block; border: 0.3pt solid var(--border);">
+    </div>
+    <div>
+      <h3>Qwen-compatible optional LLM</h3>
+      <img src="../screenshots/ui/19-llm-used.png" alt="Qwen LLM candidate extraction" style="max-height: 64mm; max-width: 100%; width: 100%; object-fit: contain; display: block; border: 0.3pt solid var(--border);">
+    </div>
+  </div>
+
+  <div class="mc">
+    `abandoned cafeteria`: `decision`, confidence `0.65` → `0.90`；`PostgreSQL source of truth`: `task` → `decision`；`private budget notes hidden`: `constraint` → `policy`。
+  </div>
+
+  <div class="co">默认仍是离线可演示的 <code>rule_based</code>；LLM 只提升 candidate 语义质量，结果仍写入 <code>status='candidate'</code> 并需要人工审批</div>
+
+  <div class="page-num">11</div>
+</section>
+
+<!-- 12 · 演示 3 · Recall + Context Pack -->
+<section class="slide">
+  <span class="eyebrow">11 · 系统演示</span>
+  <h2>演示三 · Recall + Context Pack 与透明 fallback</h2>
+  <p class="lead">keyword / vector / hybrid 三种模式；无 embedding 时透明 fallback 到 keyword，并写入 <code>retrieval_info</code>。</p>
+
+  <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+    <img src="../screenshots/ui/06-recall-search-results.png" alt="Recall 搜索结果 + retrieval_info" style="max-height: 86mm; max-width: 100%; width: auto; display: block; border: 0.3pt solid var(--border);">
+  </div>
+
+  <div class="co"><code>retrieval_info</code> 写明 effective_mode、fallback_reason、vector_used;Context Pack 投影为 Agent-ready Markdown</div>
+
+  <div class="page-num">12</div>
+</section>
+
+<!-- 13 · 演示 4 · Governance + Graph -->
+<section class="slide">
+  <span class="eyebrow">12 · 系统演示</span>
+  <h2>演示四 · Governance lifecycle + Graph 可视化</h2>
+
+  <div class="c2">
+    <div>
+      <h3>冲突治理 (Governance)</h3>
+      <img src="../screenshots/ui/12-governance-conflicts.png" alt="Conflict governance UI" style="max-height: 72mm; max-width: 100%; width: auto; display: block; border: 0.3pt solid var(--border);">
+    </div>
+    <div>
+      <h3>provenance 图谱 (Graph)</h3>
+      <img src="../screenshots/ui/15-graph-explorer-demo-workspace.png" alt="Graph Explorer demo workspace" style="max-height: 72mm; max-width: 100%; width: auto; display: block; border: 0.3pt solid var(--border);">
+    </div>
+  </div>
+
+  <div class="co">conflict · policy · forget · timeline · audit · graph — 全部从 schema 投影；Graph 是可视化层，PostgreSQL 仍是权威事实源</div>
+
+  <div class="page-num">13</div>
+</section>
+
+<!-- 14 · 自动化测试覆盖 -->
+<section class="slide">
+  <span class="eyebrow">13 · 测试与评估</span>
+  <h2>自动化测试覆盖</h2>
+
+  <table class="data">
+    <tr>
+      <td>API / service</td>
+      <td><code>test_sources.py</code>、<code>test_memories.py</code>、<code>test_recall_query.py</code></td>
+      <td>source 导入、memory CRUD、召回</td>
+    </tr>
+    <tr>
+      <td>Governance</td>
+      <td><code>test_governance.py</code>、<code>test_graph_service.py</code></td>
+      <td>policy / audit / conflict / forget / graph visibility</td>
+    </tr>
+    <tr>
+      <td>CLI / Agent Runtime</td>
+      <td><code>test_cli_context.py</code>、<code>test_cli_recall.py</code>、<code>test_cli_sessions.py</code>、<code>test_cli_writeback.py</code></td>
+      <td>context / recall / observe / remember 全链路</td>
+    </tr>
+    <tr>
+      <td>Evaluation</td>
+      <td><code>test_evaluation_*</code></td>
+      <td>adapters / metrics / judging / checkpoint / report</td>
+    </tr>
+    <tr>
+      <td>PostgreSQL integration</td>
+      <td><code>test_postgres_integration.py</code></td>
+      <td>schema / seed / trigger / batch create / supersession</td>
+    </tr>
+    <tr>
+      <td>Frontend</td>
+      <td><code>npm run lint</code> + <code>npm run build</code></td>
+      <td>React 生产构建</td>
+    </tr>
+  </table>
+
+  <div class="co">最近一次合并后：pytest <strong>197 passed · 1 skipped</strong> · ruff 通过 · frontend lint + build 通过 · PostgreSQL integration 2/2 passed</div>
+
+  <div class="page-num">14</div>
+</section>
+
+<!-- 15 · LongMemEval 评测结果与诚实定位 -->
+<section class="slide">
+  <span class="eyebrow">14 · 测试与评估</span>
+  <h2>LongMemEval 500-case 工程评测</h2>
+  <p class="lead">评测在我们这里只用来<strong>验证工程能力、暴露弱项</strong>，不是榜单卖点。</p>
+
+  <div class="c2">
+    <div>
+      <h3>整体指标 (oracle / db_qa)</h3>
+      <table class="data">
+        <tr><td>Cases</td><td style="text-align:right;">500</td></tr>
+        <tr><td>API errors</td><td style="text-align:right;">0</td></tr>
+        <tr><td>Deterministic pass</td><td style="text-align:right;">176 / 500 (35.2%)</td></tr>
+        <tr><td>Semantic judge pass</td><td style="text-align:right;">292 / 500 (58.4%)</td></tr>
+        <tr><td>Semantic judge fail</td><td style="text-align:right;">208 / 500 (41.6%)</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>分类结果 (semantic judge)</h3>
+      <table class="data">
+        <tr><td>Abstention (强项)</td><td style="text-align:right;">93.3%</td></tr>
+        <tr><td>Temporal update (强项)</td><td style="text-align:right;">80.6%</td></tr>
+        <tr><td>Single fact (强项)</td><td style="text-align:right;">79.2%</td></tr>
+        <tr><td>Temporal reasoning</td><td style="text-align:right;">52.8%</td></tr>
+        <tr><td>Preference following (弱项)</td><td style="text-align:right;">36.7%</td></tr>
+        <tr><td>Multi-session reasoning (弱项)</td><td style="text-align:right;">27.3%</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="co">主价值在 provenance · governance · agent visibility · audit · SQL-verifiable lifecycle；弱项 (multi-session、preference) 已写入 future work</div>
+
+  <div class="page-num">15</div>
+</section>
+
+<!-- 16 · 八大创新点 -->
+<section class="slide">
+  <span class="eyebrow">15 · 创新点</span>
+  <h2>八大创新点</h2>
+
+  <div class="c2" style="gap: 28pt;">
+    <div>
+      <div style="margin-bottom: 11pt;">
+        <div style="font-family: var(--serif); font-size: 12.5pt; font-weight: 500; color: var(--brand); margin-bottom: 3pt;"><span style="font-size: 18pt; margin-right: 6pt;">A</span>DB-first AI substrate</div>
+        <p style="font-size: 10pt; line-height: 1.5; color: var(--dark-warm);">把 AI 长期记忆从黑盒能力变成 PostgreSQL 里可验证的关系模型。LLM、embedding、Graph、eval 都是围绕 DB 事实源的增强层。</p>
+      </div>
+      <div style="margin-bottom: 11pt;">
+        <div style="font-family: var(--serif); font-size: 12.5pt; font-weight: 500; color: var(--brand); margin-bottom: 3pt;"><span style="font-size: 18pt; margin-right: 6pt;">B</span>Provenance-first 证据链</div>
+        <p style="font-size: 10pt; line-height: 1.5; color: var(--dark-warm);"><code>memory_evidence</code> / <code>v_memory_with_source</code> / <code>v_wiki_page_sources</code> / <code>recall_log</code> 可回答 “来自哪里、谁用过、改成什么”。</p>
+      </div>
+      <div style="margin-bottom: 11pt;">
+        <div style="font-family: var(--serif); font-size: 12.5pt; font-weight: 500; color: var(--brand); margin-bottom: 3pt;"><span style="font-size: 18pt; margin-right: 6pt;">C</span>Governance-by-default lifecycle</div>
+        <p style="font-size: 10pt; line-height: 1.5; color: var(--dark-warm);">revision / audit / conflict / forget / policy 是核心表 + 触发器,状态变更全可用 SQL 验证。</p>
+      </div>
+      <div>
+        <div style="font-family: var(--serif); font-size: 12.5pt; font-weight: 500; color: var(--brand); margin-bottom: 3pt;"><span style="font-size: 18pt; margin-right: 6pt;">D</span>Agent-aware visibility</div>
+        <p style="font-size: 10pt; line-height: 1.5; color: var(--dark-warm);">Agent 是独立 principal,通过 <code>access_policy</code> + <code>v_agent_visible_memory</code> 把权限过滤放进数据库查询路径。</p>
+      </div>
+    </div>
+    <div>
+      <div style="margin-bottom: 11pt;">
+        <div style="font-family: var(--serif); font-size: 12.5pt; font-weight: 500; color: var(--brand); margin-bottom: 3pt;"><span style="font-size: 18pt; margin-right: 6pt;">E</span>Transparent hybrid retrieval</div>
+        <p style="font-size: 10pt; line-height: 1.5; color: var(--dark-warm);">支持 keyword / vector / hybrid。无 embedding 时<strong>透明 fallback</strong> 并在 <code>retrieval_info</code> 中记录 effective_mode + fallback_reason。</p>
+      </div>
+      <div style="margin-bottom: 11pt;">
+        <div style="font-family: var(--serif); font-size: 12.5pt; font-weight: 500; color: var(--brand); margin-bottom: 3pt;"><span style="font-size: 18pt; margin-right: 6pt;">F</span>AI-assisted candidate extraction</div>
+        <p style="font-size: 10pt; line-height: 1.5; color: var(--dark-warm);">默认是离线可演示的 <code>rule_based</code> 抽取；可选 LLM 只负责生成 <code>status='candidate'</code> 草稿,仍要绑定 evidence、记录 run-level audit,并经人工审批后才进入 active。</p>
+      </div>
+      <div style="margin-bottom: 11pt;">
+        <div style="font-family: var(--serif); font-size: 12.5pt; font-weight: 500; color: var(--brand); margin-bottom: 3pt;"><span style="font-size: 18pt; margin-right: 6pt;">G</span>Graph as provenance visualization</div>
+        <p style="font-size: 10pt; line-height: 1.5; color: var(--dark-warm);">Graph Explorer 用 PostgreSQL 构图,可选同步 Neo4j。图层只做可视化,权威仍在 DB 里。</p>
+      </div>
+      <div>
+        <div style="font-family: var(--serif); font-size: 12.5pt; font-weight: 500; color: var(--brand); margin-bottom: 3pt;"><span style="font-size: 18pt; margin-right: 6pt;">H</span>Evaluation-backed validation</div>
+        <p style="font-size: 10pt; line-height: 1.5; color: var(--dark-warm);">接入 LoCoMo / LongMemEval / MemoryAgentBench adapters。系统因此能跑长期记忆基准,把<strong>真实边界</strong>一起暴露出来。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-num">16</div>
+</section>
+
+<!-- 17 · 分工 + 未来工作 -->
+<section class="slide">
+  <span class="eyebrow">16 · 分工与展望</span>
+  <h2>分工、贡献与未来工作</h2>
+
+  <div class="c2">
+    <div>
+      <h3>小组分工 (基于 Git commit 审计)</h3>
+      <p class="mb">
+        · <strong>林纪帆 (hopecommon / jflin)</strong> — DB schema、治理与溯源模型、lexical search、context-pack formatter、CLI dogfood、Graph hardening、最终报告与答辩材料 <br>
+        · <strong>杜卓轩 (dzx0902 / dzx)</strong> — P0 backend、evaluation framework、LoCoMo / LongMemEval / MemoryAgentBench adapters、embedding / hybrid recall、QA、CI / tooling <br>
+        · <strong>李昭成 (huiyijian / lywzc0419)</strong> — 前端 API 集成、Memory / Recall / Governance 等核心页面交互实现，Runtime / Governance UI、Neo4j Graph Explorer 初版集成，将 PostgreSQL 中的 memory、source、evidence 等关系投影为 provenance 图谱，用于记忆来源追踪与图可视化展示 <br>
+        · <strong>王星睿 (Cofstars)</strong> — source extraction workflow、optional LLM candidate extraction、相关 source UI , CLI , API , tests / final report 和 ppt
+      </p>
+    </div>
+    <div>
+      <h3>当前边界 → 未来工作</h3>
+      <p class="mb">
+        · 当前仅实现 optional LLM candidate extraction → 后续引入 <code>analysis_run</code> / <code>analysis_memory_draft</code> / <code>analysis_draft_evidence</code> 草稿表<br>
+        · JSONB embedding cache → 引入 pgvector / HNSW / IVFFlat 支撑大规模向量<br>
+        · LongMemEval 弱项 → 增强 multi-session reasoning、preference following<br>
+        · memory-level visibility → 扩展 source / wiki 资源 policy<br>
+        · 完善 LoCoMo / MemoryAgentBench 对照实验 + 独立 judge<br>
+        · Obsidian / Git 双向同步与多 Agent 协作
+      </p>
+    </div>
+  </div>
+
+  <div class="co">MemoryBase 把 AI memory 从产品黑盒搬进 PostgreSQL — 每条都<strong>带来源、可审计、可被 Agent 调用</strong></div>
+
+  <div class="page-num">17</div>
+</section>
+
+</body>
+</html>

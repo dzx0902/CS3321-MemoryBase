@@ -6,6 +6,7 @@ from ..core.config import get_settings
 from .commands.configure import configure
 from .commands.context import context
 from .commands.eval import app as eval_app
+from .commands.extract import extract
 from .commands.health import health
 from .commands.observe import observe
 from .commands.recall import recall
@@ -41,6 +42,7 @@ def main(
 
 app.command("configure", short_help="Configure CLI defaults")(configure)
 app.command("context", short_help="Render agent context")(context)
+app.command("extract", short_help="Extract candidate memories from chunks")(extract)
 app.command("health", short_help="Check API, workspace, and agent health")(health)
 app.command("observe", short_help="Write conversation messages")(observe)
 app.command("recall", short_help="Recall governed memories")(recall)

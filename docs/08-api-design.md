@@ -1,6 +1,6 @@
 # API 设计文档
 
-本文档是课程报告用的 API 摘要。后端实现、前端 mock 与集成验收以 `docs/15-api-contract-plan.md` 的执行契约为准。
+本文档是课程报告用的 API 摘要。后端实现、前端 mock 与集成验收以 `docs/process/15-api-contract-plan.md` 的执行契约为准。
 
 ## 1. Health
 
@@ -57,6 +57,8 @@
   "confidence": 0.9,
   "importance": 5,
   "access_level": "project",
+  "valid_from": "2026-06-08T12:00:00Z",
+  "supersedes_memory_id": "optional-older-memory-uuid",
   "evidence": [
     {
       "chunk_id": "uuid",
@@ -74,8 +76,38 @@ Lifecycle notes:
 
 - `memory_type` supports `episodic`, `semantic`, `fact`, `profile`, `procedural`, `decision`, `preference`, `task`, `risk`, `constraint`, `policy`, and `summary`.
 - New memory may start as `active` or `candidate`; automatic extraction should use `candidate`.
+- An active memory may atomically supersede an older active/conflicted memory in
+  the same workspace by setting `supersedes_memory_id`. The backend closes the
+  older validity interval and records `superseded_by_memory_id`.
 - Allowed status transitions are `candidate -> active/rejected`, `active -> superseded/archived/conflicted/forgotten`, `conflicted -> active/superseded/forgotten`, and `archived -> forgotten`.
 - Status changes are rejected if they skip the lifecycle state machine. Database triggers still write memory revision and audit rows for accepted state changes.
+
+### POST /api/memories/batch
+
+Creates 1 to 500 memories in one database transaction:
+
+```json
+{
+  "items": [
+    {
+      "workspace_id": "uuid",
+      "memory_type": "fact",
+      "canonical_text": "First fact.",
+      "evidence": []
+    },
+    {
+      "workspace_id": "uuid",
+      "memory_type": "fact",
+      "canonical_text": "Second fact.",
+      "evidence": []
+    }
+  ]
+}
+```
+
+All items must use the same `workspace_id`. The operation is atomic: validation
+or evidence failure for any item rolls back the complete batch. Existing memory
+revision, audit, and inline agent-evidence behavior applies to every item.
 
 ### GET /api/memories
 
@@ -109,15 +141,40 @@ page_size
 
 ### POST /api/memory-extraction/from-chunks
 
-使用 rule-based extractor 从已有 source chunks 生成 `candidate` memory，并自动绑定 source evidence。候选记忆不会进入默认 recall，必须 approve 后才会转为 `active`。
+从已有 source chunks 生成 `candidate` memory，并自动绑定 source evidence。默认走 `rule_based` extractor；也可传 `method = llm` 调用 OpenAI-compatible LLM analysis path。候选记忆不会进入默认 recall，必须 approve 后才会转为 `active`。
 
 ```json
 {
   "workspace_id": "uuid",
   "chunk_ids": ["uuid"],
-  "max_candidates": 10
+  "max_candidates": 10,
+  "method": "rule_based"
 }
 ```
+
+LLM mode example:
+
+```json
+{
+  "workspace_id": "uuid",
+  "chunk_ids": ["uuid"],
+  "max_candidates": 10,
+  "method": "llm",
+  "llm": {
+    "api_key": "sk-...",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "model": "qwen-plus",
+    "provider": "dashscope"
+  }
+}
+```
+
+说明：
+
+- `method` 支持 `rule_based` 和 `llm`，默认 `rule_based`。
+- `llm` 字段仅在 `method = llm` 时需要。
+- `provider` 当前主要作为 audit/debug 元数据标签；真正的调用由 `api_key`、`base_url`、`model` 决定。
+- 响应会额外返回 `method`，表示本次候选抽取实际使用的路径。
 
 ### GET /api/memory-candidates
 
@@ -507,3 +564,35 @@ Runs a forgetting verification report after approval. The report checks target s
 ### POST /api/observe/batch
 
 批量写入 messages。单次最多 100 条，后端在一个 transaction 中写入；任一 message 校验失败时整批回滚。
+
+## 12. Extension APIs
+
+以下端点是当前代码已交付的扩展能力。最终报告可按篇幅选择摘要，不必把每个
+request/response 全量展开。
+
+### Graph API
+
+| Endpoint | 作用 |
+|---|---|
+| `GET /api/graph/health` | 查看 Neo4j / graph store 状态 |
+| `GET /api/graph/workspace` | 读取 workspace graph；可选 `agent_id` 做可见性过滤，Neo4j 不可用时可 fallback |
+| `GET /api/graph/workspace/preview` | 直接从 PostgreSQL 构建 graph preview |
+| `POST /api/graph/workspace/sync` | 将 PostgreSQL workspace snapshot 同步到 Neo4j，并写入 audit attribution |
+
+### Embedding API
+
+| Endpoint | 作用 |
+|---|---|
+| `POST /api/embeddings/generate` | 用 local hashing 或配置的 provider 生成 embedding |
+| `POST /api/embeddings/memories/{memory_id}` | 为单条 memory 回填 embedding cache |
+| `POST /api/embeddings/chunks/{chunk_id}` | 为单个 source chunk 回填 embedding cache |
+| `POST /api/embeddings/backfill` | 按 workspace/provider/model 批量回填 memory/chunk embedding |
+
+### QA / Stats / Semantic API
+
+| Endpoint | 作用 |
+|---|---|
+| `POST /api/qa/answer` | 基于 recall context 调用可选 LLM 生成回答 |
+| `GET /api/stats/overview` | Dashboard 统计汇总 |
+| `GET /api/entities` | 查询 workspace entities |
+| `GET /api/scenes` | 查询 memory scenes |

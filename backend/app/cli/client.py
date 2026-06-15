@@ -63,6 +63,15 @@ class MemoryBaseClient(Protocol):
     ) -> dict[str, Any]:
         ...
 
+    def extract_candidates(
+        self,
+        payload: dict[str, Any],
+        *,
+        actor_type: str,
+        actor_id: str | None,
+    ) -> dict[str, Any]:
+        ...
+
 
 class HttpMemoryBaseClient:
     def __init__(self, api_base_url: str) -> None:
@@ -132,6 +141,23 @@ class HttpMemoryBaseClient:
         if actor_id:
             headers["X-Actor-Id"] = actor_id
         return self._request("POST", "/api/memories", json=payload, headers=headers)
+
+    def extract_candidates(
+        self,
+        payload: dict[str, Any],
+        *,
+        actor_type: str,
+        actor_id: str | None,
+    ) -> dict[str, Any]:
+        headers = {"X-Actor-Type": actor_type}
+        if actor_id:
+            headers["X-Actor-Id"] = actor_id
+        return self._request(
+            "POST",
+            "/api/memory-extraction/from-chunks",
+            json=payload,
+            headers=headers,
+        )
 
     def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         url = f"{self._api_base_url}{path}"

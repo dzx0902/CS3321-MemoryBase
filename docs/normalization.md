@@ -122,7 +122,10 @@ status:
 
    **工程理由**：消除每次读取 memory 时对 `memory_revision` 的 MAX 聚合。该值在 trigger `trg_memory_after_update` 中维护。
 
-   **补偿措施**：trigger 自动维护，应用层只读不写。代价是 trigger 必须正确，**已在 `tests/test_governance.py` 覆盖**。
+   **补偿措施**：`trg_memory_before_update` 先在同一事务内递增
+   `current_revision_no`，`trg_memory_after_update` 再写入 `memory_revision`
+   和 `audit_log`。应用层只读不直接维护该字段。代价是 trigger 必须正确，
+   **已在 `tests/test_governance.py` 覆盖**。
 
 ### 1.5 `memory_revision`（记忆历史版本）
 
@@ -383,7 +386,7 @@ SQL:2016 标准引入 JSON 数据类型，将 JSONB 视为**一个原子的"半�
 | 派生字段 | 维护机制 | 一致性保证 |
 |---|---|---|
 | `memory_item.search_vector` / `source_chunk.search_vector` | `GENERATED ALWAYS AS (...) STORED` | DBMS 强制，应用层无法直接写 |
-| `memory_item.current_revision_no` | trigger `trg_memory_after_update` | trigger 单事务原子更新 |
+| `memory_item.current_revision_no` | trigger `trg_memory_before_update` 递增，`trg_memory_after_update` 写 revision/audit | trigger 单事务原子更新 |
 | `wiki_page.current_revision_no` | trigger `trg_wiki_revision_after_insert` | 同上 |
 | `wiki_page.needs_rebuild` | trigger `trg_memory_after_update` | dirty bit 设置；rebuild 时清零 |
 | `memory_entity.workspace_id` / `memory_scene_cell.workspace_id` | 应用层显式写入 + 复合 FK 校验 | DBMS 复合 FK 拒绝跨租户引用 |

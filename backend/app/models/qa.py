@@ -33,6 +33,9 @@ class AnswerResponse(BaseModel):
     citation_map: dict[str, Any]
     token_count: int
     token_budget: int
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
     selected_memories: list[dict[str, Any]]
     supporting_evidence: list[dict[str, Any]]
     created_at: datetime | None = None

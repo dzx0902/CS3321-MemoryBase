@@ -15,6 +15,8 @@ DROP TRIGGER IF EXISTS trg_conflict_after_update ON conflict_record;
 
 DROP FUNCTION IF EXISTS fn_memory_revision_fields_changed();
 
+-- Actor context helpers read transaction-local settings set by services or SQL fixtures.
+-- They let triggers attribute revisions and audit rows without extra trigger arguments.
 CREATE OR REPLACE FUNCTION fn_current_actor_type()
 RETURNS VARCHAR(20) AS $$
 BEGIN
@@ -22,6 +24,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Returns NULL when no actor id is supplied, which is valid for system actions.
 CREATE OR REPLACE FUNCTION fn_current_actor_id()
 RETURNS UUID AS $$
 BEGIN
@@ -29,6 +32,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Allows service code to override the revision reason for a transaction.
 CREATE OR REPLACE FUNCTION fn_revision_reason(default_reason TEXT)
 RETURNS TEXT AS $$
 BEGIN
@@ -36,6 +40,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Shared updated_at maintainer for tables with mutable rows.
 CREATE OR REPLACE FUNCTION fn_touch_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -72,6 +77,8 @@ CREATE TRIGGER trg_conflict_touch
 BEFORE UPDATE ON conflict_record
 FOR EACH ROW EXECUTE FUNCTION fn_touch_updated_at();
 
+-- Revision-worthy memory changes. Pure updated_at changes should not create
+-- a new revision number.
 CREATE OR REPLACE FUNCTION fn_memory_revision_fields_changed(
   old_memory memory_item,
   new_memory memory_item
@@ -90,6 +97,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Marks direct wiki projections as stale when their source memory changes.
 CREATE OR REPLACE FUNCTION fn_mark_wiki_rebuild_for_memory(target_memory_id UUID)
 RETURNS VOID AS $$
 BEGIN
@@ -100,6 +108,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Before update: decide the next current_revision_no atomically before the row
+-- is written, so the after trigger can insert the matching revision row.
 CREATE OR REPLACE FUNCTION fn_memory_before_update()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -117,6 +127,7 @@ CREATE TRIGGER trg_memory_before_update
 BEFORE UPDATE ON memory_item
 FOR EACH ROW EXECUTE FUNCTION fn_memory_before_update();
 
+-- After insert: create the initial immutable revision and audit snapshot.
 CREATE OR REPLACE FUNCTION fn_memory_after_insert()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -156,6 +167,8 @@ CREATE TRIGGER trg_memory_after_insert
 AFTER INSERT ON memory_item
 FOR EACH ROW EXECUTE FUNCTION fn_memory_after_insert();
 
+-- After update: append revision/audit rows and convert lifecycle status changes
+-- into specific action_type values for governance reports.
 CREATE OR REPLACE FUNCTION fn_memory_after_update()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -208,6 +221,8 @@ CREATE TRIGGER trg_memory_after_update
 AFTER UPDATE ON memory_item
 FOR EACH ROW EXECUTE FUNCTION fn_memory_after_update();
 
+-- Soft delete for direct memory deletes. Workspace cascade deletes are allowed
+-- to hard-delete by checking whether the parent workspace still exists.
 CREATE OR REPLACE FUNCTION fn_memory_soft_delete()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -233,6 +248,7 @@ CREATE TRIGGER trg_memory_soft_delete
 BEFORE DELETE ON memory_item
 FOR EACH ROW EXECUTE FUNCTION fn_memory_soft_delete();
 
+-- Helper used by conflict triggers to decide whether a memory can return to active.
 CREATE OR REPLACE FUNCTION fn_memory_has_open_conflict(target_memory_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -248,6 +264,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- When an open conflict is created, active endpoint memories become conflicted.
 CREATE OR REPLACE FUNCTION fn_conflict_mark_memory_conflicted(target_memory_id UUID)
 RETURNS VOID AS $$
 BEGIN
@@ -258,6 +275,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Restore a conflicted memory only after all open conflicts involving it are closed.
 CREATE OR REPLACE FUNCTION fn_conflict_restore_memory_if_clear(target_memory_id UUID)
 RETURNS VOID AS $$
 BEGIN
@@ -270,6 +288,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- New open conflicts immediately mark both endpoint memories as conflicted.
 CREATE OR REPLACE FUNCTION fn_conflict_after_insert()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -286,6 +305,7 @@ CREATE TRIGGER trg_conflict_after_insert
 AFTER INSERT ON conflict_record
 FOR EACH ROW EXECUTE FUNCTION fn_conflict_after_insert();
 
+-- Conflict status transitions keep memory endpoint statuses synchronized.
 CREATE OR REPLACE FUNCTION fn_conflict_after_update()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -305,6 +325,8 @@ CREATE TRIGGER trg_conflict_after_update
 AFTER UPDATE OF status ON conflict_record
 FOR EACH ROW EXECUTE FUNCTION fn_conflict_after_update();
 
+-- A wiki revision insert advances the page pointer, clears needs_rebuild, and
+-- writes an audit row for the generated version.
 CREATE OR REPLACE FUNCTION fn_wiki_revision_after_insert()
 RETURNS TRIGGER AS $$
 BEGIN

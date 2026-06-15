@@ -19,6 +19,10 @@ def build_chunks(
     overlap_lines: int = 1,
 ) -> list[ChunkDraft]:
     lines = raw_text.splitlines() or [raw_text]
+    natural_chunks = _line_level_chunks(lines, max_chars=max_chars)
+    if natural_chunks:
+        return natural_chunks
+
     chunks: list[ChunkDraft] = []
     index = 0
     chunk_no = 1
@@ -57,6 +61,28 @@ def build_chunks(
 
         index = max(index - overlap_lines, start_index + 1)
 
+    return chunks
+
+
+def _line_level_chunks(lines: list[str], *, max_chars: int) -> list[ChunkDraft]:
+    chunks: list[ChunkDraft] = []
+    chunk_no = 1
+    for index, line in enumerate(lines):
+        text = line.strip()
+        if not text:
+            continue
+        if len(text) > max_chars:
+            return []
+        chunks.append(
+            ChunkDraft(
+                chunk_no=chunk_no,
+                chunk_text=text,
+                start_line=index + 1,
+                end_line=index + 1,
+                token_count=_estimate_token_count(text),
+            )
+        )
+        chunk_no += 1
     return chunks
 
 

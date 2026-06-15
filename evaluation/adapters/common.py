@@ -17,8 +17,12 @@ def load_raw_records(raw_dir: Path) -> list[dict[str, Any]]:
             records.extend(_load_jsonl(path))
         elif path.suffix.lower() == ".json":
             records.extend(_load_json(path))
+        elif path.suffix.lower() == ".parquet":
+            records.extend(_load_parquet(path))
+        elif not path.suffix:
+            records.extend(_load_json(path))
     if not records:
-        raise FileNotFoundError(f"no .json or .jsonl benchmark files found in {raw_dir}")
+        raise FileNotFoundError(f"no JSON benchmark files found in {raw_dir}")
     return records
 
 
@@ -76,6 +80,8 @@ def normalize_expected_answer(raw: dict[str, Any]) -> str | None:
             return value
         if isinstance(value, list) and value:
             return ", ".join(str(item) for item in value)
+        if isinstance(value, (int, float, bool)):
+            return str(value)
     return None
 
 
@@ -150,6 +156,14 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
                 raise ValueError(f"{path}:{line_no}: JSONL row must be an object")
             records.append(raw)
     return records
+
+
+def _load_parquet(path: Path) -> list[dict[str, Any]]:
+    try:
+        import pyarrow.parquet as parquet
+    except ImportError as exc:
+        raise RuntimeError("pyarrow is required to convert Parquet benchmark files") from exc
+    return [item for item in parquet.read_table(path).to_pylist() if isinstance(item, dict)]
 
 
 def _normalize_session(raw: dict[str, Any], *, fallback_id: str) -> dict[str, Any]:

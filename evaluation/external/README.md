@@ -19,10 +19,12 @@ responsible for conversion.
 
 | Benchmark | Status | Notes |
 | --- | --- | --- |
-| LongMemEval | Partially supported | Converts common JSON/JSONL records with question, answer, and session/message fields. |
-| LoCoMo | Partially supported | Converts common conversation + qa records into one case per QA item. |
-| MemoryAgentBench | Partially supported | Converts common interaction/message records into EvaluationCase JSONL. |
+| LongMemEval | Official format supported | Handles extensionless official files, nested sessions, dates, answer-session IDs, abstention, preferences, and knowledge updates. |
+| LoCoMo | Official format supported | Handles session dictionaries, timestamps, speakers, image captions, QA categories, evidence IDs, and adversarial questions. |
+| MemoryAgentBench | Official Conflict Resolution supported | Converts the official Conflict Resolution parquet shard and common interaction/message records into EvaluationCase JSONL. Other task families remain pending. |
 | BEIR | TODO | Retriever-only supplemental benchmark. |
 | BEAM | TODO | Optional ultra-long context retention benchmark. |
 
-Add download URLs, license notes, and exact raw file names before integrating each dataset.
+LongMemEval, LoCoMo, and MemoryAgentBench download, license, and execution
+details are documented in their benchmark directories. Add equivalent
+documentation before promoting another adapter from partial support.

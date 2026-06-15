@@ -20,6 +20,7 @@ from ..services.graph_service import (
     PostgresGraphRepository,
     PostgresGraphVisibilityRepository,
 )
+from ..services.llm_analysis import LlmAnalysisDefaults, OpenAICompatibleAnalysisClient
 from ..services.llm_service import AnswerService, ChatProvider, OpenAICompatibleChatProvider
 from ..services.memory_extraction_service import MemoryExtractionService
 from ..services.memory_service import MemoryService, PostgresMemoryRepository
@@ -31,6 +32,8 @@ from ..services.stats_service import PostgresStatsRepository, StatsService
 from ..services.wiki_service import PostgresWikiRepository, WikiService
 
 
+# Dependency builders keep FastAPI route files thin. The graph service is cached
+# because it can own a Neo4j driver pool; ordinary repositories remain cheap wrappers.
 @lru_cache(maxsize=1)
 def get_database() -> Database:
     settings = get_settings()
@@ -53,9 +56,19 @@ def get_memory_service() -> MemoryService:
 
 
 def get_memory_extraction_service() -> MemoryExtractionService:
+    settings = get_settings()
     return MemoryExtractionService(
         database=get_database(),
         memory_service=get_memory_service(),
+        llm_client=OpenAICompatibleAnalysisClient(),
+        llm_defaults=LlmAnalysisDefaults(
+            api_key=settings.llm_analysis_api_key,
+            base_url=settings.llm_analysis_base_url,
+            model=settings.llm_analysis_model,
+            provider=settings.llm_analysis_provider,
+            temperature=settings.llm_temperature,
+            max_tokens=settings.llm_max_tokens,
+        ),
     )
 
 
@@ -138,6 +151,8 @@ def get_app_settings() -> Settings:
 
 
 def _build_recall_repository(settings: Settings) -> PostgresRecallRepository:
+    # Recall and QA share this builder so keyword/vector/hybrid configuration stays
+    # consistent across direct recall, context packs, and optional answer generation.
     return PostgresRecallRepository(
         get_database(),
         embedding_provider=_build_embedding_provider(settings),
@@ -148,6 +163,8 @@ def _build_recall_repository(settings: Settings) -> PostgresRecallRepository:
 
 
 def _build_embedding_provider(settings: Settings) -> EmbeddingProvider:
+    # Local hashing is the deterministic course-demo default; SiliconFlow is an
+    # optional provider path when an external embedding API is configured.
     provider = _embedding_provider_name(settings)
     if provider == "siliconflow":
         return SiliconFlowEmbeddingProvider(

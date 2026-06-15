@@ -3,8 +3,18 @@ import { Link } from 'react-router-dom';
 import { memoriesApi } from '../../api/client';
 import { useToast } from '../../components/Toast';
 
-const MEMORY_TYPES = ['', 'episodic', 'semantic', 'profile', 'procedural', 'decision', 'preference', 'task', 'risk'];
-const STATUSES = ['', 'active', 'archived', 'forgotten', 'superseded', 'conflicted'];
+const MEMORY_TYPES = ['', 'episodic', 'semantic', 'fact', 'profile', 'procedural', 'decision', 'preference', 'task', 'risk', 'constraint', 'policy', 'summary'];
+const STATUS_OPTIONS = [
+  { value: '', label: 'Active (default)' },
+  { value: 'all', label: 'All Statuses' },
+  { value: 'candidate', label: 'candidate' },
+  { value: 'active', label: 'active' },
+  { value: 'archived', label: 'archived' },
+  { value: 'forgotten', label: 'forgotten' },
+  { value: 'superseded', label: 'superseded' },
+  { value: 'rejected', label: 'rejected' },
+  { value: 'conflicted', label: 'conflicted' },
+];
 
 export default function MemoryList() {
   const [memories, setMemories] = useState([]);
@@ -58,8 +68,7 @@ export default function MemoryList() {
         </select>
         <select className="select" value={filters.status}
           onChange={(e) => updateFilter('status', e.target.value)} style={{ minWidth: 140 }}>
-          <option value="">All Statuses</option>
-          {STATUSES.filter(Boolean).map((s) => <option key={s} value={s}>{s}</option>)}
+          {STATUS_OPTIONS.map((status) => <option key={status.label} value={status.value}>{status.label}</option>)}
         </select>
         <input className="input" placeholder="Workspace ID..." value={filters.workspace_id}
           onChange={(e) => updateFilter('workspace_id', e.target.value)} style={{ minWidth: 160 }} />
@@ -83,6 +92,7 @@ export default function MemoryList() {
                   <th>Title</th>
                   <th>Type</th>
                   <th>Status</th>
+                  <th>Confidence</th>
                   <th>Importance</th>
                   <th>Workspace</th>
                   <th>Updated</th>
@@ -103,6 +113,7 @@ export default function MemoryList() {
                         {m.status || '—'}
                       </span>
                     </td>
+                    <td className="text-muted">{m.confidence != null ? Number(m.confidence).toFixed(2) : '—'}</td>
                     <td className="text-muted">{m.importance ?? '—'}</td>
                     <td className="text-mono text-muted" style={{ fontSize: '0.75rem' }}>{m.workspace_id || '—'}</td>
                     <td className="text-muted">{m.updated_at ? new Date(m.updated_at).toLocaleDateString() : '—'}</td>

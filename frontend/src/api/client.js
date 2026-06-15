@@ -1,5 +1,7 @@
 const BASE = '/api';
 
+// Centralize FastAPI error-shape handling so pages can show useful validation,
+// 404, and service-error messages without duplicating response parsing.
 function formatErrorDetail(detail, fallback) {
   if (!detail) return fallback;
   if (typeof detail === 'string') return detail;
@@ -22,6 +24,7 @@ function formatErrorDetail(detail, fallback) {
 }
 
 async function request(path, options = {}) {
+  // The Vite dev proxy and production backend both expose API routes under /api.
   const url = `${BASE}${path}`;
   const config = {
     headers: { 'Content-Type': 'application/json', ...options.headers },
@@ -43,6 +46,7 @@ async function request(path, options = {}) {
 }
 
 function qs(params) {
+  // Drop empty filters so list endpoints keep their documented defaults.
   if (!params) return '';
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -57,6 +61,14 @@ export const sourcesApi = {
   list: (params) => request(`/sources${qs(params)}`),
   create: (body) => request('/sources', { method: 'POST', body }),
   detail: (docId, params) => request(`/sources/${docId}${qs(params)}`),
+};
+
+// ===== Memory Extraction =====
+export const memoryExtractionApi = {
+  extractFromChunks: (body) => request('/memory-extraction/from-chunks', { method: 'POST', body }),
+  candidates: (params) => request(`/memory-candidates${qs(params)}`),
+  approve: (memoryId, params) => request(`/memory-candidates/${memoryId}/approve${qs(params)}`, { method: 'POST' }),
+  reject: (memoryId, params) => request(`/memory-candidates/${memoryId}/reject${qs(params)}`, { method: 'POST' }),
 };
 
 // ===== Memories =====

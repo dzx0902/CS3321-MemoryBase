@@ -16,6 +16,9 @@ from .tokenizer import build_search_text
 QUERY_EXPANSION_FILE = (
     Path(__file__).resolve().parents[3] / "data" / "recall" / "demo_query_expansions.json"
 )
+
+# The fallback strings are part of the response contract: UI, CLI, and evaluation
+# can explain why a requested vector/hybrid path effectively became keyword recall.
 HYBRID_FALLBACK_REASON = (
     "No matching embedding records were available; "
     "hybrid recall fell back to keyword ranking."
@@ -76,6 +79,8 @@ class PostgresRecallRepository:
         self._embedding_dimension = embedding_dimension
 
     def execute_recall(self, payload: RecallRequest) -> RecallResponse:
+        # Recall is intentionally DB-first: apply workspace/status/type/access filters
+        # before ranking so private or out-of-window memories never enter the candidate set.
         search_text = _expand_query_text(payload.query_text)
         keyword_patterns = [f"%{term}%" for term in _keyword_terms(payload.query_text)]
         filters: list[str] = ["mi.workspace_id = %(workspace_id)s"]
@@ -350,6 +355,8 @@ class PostgresRecallRepository:
         keyword_rows: list[dict[str, object]],
         retrieval_info: RetrievalInfo,
     ) -> tuple[list[dict[str, object]], RetrievalInfo]:
+        # Vector recall is an optional second-stage merge over cached embeddings.
+        # If no usable vectors exist, retrieval_info records the downgrade explicitly.
         query_embedding = self._embedding_provider.embed(
             EmbeddingGenerateRequest(
                 text=payload.query_text,

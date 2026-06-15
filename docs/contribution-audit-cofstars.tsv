@@ -1,0 +1,6 @@
+﻿short_sha	date	kind	author	committer	branches	file_count	top_level	subject	full_sha
+fa6ecd3	2026-06-14	non-merge	Cofstars <2089039907@qq.com>	Cofstars <2089039907@qq.com>	dev,origin/dev	5	backend,docs	Fix chunking lint case and refresh final PDFs	fa6ecd3360f6a3c9a5943469f782a1047cadbf18
+899530e	2026-06-14	non-merge	Cofstars <2089039907@qq.com>	Cofstars <2089039907@qq.com>	dev,origin/dev	5	docs,scripts	Refresh final report artifacts and sanitize PDF exports	899530ea9445003e99e851423d5ae3cd04ee8ca9
+89ca761	2026-06-14	non-merge	Cofstars <2089039907@qq.com>	Cofstars <2089039907@qq.com>	dev,origin/dev	19	docs,scripts	Update final report, slides, and audit artifacts	89ca7618e4bffabc056ec9f9b6787480921e2c55
+ee623c7	2026-06-14	non-merge	Cofstars <2089039907@qq.com>	Cofstars <2089039907@qq.com>	dev,origin/dev	15	.env.example,backend,frontend	Add optional LLM memory extraction pipeline	ee623c78432a8b0544e1093a2a7ca4938da303e9
+c2b8cd9	2026-06-14	non-merge	Cofstars <2089039907@qq.com>	Cofstars <2089039907@qq.com>	dev,origin/dev	12	backend,frontend	Add source extraction candidate workflow	c2b8cd96d0c95ebbccbdc628292d8fe6d3c24f81

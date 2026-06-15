@@ -26,19 +26,25 @@ SourceDocument
 - Frontend: React + Vite
 - Database: PostgreSQL
 - Graph Database: Neo4j（可选，用于知识图谱同步与可视化）
-- Search: PostgreSQL Full Text Search
+- Search: PostgreSQL Full Text Search（GIN tsvector / trigram）+ 可选 embedding 的 hybrid recall
+- AI（可选）: OpenAI-compatible LLM 用于候选记忆抽取与 QA；本地 hashing embedding cache，未配置外部 provider 时透明 fallback 到 keyword
+- CLI: `mb` / `memorybase`（sessions / observe / remember / search / recall）
 - SQL: views, triggers, indexes
 - Deployment: Docker Compose
 
-## P0 MVP
+## 功能模块
 
-- SourceDocument / SourceChunk
-- MemoryItem / MemoryEvidence
-- MemoryRevision / AuditLog
-- RecallLog
-- WikiPage / WikiPageRevision
-- TimelineEntry
-- Dashboard / Source / Memory / Recall / Wiki 页面
+- Source 导入与 chunk 切分：SourceDocument / SourceChunk
+- 记忆与证据链：MemoryItem / MemoryEvidence / MemoryRevision
+- 治理与溯源：AuditLog、ConflictRecord 冲突治理、ForgetRequest 遗忘/归档审批、TimelineEntry
+- 检索：lexical（FTS / trigram）+ 可选 embedding 的 hybrid recall（无 embedding 时透明 fallback 到 keyword），并投影为 Context Pack
+- 权限与可见性：AccessPolicy、agent-aware visibility
+- 候选记忆抽取：rule-based + 可选 LLM（结果写入 `status='candidate'`，需人工审批后进入 active）
+- Wiki 投影：WikiPage / WikiPageRevision，可导出 Markdown
+- Graph Explorer：PostgreSQL preview + 可选 Neo4j 同步的 provenance 图谱
+- CLI / Agent Runtime：`mb` sessions / observe / remember / search / recall
+- 评测：LoCoMo / LongMemEval / MemoryAgentBench adapters 与 evaluation framework
+- 前端页面：Dashboard / Source / Memory / Recall / Governance / Wiki / Runtime / Graph
 
 ## 本地运行
 
@@ -271,29 +277,16 @@ psql postgresql://memorybase:memorybase@localhost:5432/memorybase_db -c "\dt"
 npm run db:check
 ```
 
-## 文档目录
+## 文档与材料
 
-- docs/00-project-overview\.md
-- docs/01-requirements.md
-- docs/02-data-flow\.md
-- docs/03-data-dictionary.md
-- docs/04-er-design.md
-- docs/05-logical-design.md
-- docs/06-physical-design.md
-- docs/07-system-architecture.md
-- docs/08-api-design.md
-- docs/09-module-ipo.md
-- docs/10-test-plan.md
-- docs/11-demo-script.md
-- docs/12-github-workflow\.md
-- docs/13-final-report-outline.md
-- docs/14-initial-issues.md
-- docs/15-api-contract-plan.md
-- docs/16-agent-runtime-gap-analysis.md
-- docs/17-agent-runtime-plan.md
-- docs/18-pr4-lexical-search-design.md
-- docs/19-repo-session-aware-context-design.md
-- docs/20-course-alignment-risk-and-recovery-plan.md
+项目的设计文档、演示材料、源程序说明与参考资料统一放在 [`docs/`](docs/) 目录下：
+
+- 整合后的主报告：[`docs/final-report.md`](docs/final-report.md) / [`docs/final-report.pdf`](docs/final-report.pdf)
+- 答辩 PPT：[`docs/final-assets/slides/final-defense.pdf`](docs/final-assets/slides/final-defense.pdf)
+- 流程图 / ER / 时序图与系统演示截图：[`docs/final-assets/`](docs/final-assets/)
+- 需求 / 概念 / 逻辑 / 物理设计、范式、索引、API、分工等专项文档：见 [`docs/`](docs/)
+
+完整的文档导览与主题索引见 [`docs/README.md`](docs/README.md)；开发过程中的规划与记录归档在 [`docs/process/`](docs/process/)。
 
 ## GitHub Workflows
 

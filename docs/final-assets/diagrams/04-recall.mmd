@@ -1,0 +1,53 @@
+%% MemoryBase — Recall sequence (keyword / hybrid path with transparent fallback)
+%% Covers: query -> permission filter -> lexical/hybrid retrieval -> context pack -> recall_log
+%% Use in report Recall module section.
+
+sequenceDiagram
+    autonumber
+    actor       Caller       as Agent / User / CLI
+    participant API          as FastAPI /api/recall
+    participant Recall       as RecallService
+    participant Embed        as EmbeddingService
+    participant DB           as PostgreSQL
+    participant Vis          as v_agent_visible_memory
+    participant GIN          as GIN tsvector / trigram
+    participant Cache        as memory_embedding + source_chunk_embedding
+
+    Caller->>API: POST /api/recall {query, agent_id, workspace_id, mode}
+
+    Note over API,Vis: Permission filter
+    API->>Recall: recall(query, agent_id, mode=hybrid)
+    alt agent_id provided
+        Recall->>Vis: SELECT memory_id WHERE agent_id = $1
+        Vis-->>Recall: visible_memory_ids
+    else no agent_id
+        Recall->>DB: filter access_level IN ('public', 'project')
+    end
+
+    Note over Recall,GIN: Lexical retrieval (keyword/hybrid path)
+    Recall->>GIN: chunk FTS via idx_source_chunk_fts (+ trigram fallback)
+    GIN-->>Recall: chunk_id ranked list
+    Recall->>GIN: memory FTS via idx_memory_fts on memory_item.search_vector
+    GIN-->>Recall: memory_id keyword candidates
+
+    alt mode is hybrid AND embeddings backfilled
+        Note over Recall,Cache: Vector retrieval (optional)
+        Recall->>Embed: encode(query) -> query_vector
+        Embed-->>Recall: query_vector (JSONB)
+        Recall->>Cache: cosine match memory + chunk embeddings
+        Cache-->>Recall: embedding candidates
+        Recall->>Recall: merge keyword + vector, effective_mode = hybrid
+    else embeddings missing
+        Recall->>Recall: effective_mode = keyword, fallback_reason = no_embeddings
+    end
+
+    Note over Recall,DB: Provenance assembly
+    Recall->>DB: JOIN memory_evidence + source_chunk + source_document
+    DB-->>Recall: candidates with chunks, doc title, line range
+    Recall->>Recall: score + truncate to token budget, build context_pack_json
+
+    Note over Recall,DB: Audit and observability
+    Recall->>DB: INSERT recall_log (query, count, context_pack_json with retrieval_info)
+
+    Recall-->>API: RecallResponse {memories, citations, retrieval_info}
+    API-->>Caller: 200 OK
